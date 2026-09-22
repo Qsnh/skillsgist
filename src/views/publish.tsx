@@ -44,7 +44,10 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
     <Layout title={`编辑 ${props.slug}`} user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">编辑 {props.slug}</h1>
       <Alert message={props.error} />
-      <p class="mb-4 text-sm text-slate-500">保存会发布一个新版本，旧版本保留。</p>
+      <p class="mb-4 text-sm text-slate-500">
+        保存会发布一个新版本，旧版本保留。要整包替换（改了 SKILL.md 以外的文件）就去{" "}
+        <a href={`/s/${props.slug}/upload`} class="underline">上传压缩包</a>。
+      </p>
       <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
         <textarea
           name="markdown"
@@ -54,6 +57,29 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
           {props.markdown}
         </textarea>
         <Button>保存为新版本</Button>
+      </Form>
+    </Layout>
+  );
+}
+
+export function UploadVersionPage(props: { user: UserRow; slug: string; error?: string }) {
+  return (
+    <Layout title={`上传新版本 · ${props.slug}`} user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">上传新版本：{props.slug}</h1>
+      <Alert message={props.error} />
+      <p class="mb-4 text-sm text-slate-500">
+        整包替换：新版本就是这个压缩包里的全部内容，旧版本保留。只想改 SKILL.md 的话去{" "}
+        <a href={`/s/${props.slug}/edit`} class="underline">编辑</a>。
+      </p>
+      <Form action={`/s/${props.slug}/upload`} enctype="multipart/form-data" class="space-y-6">
+        <div>
+          <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="block text-sm" />
+          <p class="mt-1 text-xs text-slate-500">
+            支持 .zip 与 .tar.gz，包内需包含 SKILL.md（多包一层目录也可以），且 SKILL.md 的 name
+            必须仍然是 {props.slug}。上限 2 MB。
+          </p>
+        </div>
+        <Button>发布为新版本</Button>
       </Form>
     </Layout>
   );

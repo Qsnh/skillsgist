@@ -107,7 +107,10 @@ export function SkillPage(props: {
           {props.canManage ? (
             <>
               <a href={`/s/${props.skill.slug}/edit`} class="rounded border border-slate-300 px-3 py-1.5">
-                编辑
+                编辑 SKILL.md
+              </a>
+              <a href={`/s/${props.skill.slug}/upload`} class="rounded border border-slate-300 px-3 py-1.5">
+                上传压缩包
               </a>
               <Form action={`/s/${props.skill.slug}/visibility`}>
                 <button type="submit" class="rounded border border-slate-300 px-3 py-1.5">

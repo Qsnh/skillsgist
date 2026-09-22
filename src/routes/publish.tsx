@@ -5,7 +5,7 @@ import { API_PREFIX, page } from "../csrf";
 import { getVersion } from "../db/queries";
 import { ForbiddenError, publishBytes } from "../publish";
 import { UploadError } from "../skills/normalize";
-import { EditSkillPage, NewSkillPage } from "../views/publish";
+import { EditSkillPage, NewSkillPage, UploadVersionPage } from "../views/publish";
 
 export const publishRoutes = new Hono<AppEnv>();
 
@@ -86,6 +86,36 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
       <EditSkillPage user={user} slug={slug} markdown={markdown} error={failure.message} />,
       failure.status,
     );
+  }
+});
+
+// 和编辑页并列的另一条路：整包替换。两个 handler 各自只读一个字段——编辑读
+// markdown，这里读 file——所以「两个都填了听谁的」这条规则不存在。
+publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
+  const slug = c.req.param("slug");
+  const guard = await requireManagedSkill(c, slug, "更新");
+  if (!guard.ok) return guard.response;
+  return page(c, <UploadVersionPage user={c.get("user")} slug={slug} />);
+});
+
+publishRoutes.post("/s/:slug/upload", requireUser, async (c) => {
+  const user = c.get("user");
+  const slug = c.req.param("slug");
+  const guard = await requireManagedSkill(c, slug, "更新");
+  if (!guard.ok) return guard.response;
+  const body = await c.req.parseBody();
+  try {
+    const file = body.file;
+    if (!(file instanceof File) || file.size === 0) {
+      throw new UploadError("请选择一个压缩包");
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await publishBytes(c.env, user, bytes, { expectedSlug: slug });
+    return c.redirect(`/s/${slug}`, 302);
+  } catch (err) {
+    const failure = publishFailure(err);
+    if (!failure) throw err;
+    return page(c, <UploadVersionPage user={user} slug={slug} error={failure.message} />, failure.status);
   }
 });
 

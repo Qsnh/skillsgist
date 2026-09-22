@@ -49,6 +49,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /admin/users/:id/delete": ({ userId }) => `/admin/users/${userId}/delete`,
   "POST /new": () => "/new",
   "POST /s/:slug/edit": ({ slug }) => `/s/${slug}/edit`,
+  "POST /s/:slug/upload": ({ slug }) => `/s/${slug}/upload`,
   "POST /s/:slug/visibility": ({ slug }) => `/s/${slug}/visibility`,
   "POST /s/:slug/delete": ({ slug }) => `/s/${slug}/delete`,
 };
@@ -75,6 +76,7 @@ const READ_ONLY_GETS = new Set([
   "GET /admin/users",
   "GET /new",
   "GET /s/:slug/edit",
+  "GET /s/:slug/upload",
   "GET /",
   "GET /s/:slug",
   "GET /s/:slug/download",
@@ -355,7 +357,9 @@ describe("rendered forms", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publishMarkdown(cookie, GOOD_MD, "private");
 
-    for (const path of ["/", "/s/demo-skill", "/me", "/admin/users", "/new", "/s/demo-skill/edit"]) {
+    for (const path of [
+      "/", "/s/demo-skill", "/me", "/admin/users", "/new", "/s/demo-skill/edit", "/s/demo-skill/upload",
+    ]) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
       const forms = postFormsIn(html);
       expect(forms.length, `${path} should render at least one POST form`).toBeGreaterThan(0);

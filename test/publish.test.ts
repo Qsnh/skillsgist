@@ -2,7 +2,7 @@ import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
 import {
-  env, fixture, GOOD_MD, ORIGIN, postMultipart, resetDb, seedAndLogin, seedAndToken,
+  env, fixture, GOOD_MD, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken,
 } from "./helpers";
 
 /** `PUT /api/skills/:slug` — the one place this request is spelled out. */
@@ -274,5 +274,99 @@ describe("POST /s/:slug/edit", () => {
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+});
+
+describe("POST /s/:slug/upload", () => {
+  beforeEach(resetDb);
+
+  it("publishes an uploaded archive as a new version", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const res = await postMultipart("/s/demo-skill/upload", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/s/demo-skill");
+
+    const v2 = await getVersion(env.DB, "demo-skill", 2);
+    expect(JSON.parse(v2!.files).map((f: { path: string }) => f.path)).toEqual([
+      "SKILL.md",
+      "references/api.md",
+      "scripts/run.sh",
+    ]);
+  });
+
+  it("rejects an archive whose name disagrees with the slug", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const res = await postMultipart("/s/demo-skill/upload", cookie, {
+      file: new File([OTHER_MD], "SKILL.md", { type: "text/markdown" }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("other-skill");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("re-renders the page when no file was chosen", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const res = await postMultipart("/s/demo-skill/upload", cookie, {});
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("压缩包");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("keeps a public skill public", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
+
+    const res = await postMultipart("/s/demo-skill/upload", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    expect(res.status).toBe(302);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+
+  it("stops a member updating another user's skill", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", alice.cookie, { markdown: GOOD_MD });
+
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    const res = await postMultipart("/s/demo-skill/upload", bob.cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+// 编辑和上传是两条独立的路，各自只有一种输入。这两条钉住的是页面形状本身：
+// 一旦有人把文件框搬回编辑页，「两个都填了听谁的」那条规则就会跟着回来。
+describe("编辑与上传各自只有一种输入", () => {
+  beforeEach(resetDb);
+
+  it("keeps the edit page free of a file input", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const html = await (
+      await SELF.fetch(`${ORIGIN}/s/demo-skill/edit`, { headers: { Cookie: cookie } })
+    ).text();
+    expect(html).toContain("<textarea");
+    expect(html).not.toContain('type="file"');
+  });
+
+  it("keeps the upload page free of a markdown textarea", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const html = await (
+      await SELF.fetch(`${ORIGIN}/s/demo-skill/upload`, { headers: { Cookie: cookie } })
+    ).text();
+    expect(html).toContain('type="file"');
+    expect(html).not.toContain("<textarea");
   });
 });
