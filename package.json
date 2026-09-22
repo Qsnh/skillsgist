@@ -11,7 +11,9 @@
     "dev": "concurrently \"npx @tailwindcss/cli -i src/app.css -o public/app.css --watch\" \"wrangler dev\"",
     "build": "npx @tailwindcss/cli -i src/app.css -o public/app.css --minify",
     "deploy": "npm run build && wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:cli": "node scripts/verify-cli.mjs",
+    "fixtures": "./scripts/make-fixtures.sh"
   },
   "repository": {
     "type": "git",
