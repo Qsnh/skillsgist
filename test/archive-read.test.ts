@@ -75,10 +75,9 @@ describe("readTarGz", () => {
   });
 
   it("reads a tarball produced by bsdtar's own default compression (block-padded gzip)", async () => {
-    // macOS's default `tar` is bsdtar; `tar czf` has it gzip its own output,
-    // which pads to a block boundary with trailing zero bytes after the
-    // real gzip stream ends. This is the single most standard command a
-    // macOS user would run, and it must not be rejected.
+    // `tar czf` on macOS is the single most standard command a user would
+    // run, and its block padding must not be rejected — see GZIP_TRAILER_LEN
+    // in src/skills/tar.ts.
     const files = await readTarGz(bsdtarPaddedTarGz);
     expect([...files.keys()]).toContain("./SKILL.md");
     expect(dec.decode(files.get("./SKILL.md"))).toContain("name: demo-skill");
@@ -97,18 +96,10 @@ describe("readTarGz", () => {
 });
 
 describe("gzipRetryLengths", () => {
-  // Regression pin for a bug introduced by the padding-tolerance fix itself:
-  // `indexAfterLastNonZero` returns `data.length` unchanged when the last
-  // byte isn't zero, which is true of essentially all garbage, truncated, or
-  // adversarial input (trivial for an attacker to guarantee). Before this
-  // fix, every one of the (bounded) probe iterations recomputed
-  // `Math.min(floor + extra, data.length)` as `data.length` and re-ran the
-  // exact same decompression attempt that had already failed, up to 9 extra
-  // times — a flat ~10x CPU multiplier on the failure path for ordinary
-  // corrupt input, not just the bsdtar-padding case the probe exists for.
-  // These tests assert on the pure candidate-length function directly rather
-  // than on CPU time, so a future edit that reintroduces the duplicate
-  // probing fails a test instead of passing silently.
+  // Asserts the two guarantees the function documents — never `data.length`,
+  // never a repeat — on the pure function rather than on CPU time, so an edit
+  // that reintroduces duplicate probing fails a test instead of merely
+  // burning ~10x the CPU on every corrupt upload.
 
   it("returns no candidates when the buffer doesn't end in a zero byte", () => {
     const garbage = new Uint8Array([1, 2, 3, 4, 5]);

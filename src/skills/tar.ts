@@ -56,10 +56,8 @@ async function gunzip(data: Uint8Array): Promise<Uint8Array> {
   try {
     return await inflateGzipMember(data);
   } catch {
-    // bsdtar (macOS's default `tar`) compresses its own output with `tar
-    // czf` and pads the result to a block boundary with trailing NUL bytes
-    // after the real gzip stream ends. Node's zlib and command-line gzip
-    // both tolerate this silently; workerd's native DecompressionStream
+    // Most likely bsdtar's block padding (see GZIP_TRAILER_LEN above).
+    // Node's zlib tolerates it silently; workerd's DecompressionStream
     // does not ("Trailing bytes after end of compressed data").
     for (const end of gzipRetryLengths(data)) {
       try {

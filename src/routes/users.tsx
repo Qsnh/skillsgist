@@ -70,9 +70,7 @@ usersRoutes.post("/login", async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   const user = await getUserByUsername(c.env.DB, username);
-  // Always run the derivation, even when no such user exists, so the two
-  // failure paths take the same time and a username can't be enumerated by
-  // timing responses.
+  // Never skip the derivation — see DUMMY_PASSWORD_HASH.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
   if (!user || !ok) return page(c, <LoginPage error="用户名或密码不正确" />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
@@ -234,10 +232,8 @@ usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
     return usersError(c, admin, "不能删除最后一个管理员");
   }
-  // Reassigns skills.owner_id and versions.author_id to the acting admin
-  // in the same db.batch() as the delete (see deleteUserReassigning) —
-  // both columns are NOT NULL REFERENCES users(id), so the delete would
-  // otherwise leave dangling references or simply fail.
+  // Reassigns owner_id and author_id in the same batch as the delete; the
+  // foreign keys make that mandatory — see deleteUserReassigning.
   await deleteUserReassigning(c.env.DB, target.id, admin.id);
   return c.redirect("/admin/users", 302);
 });

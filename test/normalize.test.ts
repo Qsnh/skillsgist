@@ -41,11 +41,9 @@ describe("normalizeUpload", () => {
   });
 
   it("accepts a tarball padded by bsdtar's default gzip (macOS tar czf)", async () => {
-    // bsdtar-padded.tar.gz is what macOS's default `tar czf` produces: the
-    // gzip stream is zero-padded to a block boundary. readTarGz
-    // already tolerates this at the reader level; pin the tolerance at the
-    // pipeline level too, since this is the single most likely real-world
-    // upload shape from a macOS user.
+    // readTarGz already covers this at the reader level (see
+    // archive-read.test.ts); pin it at the pipeline level too, since it's the
+    // most likely real-world upload shape from a macOS user.
     const result = await normalizeUpload(fixture("BSDTAR_PADDED_TAR_GZ"));
     expect(result.name).toBe("demo-skill");
     expect(result.files.map((f) => f.path).sort()).toEqual([

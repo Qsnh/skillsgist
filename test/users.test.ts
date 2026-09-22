@@ -72,10 +72,9 @@ describe("/login", () => {
   });
 
   it("still runs the password derivation when the username doesn't exist", async () => {
-    // Structural proxy for the timing-safety property: a missing user must
-    // not skip `verifyPassword`, or the two failure paths take measurably
-    // different CPU time and a username can be enumerated by timing. We
-    // don't assert on wall-clock timing (flaky); we assert the call happens.
+    // Structural proxy for the timing-safety property DUMMY_PASSWORD_HASH
+    // exists for: asserting on wall-clock timing would be flaky, so assert
+    // instead that the derivation is reached at all.
     const spy = vi.spyOn(auth, "verifyPassword");
     try {
       const res = await anon("/login", { username: "nobody", password: "wrong-password-x" });
@@ -155,11 +154,9 @@ describe("/admin/users", () => {
     expect(carol?.role).toBe("member");
   });
 
-  // The server refuses a self-targeted
-  // role change or delete outright, but a UI that still renders a control
-  // the server will always reject is a bad guard on its own — the
-  // role-toggle and delete forms (and the delete note) must be absent from
-  // the viewer's own row, while remaining present on every other row.
+  // The UI side of adminTarget's self-targeting refusal: the role-toggle and
+  // delete forms must be absent from the viewer's own row while remaining
+  // present on every other row.
   it("hides the role-toggle and delete controls on the viewer's own row only", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
     const cookie = root.cookie;
@@ -269,17 +266,11 @@ describe("/admin/users/:id/*", () => {
     expect(await countUsers(env.DB)).toBe(1);
   });
 
-  // The last-admin
-  // guard only checks the *count* of admins, so it never stopped an admin
-  // from targeting their own id while a second admin exists.
-  // deleteUserReassigning(db, target.id, admin.id) then runs with the same
-  // id on both sides — the owner_id reassignment is a no-op, and the very
-  // next statement deletes that row, leaving every skill the admin owned
-  // pointing at a user id that no longer exists (and silently vanishing
-  // from listSkills's INNER JOIN). Self-service demotion/deletion must be
-  // refused outright, regardless of how many other admins exist — that's
-  // simpler than trying to make self-reassignment work, and it just means
-  // "remove my own account" is something another admin does instead.
+  // The last-admin guard only checks the *count* of admins, so on its own it
+  // never stops an admin from targeting their own id while a second admin
+  // exists — which is exactly the corruption deleteUserReassigning's
+  // `reassignTo` precondition describes. Refusal must not depend on how many
+  // other admins there are.
   describe("self-targeting guard", () => {
     it("refuses to let an admin delete themselves even when a second admin exists", async () => {
       const { user: root, cookie: rootCookie } = await seedAndLogin({ username: "root", role: "admin" });

@@ -98,11 +98,9 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
         </thead>
         <tbody>
           {props.users.map((u) => {
-            // The server refuses self-targeted role changes and deletes
-            // outright (see routes/users.tsx), but a UI that still renders
-            // a control the server will always reject is a bad guard —
-            // hide the role-toggle and delete controls on the viewer's own
-            // row instead of letting them click into a guaranteed 400.
+            // The server refuses these outright (see adminTarget), but a
+            // control that is always rejected is a bad guard on its own —
+            // don't render it into a guaranteed 400.
             const isSelf = u.id === props.user.id;
             return (
               <tr class="border-b border-slate-100 align-top">
