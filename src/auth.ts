@@ -211,7 +211,7 @@ export async function requireManagedSkill(
   const skill = await getSkill(c.env.DB, slug);
   if (!skill) return { ok: false, response: await c.notFound() };
   if (!canManage(c.get("user"), skill)) {
-    return { ok: false, response: c.text(`无权${action}这个 skill`, 403) };
+    return { ok: false, response: c.text(`You are not allowed to ${action} this skill`, 403) };
   }
   return { ok: true, skill };
 }
@@ -220,7 +220,7 @@ export async function requireManagedSkill(
 export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   const user = await currentUser(c);
   if (!user) return c.redirect("/login", 302);
-  if (user.role !== "admin") return c.text("仅管理员可访问", 403);
+  if (user.role !== "admin") return c.text("Admins only", 403);
   c.set("user", user);
   return next();
 };

@@ -143,10 +143,10 @@ function findEocd(view: DataView, length: number): number {
 }
 
 export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
-  if (bytes.length < 22) throw new ArchiveError("不是合法的 zip：文件过短");
+  if (bytes.length < 22) throw new ArchiveError("Not a valid zip: file too short");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const eocd = findEocd(view, bytes.length);
-  if (eocd < 0) throw new ArchiveError("不是合法的 zip：找不到中央目录结尾");
+  if (eocd < 0) throw new ArchiveError("Not a valid zip: no end-of-central-directory record");
 
   const count = view.getUint16(eocd + 10, true);
   let offset = view.getUint32(eocd + 16, true);
@@ -161,7 +161,7 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
   // RangeError — normalize both so the contract holds for every path.
   try {
     for (let i = 0; i < count; i++) {
-      if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("zip 中央目录损坏");
+      if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("Corrupt zip central directory");
       const flags = view.getUint16(offset + 8, true);
       const method = view.getUint16(offset + 10, true);
       const compressedSize = view.getUint32(offset + 20, true);
@@ -175,10 +175,10 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
       offset = offset + 46 + nameLen + extraLen + commentLen;
 
       if (name.endsWith("/")) continue;
-      if (flags & 1) throw new ArchiveError("不支持加密的 zip 条目");
+      if (flags & 1) throw new ArchiveError("Encrypted zip entries are not supported");
       const fileType = (externalAttrs >>> 16) & 0xf000;
-      if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("不支持压缩包中的链接条目");
-      if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("zip 局部头损坏");
+      if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("Link entries in archives are not supported");
+      if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("Corrupt zip local header");
 
       const localNameLen = view.getUint16(localOffset + 26, true);
       const localExtraLen = view.getUint16(localOffset + 28, true);
@@ -188,15 +188,15 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
       let content: Uint8Array;
       if (method === 0) content = raw;
       else if (method === 8) content = await inflateRaw(raw);
-      else throw new ArchiveError(`不支持的 zip 压缩方法：${method}`);
+      else throw new ArchiveError(`Unsupported zip compression method: ${method}`);
 
-      if (content.byteLength !== uncompressedSize) throw new ArchiveError(`zip 条目大小不符：${name}`);
+      if (content.byteLength !== uncompressedSize) throw new ArchiveError(`Zip entry size mismatch: ${name}`);
       files.set(name, content);
     }
   } catch (err) {
     if (err instanceof ArchiveError) throw err;
     const message = err instanceof Error ? err.message : String(err);
-    throw new ArchiveError(`zip 条目解析失败：${message}`);
+    throw new ArchiveError(`Failed to parse zip entry: ${message}`);
   }
 
   return files;

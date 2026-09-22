@@ -336,7 +336,7 @@ describe("POST /s/:slug/edit", () => {
       markdown: `${v1!.skill_md}\nedited\n`,
     });
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain("上传压缩包");
+    expect(await res.text()).toContain("Upload a complete archive");
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
   });
 
@@ -393,7 +393,7 @@ describe("POST /s/:slug/upload", () => {
 
     const res = await postMultipart("/s/demo-skill/upload", cookie, {});
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain("压缩包");
+    expect(await res.text()).toContain("Choose an archive");
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
   });
 

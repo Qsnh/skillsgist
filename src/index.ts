@@ -69,9 +69,9 @@ app.onError((err, c) => {
   console.error("unhandled", err);
   const accepts = c.req.header("Accept") ?? "";
   if (c.req.path.startsWith(API_PREFIX) || accepts.includes("application/json")) {
-    return c.json({ error: "internal_error", message: "服务内部错误" }, 500);
+    return c.json({ error: "internal_error", message: "Internal server error" }, 500);
   }
-  return c.html("<h1>服务内部错误</h1>", 500);
+  return c.html("<h1>Internal server error</h1>", 500);
 });
 
 export default app;

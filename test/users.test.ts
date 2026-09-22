@@ -67,8 +67,8 @@ describe("/login", () => {
     const missing = await anon("/login", { username: "nobody", password: "wrong-password-x" });
     expect(bad.status).toBe(401);
     expect(missing.status).toBe(401);
-    expect(await bad.text()).toContain("用户名或密码不正确");
-    expect(await missing.text()).toContain("用户名或密码不正确");
+    expect(await bad.text()).toContain("Incorrect username or password");
+    expect(await missing.text()).toContain("Incorrect username or password");
   });
 
   it("still runs the password derivation when the username doesn't exist", async () => {

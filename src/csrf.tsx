@@ -118,7 +118,7 @@ export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   const body = await c.req.parseBody();
   const supplied = body[CSRF_FIELD];
   if (typeof supplied !== "string" || !constantTimeEqual(supplied, expected)) {
-    return c.text("请求校验失败，请刷新页面后重试", 403);
+    return c.text("Request validation failed. Refresh the page and try again.", 403);
   }
   return next();
 };

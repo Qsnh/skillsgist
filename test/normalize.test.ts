@@ -56,7 +56,7 @@ describe("normalizeUpload", () => {
       { path: "SKILL.md", data: enc.encode(GOOD_MD) },
       { path: "../../etc/passwd", data: enc.encode("x") },
     ]);
-    await expect(normalizeUpload(bytes)).rejects.toThrow(/路径/);
+    await expect(normalizeUpload(bytes)).rejects.toThrow(/path/i);
   });
 
   it("drops macOS junk entries", async () => {
@@ -88,12 +88,12 @@ describe("normalizeUpload", () => {
     const entries = [{ path: "SKILL.md", data: enc.encode(GOOD_MD) }];
     for (let i = 0; i <= MAX_FILES; i++) entries.push({ path: `f${i}.txt`, data: enc.encode("x") });
     const bytes = await writeZip(entries);
-    await expect(normalizeUpload(bytes)).rejects.toThrow(/文件数/);
+    await expect(normalizeUpload(bytes)).rejects.toThrow(/file count/i);
   });
 
   it("rejects an upload over the size limit", async () => {
     const big = new Uint8Array(2 * 1024 * 1024 + 1);
-    await expect(normalizeUpload(big)).rejects.toThrow(/上传/);
+    await expect(normalizeUpload(big)).rejects.toThrow(/upload/i);
   });
 
   it("produces a zip whose root holds SKILL.md and whose digest matches its bytes", async () => {

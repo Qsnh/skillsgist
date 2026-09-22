@@ -46,7 +46,7 @@ async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array>
   }
   const markdown = typeof body.markdown === "string" ? body.markdown.trim() : "";
   if (markdown) return new TextEncoder().encode(`${markdown}\n`);
-  throw new UploadError("请上传压缩包，或在文本框里粘贴 SKILL.md 内容");
+  throw new UploadError("Upload an archive, or paste SKILL.md into the text box");
 }
 
 publishRoutes.get("/new", requireUser, async (c) => page(c, <NewSkillPage user={c.get("user")} />));
@@ -68,7 +68,7 @@ publishRoutes.post("/new", requireUser, async (c) => {
 
 publishRoutes.get("/s/:slug/edit", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "编辑");
+  const guard = await requireManagedSkill(c, slug, "edit");
   if (!guard.ok) return guard.response;
   const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
   if (!latest) return c.notFound();
@@ -86,14 +86,14 @@ publishRoutes.get("/s/:slug/edit", requireUser, async (c) => {
 publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   const user = c.get("user");
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "编辑");
+  const guard = await requireManagedSkill(c, slug, "edit");
   if (!guard.ok) return guard.response;
   const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
   if (!latest) return c.notFound();
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
   try {
-    if (!markdown.trim()) throw new UploadError("SKILL.md 不能为空");
+    if (!markdown.trim()) throw new UploadError("SKILL.md cannot be empty");
     // 这一页只改得动 SKILL.md，其余文件从上一版的包里带过来。
     const bytes = await repackWithSkillMd(c.env, latest, `${markdown.trim()}\n`);
     await publishBytes(c.env, user, bytes, { expectedSlug: slug });
@@ -119,7 +119,7 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
 // markdown，这里读 file——所以「两个都填了听谁的」这条规则不存在。
 publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "更新");
+  const guard = await requireManagedSkill(c, slug, "update");
   if (!guard.ok) return guard.response;
   return page(c, <UploadVersionPage user={c.get("user")} slug={slug} />);
 });
@@ -127,13 +127,13 @@ publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
 publishRoutes.post("/s/:slug/upload", requireUser, async (c) => {
   const user = c.get("user");
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "更新");
+  const guard = await requireManagedSkill(c, slug, "update");
   if (!guard.ok) return guard.response;
   const body = await c.req.parseBody();
   try {
     const file = body.file;
     if (!(file instanceof File) || file.size === 0) {
-      throw new UploadError("请选择一个压缩包");
+      throw new UploadError("Choose an archive");
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     await publishBytes(c.env, user, bytes, { expectedSlug: slug });

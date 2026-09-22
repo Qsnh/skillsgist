@@ -66,7 +66,7 @@ skillsRoutes.get("/s/:slug/v/:version/download", (c) => {
 
 skillsRoutes.post("/s/:slug/visibility", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "修改");
+  const guard = await requireManagedSkill(c, slug, "modify");
   if (!guard.ok) return guard.response;
   await setVisibility(c.env.DB, slug, guard.skill.visibility === "public" ? "private" : "public");
   return c.redirect(`/s/${slug}`, 302);
@@ -74,7 +74,7 @@ skillsRoutes.post("/s/:slug/visibility", requireUser, async (c) => {
 
 skillsRoutes.post("/s/:slug/delete", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "删除");
+  const guard = await requireManagedSkill(c, slug, "delete");
   if (!guard.ok) return guard.response;
   const keys = await deleteSkill(c.env.DB, slug);
   await Promise.all(keys.map((key) => c.env.BUCKET.delete(key)));

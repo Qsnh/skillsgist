@@ -230,7 +230,7 @@ describe("Origin / Sec-Fetch-Site layer", () => {
   it("answers with 403, not the generic 500 from app.onError", async () => {
     const res = await postWith({});
     expect(res.status).toBe(403);
-    expect(await res.text()).not.toContain("服务内部错误");
+    expect(await res.text()).not.toContain("Internal server error");
   });
 });
 

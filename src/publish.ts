@@ -33,13 +33,13 @@ export async function publishBytes(
 
   if (opts.expectedSlug && opts.expectedSlug !== normalized.name) {
     throw new UploadError(
-      `URL 里的 slug 是 ${opts.expectedSlug}，但 SKILL.md 的 name 是 ${normalized.name}，两者必须一致`,
+      `The slug in the URL is ${opts.expectedSlug} but SKILL.md declares name ${normalized.name}; they must agree`,
     );
   }
 
   const existing = await getSkill(env.DB, normalized.name);
   if (existing && user.role !== "admin" && existing.owner_id !== user.id) {
-    throw new ForbiddenError(`skill ${normalized.name} 属于其他用户，无权覆盖`);
+    throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
   }
 
   // `insertVersion`'s ON CONFLICT clause deliberately
@@ -155,7 +155,7 @@ export async function repackWithSkillMd(
   const object = await env.BUCKET.get(latest.r2_key);
   if (!object) {
     throw new UploadError(
-      `v${latest.version} 的压缩包在存储里找不到了，没法保留 SKILL.md 以外的文件；请改用「上传压缩包」发一份完整的`,
+      `The archive for v${latest.version} is missing from storage, so the files other than SKILL.md cannot be preserved. Upload a complete archive instead.`,
     );
   }
 

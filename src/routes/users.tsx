@@ -44,10 +44,10 @@ usersRoutes.post("/setup", async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   if (!USERNAME.test(username)) {
-    return page(c, <SetupPage error="用户名必须是 2-32 位的小写字母、数字或连字符" />, 400);
+    return page(c, <SetupPage error="Username must be 2-32 lowercase letters, digits or hyphens" />, 400);
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <SetupPage error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
+    return page(c, <SetupPage error={`Password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   const id = randomHex(8);
   const inserted = await createFirstAdmin(c.env.DB, {
@@ -72,7 +72,7 @@ usersRoutes.post("/login", async (c) => {
   const user = await getUserByUsername(c.env.DB, username);
   // Never skip the derivation — see DUMMY_PASSWORD_HASH.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error="用户名或密码不正确" />, 401);
+  if (!user || !ok) return page(c, <LoginPage error="Incorrect username or password" />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
   return c.redirect("/", 302);
 });
@@ -114,11 +114,11 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
   const body = await c.req.parseBody();
   const origin = new URL(c.req.url).origin;
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} origin={origin} error="当前密码不正确" />, 400);
+    return page(c, <MePage user={user} origin={origin} error="Current password is incorrect" />, 400);
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} origin={origin} error={`新密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
+    return page(c, <MePage user={user} origin={origin} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   return c.redirect("/me", 302);
@@ -134,12 +134,12 @@ usersRoutes.post("/admin/users", requireAdmin, async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   if (!USERNAME.test(username)) {
-    return usersError(c, admin, "用户名必须是 2-32 位的小写字母、数字或连字符");
+    return usersError(c, admin, "Username must be 2-32 lowercase letters, digits or hyphens");
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return usersError(c, admin, `密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
+    return usersError(c, admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
-  if (await getUserByUsername(c.env.DB, username)) return usersError(c, admin, "用户名已存在");
+  if (await getUserByUsername(c.env.DB, username)) return usersError(c, admin, "That username is taken");
   await createUser(c.env.DB, {
     id: randomHex(8),
     username,
@@ -150,7 +150,8 @@ usersRoutes.post("/admin/users", requireAdmin, async (c) => {
   return c.redirect("/admin/users", 302);
 });
 
-// Admin-only revocation levers (spec §7.1: 建号、改角色、重置密码、删号).
+// Admin-only revocation levers (spec §7.1: create, change role, reset
+// password, delete).
 // Every route below is admin-only (`requireAdmin`) and 404s for an unknown
 // target id, checked before any mutation.
 
@@ -176,7 +177,7 @@ async function adminTarget(
   if (target.id === admin.id && !opts.allowSelf) {
     return {
       ok: false,
-      response: await usersError(c, admin, opts.selfError ?? "不能对自己的账号执行这个操作，请让另一位管理员操作"),
+      response: await usersError(c, admin, opts.selfError ?? "You cannot do this to your own account. Ask another admin."),
     };
   }
   return { ok: true, admin, target };
@@ -184,14 +185,14 @@ async function adminTarget(
 
 usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), {
-    selfError: "不能修改自己的角色，请让另一位管理员操作",
+    selfError: "You cannot change your own role. Ask another admin.",
   });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
   const body = await c.req.parseBody();
   const role = roleOf(body.role);
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "不能取消最后一个管理员的权限");
+    return usersError(c, admin, "You cannot demote the last admin");
   }
   await updateUserRole(c.env.DB, target.id, role);
   return c.redirect("/admin/users", 302);
@@ -203,7 +204,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return usersError(c, guard.admin, `密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
+    return usersError(c, guard.admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
   return c.redirect("/admin/users", 302);
@@ -225,12 +226,12 @@ usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) =>
 
 usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), {
-    selfError: "不能删除自己的账号，请让另一位管理员操作",
+    selfError: "You cannot delete your own account. Ask another admin.",
   });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "不能删除最后一个管理员");
+    return usersError(c, admin, "You cannot delete the last admin");
   }
   // Reassigns owner_id and author_id in the same batch as the delete; the
   // foreign keys make that mandatory — see deleteUserReassigning.

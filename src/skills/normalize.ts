@@ -39,13 +39,13 @@ function isJunk(path: string): boolean {
 }
 
 function cleanPath(raw: string): string {
-  if (!raw || raw.includes("\0")) throw new UploadError(`压缩包内路径非法：${raw}`);
-  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(`压缩包内路径非法（绝对路径）：${raw}`);
-  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(`压缩包内路径非法（盘符）：${raw}`);
-  if (raw.includes("\\")) throw new UploadError(`压缩包内路径非法（反斜杠）：${raw}`);
+  if (!raw || raw.includes("\0")) throw new UploadError(`Illegal path in archive: ${raw}`);
+  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(`Illegal path in archive (absolute): ${raw}`);
+  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(`Illegal path in archive (drive letter): ${raw}`);
+  if (raw.includes("\\")) throw new UploadError(`Illegal path in archive (backslash): ${raw}`);
   const parts = raw.split("/").filter((p) => p !== "" && p !== ".");
-  if (parts.length === 0) throw new UploadError(`压缩包内路径非法：${raw}`);
-  if (parts.includes("..")) throw new UploadError(`压缩包内路径非法（越界）：${raw}`);
+  if (parts.length === 0) throw new UploadError(`Illegal path in archive: ${raw}`);
+  if (parts.includes("..")) throw new UploadError(`Illegal path in archive (escapes the root): ${raw}`);
   return parts.join("/");
 }
 
@@ -79,9 +79,9 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
 }
 
 export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkill> {
-  if (bytes.length === 0) throw new UploadError("上传内容为空");
+  if (bytes.length === 0) throw new UploadError("Upload is empty");
   if (bytes.length > MAX_UPLOAD_BYTES) {
-    throw new UploadError(`上传体积超出上限：${bytes.length} 字节 > ${MAX_UPLOAD_BYTES} 字节`);
+    throw new UploadError(`Upload exceeds the size limit: ${bytes.length} bytes > ${MAX_UPLOAD_BYTES} bytes`);
   }
 
   const raw = await extract(bytes);
@@ -97,29 +97,29 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
   // stripped, and `isJunk` matches on a leading prefix.
   const filtered = dropJunk(stripWrapperDir(cleaned));
 
-  if (filtered.size === 0) throw new UploadError("压缩包内没有可用文件");
+  if (filtered.size === 0) throw new UploadError("Archive contains no usable files");
   if (filtered.size > MAX_FILES) {
-    throw new UploadError(`文件数超出上限：${filtered.size} > ${MAX_FILES}`);
+    throw new UploadError(`File count exceeds the limit: ${filtered.size} > ${MAX_FILES}`);
   }
 
   let unpacked = 0;
   for (const data of filtered.values()) unpacked += data.byteLength;
   if (unpacked > MAX_UNPACKED_BYTES) {
-    throw new UploadError(`解包后体积超出上限：${unpacked} 字节 > ${MAX_UNPACKED_BYTES} 字节`);
+    throw new UploadError(`Unpacked size exceeds the limit: ${unpacked} bytes > ${MAX_UNPACKED_BYTES} bytes`);
   }
 
   const skillMdBytes = filtered.get("SKILL.md");
-  if (!skillMdBytes) throw new UploadError("压缩包根目录缺少 SKILL.md");
+  if (!skillMdBytes) throw new UploadError("SKILL.md is missing from the archive root");
   const skillMd = new TextDecoder().decode(skillMdBytes);
 
   const { data } = parseFrontmatter(skillMd);
   if (!isValidSkillName(data.name)) {
     throw new UploadError(
-      "SKILL.md 的 frontmatter 中 name 不合法：必须匹配 ^[a-z0-9-]+$，长度 1-64，不以连字符开头或结尾，不含连续连字符",
+      "Invalid name in SKILL.md frontmatter: must match ^[a-z0-9-]+$, be 1-64 characters, and neither start nor end with a hyphen nor contain consecutive hyphens",
     );
   }
   if (!isValidDescription(data.description)) {
-    throw new UploadError("SKILL.md 的 frontmatter 中 description 不合法：必须非空且不超过 1024 字符");
+    throw new UploadError("Invalid description in SKILL.md frontmatter: must be non-empty and at most 1024 characters");
   }
 
   const entries: ArchiveEntry[] = [...filtered].map(([path, bytes]) => ({ path, data: bytes }));
