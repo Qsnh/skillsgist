@@ -1,14 +1,10 @@
 import { marked } from "marked";
 
-// This used to be a blocklist (13 named tags,
-// anything unlisted passed through unexamined) — the same shape the
-// attribute layer moved away from below, after two review rounds found
-// live bypasses in its predecessor. An allowlist doesn't need to guess
-// every dangerous tag in advance, and because published HTML is sanitized
-// once and stored, a tag nobody thought to blocklist yet would otherwise
-// never be retroactively cleaned from what's already in the database.
-// `form` is deliberately absent, which is what makes the allowed `input`
-// (GFM task-list checkboxes) inert — see ALLOWED_TAGS below.
+// An allowlist, not a blocklist: it doesn't have to guess every dangerous tag
+// in advance, and since published HTML is sanitized once and stored, a tag
+// nobody thought to block would never be retroactively cleaned from the
+// database. `form` is deliberately absent — that is what makes the allowed
+// `input` (GFM task-list checkboxes) inert.
 const ALLOWED_TAGS = new Set([
   "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "del", "s",
   "code", "pre", "blockquote", "ul", "ol", "li", "a", "img", "table", "thead", "tbody", "tfoot",
@@ -16,29 +12,22 @@ const ALLOWED_TAGS = new Set([
   "figcaption", "span", "div", "input",
 ]);
 
-// Attributes that can carry a URL. Most of the elements that would
-// normally carry one of these — form, button, object, iframe — are absent
-// from ALLOWED_TAGS above and so are removed outright regardless of their
-// attributes; `input` is the one allowed exception (GFM task-list
-// checkboxes), and it doesn't use any attribute in this set. We still
-// check the attribute regardless of tag so the two lists don't have to be
-// kept in lockstep — an element added to allowed content later is still
-// covered.
+// Attributes that can carry a URL. The elements that normally carry one —
+// form, button, object, iframe — are already absent from ALLOWED_TAGS, and
+// `input` uses none of these. Checked regardless of tag anyway, so the two
+// lists need not stay in lockstep: a tag allowed later is still covered.
 const URL_ATTRS = new Set([
   "href", "src", "srcset", "action", "formaction", "poster", "background",
   "cite", "ping", "data", "longdesc", "xlink:href",
 ]);
 
-// A blocklist against scheme obfuscation is a losing game (see the task-7
-// review, rounds 1 and 2: a regex requiring the scheme to be one intact
-// substring was bypassed first by raw control characters embedded in the
-// scheme, then by HTML character references — named or numeric, with or
-// without a trailing semicolon, encoding either the colon or a scheme
-// letter — which decode in a browser during attribute tokenization, before
-// any URL parsing, but reached this code completely undecoded. Enumerating
-// entity spellings is unwinnable, so this uses an allowlist that never
-// tries to decode a character reference at all: any "&" found where a
-// scheme would be is treated as disqualifying on its own.
+// Blocklisting schemes is a losing game: a regex demanding one intact
+// substring falls to raw control characters in the scheme, and then to HTML
+// character references (named or numeric, semicolon or not, encoding the
+// colon or a scheme letter) that a browser decodes during attribute
+// tokenization — before any URL parsing — but that reach this code undecoded.
+// Enumerating entity spellings is unwinnable, so this allowlists instead and
+// never decodes at all; see the "&" rule in isSafeUrlSegment.
 const SAFE_SCHEMES = new Set(["http", "https", "mailto"]);
 
 // The WHATWG URL Standard strips ASCII tab/CR/LF from anywhere in a URL
@@ -56,11 +45,10 @@ function isSafeUrlSegment(segment: string): boolean {
   const delimiterIndex = normalized.search(HEAD_DELIMITER_RE);
   const head = delimiterIndex === -1 ? normalized : normalized.slice(0, delimiterIndex);
 
-  // A legitimate URL never needs a character reference in its scheme
-  // segment. Rejecting on sight closes the whole obfuscation class at once
-  // — encoded colon, encoded scheme letter, semicolon-less numeric forms,
-  // and anything not yet seen — rather than trying to decode and recognize
-  // each spelling.
+  // A legitimate URL never needs a character reference in its scheme segment.
+  // Rejecting on sight closes the whole obfuscation class at once — encoded
+  // colon, encoded scheme letter, semicolon-less numeric forms, and whatever
+  // has not been seen yet.
   if (head.includes("&")) return false;
 
   const colonIndex = head.indexOf(":");
@@ -69,10 +57,8 @@ function isSafeUrlSegment(segment: string): boolean {
   return SAFE_SCHEMES.has(scheme);
 }
 
-// Values like srcset carry a comma-separated list of URLs; checking every
-// segment catches a dangerous scheme anywhere in the list, not just one
-// that happens to lead the string. For single-URL attributes this is a
-// harmless no-op (one segment, itself).
+// srcset and friends carry a comma-separated list, so a dangerous scheme can
+// hide anywhere in it, not just at the front. A no-op for single-URL values.
 function isSafeUrlValue(value: string): boolean {
   return value.split(",").every(isSafeUrlSegment);
 }
@@ -87,12 +73,10 @@ export async function renderMarkdown(md: string): Promise<string> {
           el.remove();
           return;
         }
-        // Snapshot attributes before mutating: this HTMLRewriter build
-        // invalidates the live attribute iterator as soon as removeAttribute
-        // is called mid-iteration, so we iterate a plain array instead.
+        // Snapshot first: this HTMLRewriter build invalidates the live
+        // attribute iterator on the first mid-iteration removeAttribute.
         for (const [name, value] of [...el.attributes]) {
-          // The tokenizer lowercases attribute names, so `name` is already
-          // lowercase here — no need to re-normalize before matching.
+          // The tokenizer already lowercased `name`.
           if (name === "style" || name.startsWith("on")) {
             el.removeAttribute(name);
             continue;
