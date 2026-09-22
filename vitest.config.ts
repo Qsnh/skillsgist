@@ -24,6 +24,7 @@ export default defineConfig(async () => {
             WRAPPED_ZIP: fixture("wrapped.zip"),
             FLAT_DOT_TAR_GZ: fixture("flat-dot.tar.gz"),
             SYMLINK_TAR_GZ: fixture("symlink.tar.gz"),
+            BSDTAR_PADDED_TAR_GZ: fixture("bsdtar-padded.tar.gz"),
           },
         },
       }),

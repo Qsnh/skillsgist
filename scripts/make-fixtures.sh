@@ -36,6 +36,13 @@ echo 'echo hi' > "$TMP/flat/scripts/run.sh"
 TAR_NO_META=(--no-xattrs --no-mac-metadata --no-acls --no-fflags)
 ( cd "$TMP/flat" && COPYFILE_DISABLE=1 tar cf - "${TAR_NO_META[@]}" . | gzip -n ) > "$OUT/flat-dot.tar.gz"
 
+# bsdtar 的真实默认行为：`tar czf` 让 tar 自己内部压缩，输出会按块（10240 字节）
+# 对齐，在真正的 gzip 流结束后补零填充。这正是 macOS 用户敲最普通的
+# `tar czf skill.tar.gz .` 会得到的字节，读取器必须能容忍这种尾部填充，不能只
+# 在测试夹具里绕开它。保留跟 flat-dot.tar.gz 一样干净的条目（同样的
+# --no-xattrs 等参数），唯一的变量就是压缩方式，这样两种生产方式都有覆盖。
+( cd "$TMP/flat" && COPYFILE_DISABLE=1 tar czf - "${TAR_NO_META[@]}" . ) > "$OUT/bsdtar-padded.tar.gz"
+
 # 外层包裹一层目录的 zip —— GitHub 下载的压缩包就是这个形状
 mkdir -p "$TMP/wrap" && cp -R "$TMP/flat" "$TMP/wrap/demo-skill"
 ( cd "$TMP/wrap" && zip -q -r - demo-skill ) > "$OUT/wrapped.zip"

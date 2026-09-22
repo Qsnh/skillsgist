@@ -147,37 +147,49 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
   const dec = new TextDecoder();
 
   for (let i = 0; i < count; i++) {
-    if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("zip 中央目录损坏");
-    const flags = view.getUint16(offset + 8, true);
-    const method = view.getUint16(offset + 10, true);
-    const compressedSize = view.getUint32(offset + 20, true);
-    const uncompressedSize = view.getUint32(offset + 24, true);
-    const nameLen = view.getUint16(offset + 28, true);
-    const extraLen = view.getUint16(offset + 30, true);
-    const commentLen = view.getUint16(offset + 32, true);
-    const externalAttrs = view.getUint32(offset + 38, true);
-    const localOffset = view.getUint32(offset + 42, true);
-    const name = dec.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
-    offset = offset + 46 + nameLen + extraLen + commentLen;
+    try {
+      if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("zip 中央目录损坏");
+      const flags = view.getUint16(offset + 8, true);
+      const method = view.getUint16(offset + 10, true);
+      const compressedSize = view.getUint32(offset + 20, true);
+      const uncompressedSize = view.getUint32(offset + 24, true);
+      const nameLen = view.getUint16(offset + 28, true);
+      const extraLen = view.getUint16(offset + 30, true);
+      const commentLen = view.getUint16(offset + 32, true);
+      const externalAttrs = view.getUint32(offset + 38, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const name = dec.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+      offset = offset + 46 + nameLen + extraLen + commentLen;
 
-    if (name.endsWith("/")) continue;
-    if (flags & 1) throw new ArchiveError("不支持加密的 zip 条目");
-    const fileType = (externalAttrs >>> 16) & 0xf000;
-    if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("不支持压缩包中的链接条目");
-    if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("zip 局部头损坏");
+      if (name.endsWith("/")) continue;
+      if (flags & 1) throw new ArchiveError("不支持加密的 zip 条目");
+      const fileType = (externalAttrs >>> 16) & 0xf000;
+      if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("不支持压缩包中的链接条目");
+      if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("zip 局部头损坏");
 
-    const localNameLen = view.getUint16(localOffset + 26, true);
-    const localExtraLen = view.getUint16(localOffset + 28, true);
-    const dataStart = localOffset + 30 + localNameLen + localExtraLen;
-    const raw = bytes.subarray(dataStart, dataStart + compressedSize);
+      const localNameLen = view.getUint16(localOffset + 26, true);
+      const localExtraLen = view.getUint16(localOffset + 28, true);
+      const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+      const raw = bytes.subarray(dataStart, dataStart + compressedSize);
 
-    let content: Uint8Array;
-    if (method === 0) content = raw;
-    else if (method === 8) content = await inflateRaw(raw);
-    else throw new ArchiveError(`不支持的 zip 压缩方法：${method}`);
+      let content: Uint8Array;
+      if (method === 0) content = raw;
+      else if (method === 8) content = await inflateRaw(raw);
+      else throw new ArchiveError(`不支持的 zip 压缩方法：${method}`);
 
-    if (content.byteLength !== uncompressedSize) throw new ArchiveError(`zip 条目大小不符：${name}`);
-    files.set(name, content);
+      if (content.byteLength !== uncompressedSize) throw new ArchiveError(`zip 条目大小不符：${name}`);
+      files.set(name, content);
+    } catch (err) {
+      // Every other failure mode here throws ArchiveError; callers rely on
+      // that (see archive-read.test.ts). But a truncated/corrupt deflate
+      // stream makes DecompressionStream throw its own exception type, and
+      // a corrupt central directory can send DataView offsets out of
+      // bounds, throwing a raw RangeError. Normalize both into ArchiveError
+      // so the contract holds for every path through this loop.
+      if (err instanceof ArchiveError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new ArchiveError(`zip 条目解析失败：${message}`);
+    }
   }
 
   return files;
