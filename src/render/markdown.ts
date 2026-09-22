@@ -16,10 +16,14 @@ const ALLOWED_TAGS = new Set([
   "figcaption", "span", "div", "input",
 ]);
 
-// Attributes that can carry a URL. Most of their host elements are already
-// in BLOCKED_TAGS (form/input/button/object/iframe), but we check the
-// attribute regardless of tag so the two lists don't have to be kept in
-// lockstep — an element added to allowed content later is still covered.
+// Attributes that can carry a URL. Most of the elements that would
+// normally carry one of these — form, button, object, iframe — are absent
+// from ALLOWED_TAGS above and so are removed outright regardless of their
+// attributes; `input` is the one allowed exception (GFM task-list
+// checkboxes), and it doesn't use any attribute in this set. We still
+// check the attribute regardless of tag so the two lists don't have to be
+// kept in lockstep — an element added to allowed content later is still
+// covered.
 const URL_ATTRS = new Set([
   "href", "src", "srcset", "action", "formaction", "poster", "background",
   "cite", "ping", "data", "longdesc", "xlink:href",

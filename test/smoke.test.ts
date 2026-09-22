@@ -13,12 +13,24 @@ it("responds on /healthz", async () => {
 // improvement never retroactively cleans what's already in the database.
 // A CSP header makes any residual or future bypass inert at zero CPU
 // cost, on every HTML page regardless of which route rendered it.
+//
+// Regression 2 (scoped re-review of the final fix wave): the original
+// policy had no img-src override, so it fell back to default-src 'self'
+// — but the sanitizer deliberately preserves external <img src="https://...">
+// (see test/markdown.test.ts's "keeps every ordinary markdown construct
+// intact"), which is the normal case for skill docs with badges or
+// screenshots. A real browser would refuse to load any such image. Adding
+// img-src 'self' https: fixes this; data: is deliberately not included —
+// the URL-scheme allowlist in render/markdown.ts only ever lets through
+// http/https/mailto, so a data: image can never survive sanitization.
 it("sets a restrictive CSP header on HTML page responses", async () => {
   const res = await SELF.fetch("http://localhost/login");
   expect(res.headers.get("Content-Type")).toContain("text/html");
-  expect(res.headers.get("Content-Security-Policy")).toBe(
-    "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  const csp = res.headers.get("Content-Security-Policy");
+  expect(csp).toBe(
+    "default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   );
+  expect(csp).toContain("img-src 'self' https:");
 });
 
 it("does not set a CSP header on a JSON response", async () => {
