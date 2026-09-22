@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 // fullwidth forms. Described rather than exemplified on purpose: one literal
 // sample character here would make this file its own first offender. Em dash
 // and curly quotes sit outside these ranges — ordinary English typography.
-const CJK = /[　-〿一-鿿＀-￯]/;
+const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
 
 // Archives and images decode into byte soup that can trip the range check.
 const BINARY = /\.(zip|gz|tgz|png|jpe?g|gif|ico|woff2?)$/;
