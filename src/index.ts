@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
 import { skillsRoutes } from "./routes/skills";
@@ -40,6 +41,11 @@ app.route("/", publishRoutes);
 app.route("/", skillsRoutes);
 
 app.onError((err, c) => {
+  // Hono's *default* error handler is what renders an HTTPException using the
+  // response the exception carries. Registering onError replaces that default
+  // outright, so without this branch every HTTPException raised anywhere in
+  // Hono would be logged as unhandled and answered with a misleading 500.
+  if (err instanceof HTTPException) return err.getResponse();
   console.error("unhandled", err);
   const accepts = c.req.header("Accept") ?? "";
   if (c.req.path.startsWith("/api/") || accepts.includes("application/json")) {
