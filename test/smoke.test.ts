@@ -37,3 +37,11 @@ it("does not set a CSP header on a JSON response", async () => {
   const res = await SELF.fetch("http://localhost/.well-known/agent-skills/index.json");
   expect(res.headers.get("Content-Security-Policy")).toBeNull();
 });
+
+// Pages used to start straight at <html>, which puts a browser in quirks mode
+// and changes the box model out from under Tailwind. Every page goes through
+// the same Layout, so asserting one is enough to pin it.
+it("starts HTML pages with a doctype so browsers don't use quirks mode", async () => {
+  const html = await (await SELF.fetch("http://localhost/login")).text();
+  expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="zh-CN">/);
+});

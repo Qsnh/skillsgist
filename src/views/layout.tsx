@@ -1,39 +1,47 @@
+import { raw } from "hono/html";
 import { Form } from "../csrf";
 import type { UserRow } from "../db/queries";
 
 export function Layout(props: { title: string; user: UserRow | null; children?: unknown }) {
   return (
-    <html lang="zh-CN">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{props.title} · skillsgist</title>
-        <link rel="stylesheet" href="/app.css" />
-      </head>
-      <body class="min-h-screen bg-slate-50 text-slate-900">
-        <header class="border-b border-slate-200 bg-white">
-          <nav class="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
-            <a href="/" class="font-semibold">skillsgist</a>
-            <span class="flex-1" />
-            {props.user ? (
-              <>
-                <a href="/new" class="text-sm text-slate-600 hover:text-slate-900">发布</a>
-                {props.user.role === "admin" ? (
-                  <a href="/admin/users" class="text-sm text-slate-600 hover:text-slate-900">用户</a>
-                ) : null}
-                <a href="/me" class="text-sm text-slate-600 hover:text-slate-900">{props.user.username}</a>
-                <Form action="/logout">
-                  <button type="submit" class="text-sm text-slate-600 hover:text-slate-900">退出</button>
-                </Form>
-              </>
-            ) : (
-              <a href="/login" class="text-sm text-slate-600 hover:text-slate-900">登录</a>
-            )}
-          </nav>
-        </header>
-        <main class="mx-auto max-w-4xl px-4 py-8">{props.children}</main>
-    </body>
-    </html>
+    // Without a doctype a browser renders the whole page in quirks mode, which
+    // changes the box model out from under Tailwind. hono/jsx has no way to
+    // express a doctype as an element, so it goes in as raw text ahead of
+    // <html>.
+    <>
+      {raw("<!DOCTYPE html>")}
+      <html lang="zh-CN">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>{props.title} · skillsgist</title>
+          <link rel="stylesheet" href="/app.css" />
+        </head>
+        <body class="min-h-screen bg-slate-50 text-slate-900">
+          <header class="border-b border-slate-200 bg-white">
+            <nav class="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
+              <a href="/" class="font-semibold">skillsgist</a>
+              <span class="flex-1" />
+              {props.user ? (
+                <>
+                  <a href="/new" class="text-sm text-slate-600 hover:text-slate-900">发布</a>
+                  {props.user.role === "admin" ? (
+                    <a href="/admin/users" class="text-sm text-slate-600 hover:text-slate-900">用户</a>
+                  ) : null}
+                  <a href="/me" class="text-sm text-slate-600 hover:text-slate-900">{props.user.username}</a>
+                  <Form action="/logout">
+                    <button type="submit" class="text-sm text-slate-600 hover:text-slate-900">退出</button>
+                  </Form>
+                </>
+              ) : (
+                <a href="/login" class="text-sm text-slate-600 hover:text-slate-900">登录</a>
+              )}
+            </nav>
+          </header>
+          <main class="mx-auto max-w-4xl px-4 py-8">{props.children}</main>
+        </body>
+      </html>
+    </>
   );
 }
 
