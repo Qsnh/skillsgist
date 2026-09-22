@@ -1,0 +1,43 @@
+import { isValidDescription, isValidSkillName } from "./skills/frontmatter";
+
+export const DISCOVERY_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
+
+const DIGEST_RE = /^sha256:[a-f0-9]{64}$/;
+
+export interface IndexEntry {
+  name: string;
+  description: string;
+  type: "archive";
+  url: string;
+  digest: string;
+}
+
+export interface IndexSource {
+  slug: string;
+  description: string;
+  digest: string;
+}
+
+/**
+ * baseUrl 形如 https://host 或 https://host/i/<key>，产物地址直接拼在它后面。
+ * 不满足 CLI 校验规则的条目会被丢弃 —— 宁可少一条，也不要让 CLI 拿到半个坏 index。
+ */
+export function buildIndex(
+  rows: IndexSource[],
+  baseUrl: string,
+): { $schema: string; skills: IndexEntry[] } {
+  const skills: IndexEntry[] = [];
+  for (const row of rows) {
+    if (!isValidSkillName(row.slug)) continue;
+    if (!isValidDescription(row.description)) continue;
+    if (!DIGEST_RE.test(row.digest)) continue;
+    skills.push({
+      name: row.slug,
+      description: row.description,
+      type: "archive",
+      url: `${baseUrl}/d/${row.slug}/${row.digest.slice("sha256:".length)}.zip`,
+      digest: row.digest,
+    });
+  }
+  return { $schema: DISCOVERY_SCHEMA, skills };
+}

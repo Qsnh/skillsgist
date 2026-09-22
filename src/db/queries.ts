@@ -227,3 +227,14 @@ export async function updatePassword(db: D1Database, userId: string, hash: strin
 export async function touchLogin(db: D1Database, userId: string, at: number): Promise<void> {
   await db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(at, userId).run();
 }
+
+export function getVersionByDigest(
+  db: D1Database,
+  slug: string,
+  digest: string,
+): Promise<VersionRow | null> {
+  return db
+    .prepare("SELECT * FROM versions WHERE slug = ? AND digest = ?")
+    .bind(slug, digest)
+    .first<VersionRow>();
+}
