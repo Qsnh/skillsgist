@@ -20,6 +20,12 @@ npx skills add https://<你的域名>/i/<install_key>/.well-known/agent-skills/<
 
 # 公开的 skill 不需要 key
 npx skills add https://<你的域名>
+
+# 只装一个公开的 skill，同样不需要 key
+npx skills add https://<你的域名>/.well-known/agent-skills/<skill-name>
+
+# 等价写法：用 CLI 的 --skill 选项从整个 index 里挑
+npx skills add https://<你的域名> -s <skill-name>
 ```
 
 ## 发布 skill

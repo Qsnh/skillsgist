@@ -106,15 +106,88 @@ describe("registry index", () => {
     }
   });
 
-  it("serves the nested index path the CLI uses for single-skill installs", async () => {
+  // 每个用例都发布两个 skill。只发一个的话，「按 slug 收窄」坏掉也看不出来 ——
+  // CLI 对只含一条的 index 会自动选中那一条，一个未收窄的 index 里恰好只有一个
+  // skill 时表现完全一样。这正是这个 bug 此前漏网的原因。
+  const names = async (res: Response) =>
+    (await res.json<{ skills: Array<{ name: string }> }>()).skills.map((s) => s.name);
+
+  // CLI 装单个 skill 时会把整条 URL 当作 basePath 再拼一层 .well-known。
+  // `skills add` 走 fetchAllSkills()，它返回 index 里的**全部**条目、从不看路径里
+  // 的 slug —— 所以 per-skill 地址要成立，只能由服务端把 index 收窄到那一个。
+  it("scopes the keyed nested index to the slug in the path", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "private");
     await publish(cookie, OTHER_MD, "private");
+
     const res = await SELF.fetch(
       `${ORIGIN}/i/${user.install_key}/.well-known/agent-skills/other-skill/.well-known/agent-skills/index.json`,
     );
     expect(res.status).toBe(200);
+    expect(await names(res)).toEqual(["other-skill"]);
+  });
+
+  it("scopes the anonymous nested index to the slug in the path", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await publish(cookie, OTHER_MD, "public");
+
+    const res = await SELF.fetch(
+      `${ORIGIN}/.well-known/agent-skills/demo-skill/.well-known/agent-skills/index.json`,
+    );
+    expect(res.status).toBe(200);
     const body = await res.json<{ skills: Record<string, unknown>[] }>();
-    expect(body.skills.map((s) => s.name)).toContain("other-skill");
+    expect(body.skills.map((s) => s.name)).toEqual(["demo-skill"]);
+    for (const entry of body.skills) assertValidEntry(entry);
+  });
+
+  // CLI 会把两个 .well-known 别名两两组合着试，所以四种嵌套都要收窄到同一个 slug。
+  it("scopes the nested index under either .well-known alias", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await publish(cookie, OTHER_MD, "public");
+
+    for (const outer of ["agent-skills", "skills"]) {
+      for (const inner of ["agent-skills", "skills"]) {
+        const res = await SELF.fetch(
+          `${ORIGIN}/.well-known/${outer}/demo-skill/.well-known/${inner}/index.json`,
+        );
+        expect(res.status).toBe(200);
+        expect(await names(res)).toEqual(["demo-skill"]);
+      }
+    }
+  });
+
+  // 看不见的 slug 和压根不存在的 slug 给出完全一样的空 index，所以这条路径不能
+  // 被当成「某个私有 skill 是否存在」的探测器。
+  //
+  // 已知边角，改不掉：空 index 会让 CLI 判定这条候选无效，转而回落到根 index，
+  // 于是它会列出全部公开 skill。那是 CLI 自己的兜底逻辑，服务端返 404 结果一样。
+  it("returns an empty index for a slug the visitor cannot see", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await publish(cookie, OTHER_MD, "private");
+
+    const hidden = await SELF.fetch(
+      `${ORIGIN}/.well-known/agent-skills/other-skill/.well-known/agent-skills/index.json`,
+    );
+    const missing = await SELF.fetch(
+      `${ORIGIN}/.well-known/agent-skills/no-such-skill/.well-known/agent-skills/index.json`,
+    );
+    expect(hidden.status).toBe(200);
+    expect(missing.status).toBe(200);
+    expect(await names(hidden)).toEqual([]);
+    expect(await names(missing)).toEqual([]);
+  });
+
+  // 通配路由只接 index 结尾的路径。裸地址保持 404 —— 带 key 的裸地址一直如此，
+  // 而 CLI 从不请求裸地址，只会往后拼一层。
+  it("still 404s a .well-known path that is not an index", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+
+    expect((await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/demo-skill`)).status).toBe(404);
+    expect((await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/demo-skill/nope.json`)).status).toBe(404);
   });
 
   it("returns 404 for an unknown install key", async () => {

@@ -63,6 +63,9 @@ const READ_ONLY_GETS = new Set([
   "GET /healthz",
   "GET /.well-known/agent-skills/index.json",
   "GET /.well-known/skills/index.json",
+  // CLI 单装时在整条 URL 后面再拼一层 .well-known 的兜底。只读：返回收窄后的 index。
+  "GET /.well-known/agent-skills/*",
+  "GET /.well-known/skills/*",
   "GET /d/:slug/:file",
   "GET /i/:key/d/:slug/:file",
   "GET /i/:key/*",
