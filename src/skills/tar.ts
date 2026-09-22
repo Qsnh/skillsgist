@@ -28,6 +28,27 @@ function indexAfterLastNonZero(data: Uint8Array): number {
 // instead, stopping at the first length that decompresses cleanly.
 const GZIP_TRAILER_LEN = 8;
 
+// Candidate lengths worth retrying after the full buffer has already failed
+// to decompress once. Exported (pure, no I/O) so a test can assert on the
+// candidate set directly instead of on CPU time: it must never include
+// `data.length` (that exact attempt already failed once, in `gunzip`, before
+// this is even called) and never repeat a value. Without both guarantees, a
+// buffer that fails the initial attempt and doesn't end in 0x00 — trivial
+// for corrupt, truncated, or adversarial input to satisfy — would have
+// `indexAfterLastNonZero` return `data.length` unchanged, and every "probe"
+// would silently re-run the identical failed decompression.
+export function gzipRetryLengths(data: Uint8Array): number[] {
+  const floor = indexAfterLastNonZero(data);
+  if (floor >= data.length) return []; // no trailing zero padding to trim; probing can't change the outcome
+  const lengths: number[] = [];
+  for (let extra = 0; extra <= GZIP_TRAILER_LEN; extra++) {
+    const end = floor + extra;
+    if (end >= data.length) break; // would just repeat the already-failed full-buffer attempt
+    lengths.push(end);
+  }
+  return lengths;
+}
+
 async function gunzip(data: Uint8Array): Promise<Uint8Array> {
   try {
     return await inflateGzipMember(data);
@@ -37,18 +58,17 @@ async function gunzip(data: Uint8Array): Promise<Uint8Array> {
     // after the real gzip stream ends. Node's zlib and command-line gzip
     // both tolerate this silently; workerd's native DecompressionStream
     // does not ("Trailing bytes after end of compressed data").
-    const floor = indexAfterLastNonZero(data);
-    for (let extra = 0; extra <= GZIP_TRAILER_LEN; extra++) {
-      const end = Math.min(floor + extra, data.length);
+    for (const end of gzipRetryLengths(data)) {
       try {
         return await inflateGzipMember(data.subarray(0, end));
       } catch {
         // Either still short of the real trailer boundary, or genuinely
-        // corrupt — keep probing until the bound above is exhausted.
+        // corrupt — keep probing the remaining candidates.
       }
     }
-    // Every candidate length failed: this isn't padding, it's real
-    // corruption. Let the caller normalize this into an ArchiveError.
+    // No candidate worked (or there were none to try): this isn't padding,
+    // it's real corruption. Let the caller normalize this into an
+    // ArchiveError.
     throw new Error("gzip decompression failed even after trimming trailing padding");
   }
 }
