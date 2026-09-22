@@ -3,13 +3,45 @@ import { hashPassword, randomHex } from "../src/auth";
 import { createUser, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 
-// `cloudflare:test`'s `env` types as the ambient `Cloudflare.Env` (an empty
-// interface until `wrangler types` wires up project-specific bindings, which
-// is out of scope here — see test/db.test.ts for the same cast). Local cast
-// only; runtime behavior is unaffected.
-const env = rawEnv as unknown as { DB: D1Database };
+/**
+ * The worker's bindings, typed.
+ *
+ * `cloudflare:test`'s `env` types as the ambient `Cloudflare.Env` — an empty
+ * interface until `wrangler types` wires up project-specific bindings, which
+ * is out of scope here. Local cast only; runtime behavior is unaffected. One
+ * cast, exported, so it isn't restated in every test file.
+ *
+ * The `*_ZIP` / `*_TAR_GZ` entries are binary fixtures. They can't be read
+ * with `node:fs` from inside a pool-workers test — the worker's `node:fs` is
+ * a sandboxed, empty virtual filesystem with no bridge to the host disk — so
+ * `vitest.config.ts` reads them in plain Node and hands them in as
+ * `dataBlobBindings`. Use `fixture()` below to get the bytes.
+ */
+export const env = rawEnv as unknown as {
+  DB: D1Database;
+  BUCKET: R2Bucket;
+  FLAT_ZIP: ArrayBuffer;
+  WRAPPED_ZIP: ArrayBuffer;
+  FLAT_DOT_TAR_GZ: ArrayBuffer;
+  SYMLINK_TAR_GZ: ArrayBuffer;
+  BSDTAR_PADDED_TAR_GZ: ArrayBuffer;
+  NO_SKILL_MD_ZIP: ArrayBuffer;
+};
+
+type FixtureName = {
+  [K in keyof typeof env]: (typeof env)[K] extends ArrayBuffer ? K : never;
+}[keyof typeof env];
+
+export const fixture = (name: FixtureName) => new Uint8Array(env[name]);
 
 export const ORIGIN = "http://localhost";
+
+/** A valid SKILL.md, used wherever a test just needs *some* publishable skill. */
+export const GOOD_MD =
+  "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
+
+/** A second one, for the tests that need two distinct skills. */
+export const OTHER_MD = "---\nname: other-skill\ndescription: Another skill.\n---\n\n# Other\n";
 
 // Every state-changing request needs an Origin header now: `hono/csrf` rejects
 // a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and neither
@@ -40,6 +72,17 @@ export async function seedUser(
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
+}
+
+/**
+ * Seed a user and log them in. The username appears once, so it can't drift
+ * between the two halves and silently log in as somebody else.
+ */
+export async function seedAndLogin(
+  opts: { username?: string; role?: "admin" | "member"; password?: string } = {},
+): Promise<{ user: UserRow; password: string; cookie: string }> {
+  const { user, password } = await seedUser(opts);
+  return { user, password, cookie: await login(user.username, password) };
 }
 
 export async function login(username: string, password: string): Promise<string> {
@@ -113,4 +156,20 @@ export async function publishMarkdown(
 ): Promise<void> {
   const res = await postMultipart("/new", cookie, { markdown, visibility });
   if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
+}
+
+/** Mint an API token for `cookie`, reading it back out of the rendered page. */
+export async function apiToken(cookie: string): Promise<string> {
+  const res = await postForm("/me/api-token", cookie);
+  const match = /sgt_[a-f0-9]{32}/.exec(await res.text());
+  if (!match) throw new Error(`no token issued (status ${res.status})`);
+  return match[0];
+}
+
+/** Seed a user, log them in, and mint an API token for them. */
+export async function seedAndToken(
+  opts: { username?: string; role?: "admin" | "member" } = {},
+): Promise<{ user: UserRow; cookie: string; token: string }> {
+  const { user, cookie } = await seedAndLogin(opts);
+  return { user, cookie, token: await apiToken(cookie) };
 }

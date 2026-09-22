@@ -6,7 +6,7 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
   return (
     <Layout title="发布 skill" user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">发布 skill</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
       <Form action="/new" enctype="multipart/form-data" class="space-y-6">
         <div>
           <span class="block text-sm font-medium text-slate-700">上传压缩包</span>
@@ -43,7 +43,7 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
   return (
     <Layout title={`编辑 ${props.slug}`} user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">编辑 {props.slug}</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
       <p class="mb-4 text-sm text-slate-500">保存会发布一个新版本，旧版本保留。</p>
       <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
         <textarea

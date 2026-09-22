@@ -1,20 +1,18 @@
 import { Form } from "../csrf";
-import { Layout } from "./layout";
-import type { SkillRow, UserRow, VersionRow } from "../db/queries";
+import { CodeBlock, Layout } from "./layout";
+import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
 
 function InstallBlock(props: { origin: string; slug: string; user: UserRow | null; isPublic: boolean }) {
   const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
   const url = `${base}/.well-known/agent-skills/${props.slug}`;
   return (
     <div>
-      <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">npx skills add {url}</pre>
-      {!props.user && !props.isPublic ? null : (
-        <p class="mt-1 text-xs text-slate-500">
-          {props.user
-            ? "这条命令带着你的 install key，可以装私有 skill。"
-            : "这是公开地址，任何人都能用。"}
-        </p>
-      )}
+      <CodeBlock>npx skills add {url}</CodeBlock>
+      {props.user ? (
+        <p class="mt-1 text-xs text-slate-500">这条命令带着你的 install key，可以装私有 skill。</p>
+      ) : props.isPublic ? (
+        <p class="mt-1 text-xs text-slate-500">这是公开地址，任何人都能用。</p>
+      ) : null}
     </div>
   );
 }
@@ -42,7 +40,7 @@ export function IndexPage(props: {
       {props.user ? (
         <div class="mb-6">
           <h2 class="mb-1 text-sm font-medium text-slate-700">一次装上全部</h2>
-          <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">npx skills add {props.origin}/i/{props.user.install_key}</pre>
+          <CodeBlock>npx skills add {props.origin}/i/{props.user.install_key}</CodeBlock>
         </div>
       ) : null}
 
@@ -56,11 +54,15 @@ export function IndexPage(props: {
             <li class="py-3">
               <div class="flex items-baseline gap-2">
                 <a href={`/s/${s.slug}`} class="font-medium text-slate-900 hover:underline">{s.slug}</a>
-                {s.visibility === "private" ? (
-                  <span class="rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">private</span>
-                ) : (
-                  <span class="rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">public</span>
-                )}
+                <span
+                  class={`rounded px-1.5 py-0.5 text-xs ${
+                    s.visibility === "private"
+                      ? "bg-slate-200 text-slate-600"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  {s.visibility}
+                </span>
                 <span class="text-xs text-slate-400">v{s.latest_version} · {s.author}</span>
               </div>
               <p class="mt-1 text-sm text-slate-600">{s.description}</p>
@@ -76,7 +78,7 @@ export function SkillPage(props: {
   user: UserRow | null;
   skill: SkillRow & { author: string };
   version: VersionRow;
-  versions: VersionRow[];
+  versions: VersionSummary[];
   origin: string;
   canManage: boolean;
 }) {

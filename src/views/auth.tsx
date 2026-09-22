@@ -1,12 +1,12 @@
 import { Form } from "../csrf";
-import { Alert, Button, Field, Layout } from "./layout";
+import { Alert, Button, CodeBlock, Field, Layout } from "./layout";
 import type { UserRow } from "../db/queries";
 
 export function SetupPage(props: { error?: string }) {
   return (
     <Layout title="初始化" user={null}>
       <h1 class="mb-4 text-xl font-semibold">创建管理员</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
       {/* Plain <form>, not <Form>: no session exists during bootstrap, so
           there is no session-bound token to render. Covered by the Origin /
           Sec-Fetch-Site layer only — see TOKENLESS_PATHS in src/csrf.tsx. */}
@@ -23,7 +23,7 @@ export function LoginPage(props: { error?: string }) {
   return (
     <Layout title="登录" user={null}>
       <h1 class="mb-4 text-xl font-semibold">登录</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
       {/* Plain <form>, not <Form>: same reason as SetupPage above — no session
           to bind a token to yet. See TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/login" class="max-w-sm space-y-4">
@@ -40,11 +40,11 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
   return (
     <Layout title="我的账号" user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">我的账号</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
 
       <section class="mb-8">
         <h2 class="mb-2 font-medium">安装全部 skill</h2>
-        <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">npx skills add {installUrl}</pre>
+        <CodeBlock>npx skills add {installUrl}</CodeBlock>
         <p class="mt-2 text-xs text-slate-500">
           这串 key 只有安装权限，不能登录、发布或删除。怀疑泄漏时点下面的按钮重置。
         </p>
@@ -56,7 +56,7 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
       <section class="mb-8">
         <h2 class="mb-2 font-medium">API token（用于 curl 发布）</h2>
         {props.newToken ? (
-          <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">{props.newToken}</pre>
+          <CodeBlock>{props.newToken}</CodeBlock>
         ) : null}
         {props.newToken ? (
           <p class="mt-2 text-xs text-amber-700">这串 token 只显示这一次，请立刻保存。</p>
@@ -89,7 +89,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
   return (
     <Layout title="用户管理" user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">用户管理</h1>
-      {props.error ? <Alert>{props.error}</Alert> : null}
+      <Alert message={props.error} />
       <table class="mb-8 w-full text-sm">
         <thead>
           <tr class="border-b border-slate-200 text-left text-slate-500">
@@ -127,18 +127,16 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                       <Button>吊销 api token</Button>
                     </Form>
                   ) : null}
-                  <div class="mt-1 flex items-center gap-2">
-                    <Form action={`/admin/users/${u.id}/password`} class="flex items-center gap-2">
-                      <input
-                        type="password"
-                        name="password"
-                        placeholder="新密码（至少 12 位）"
-                        class="rounded border border-slate-300 px-2 py-1 text-sm"
-                        required
-                      />
-                      <Button>重置密码</Button>
-                    </Form>
-                  </div>
+                  <Form action={`/admin/users/${u.id}/password`} class="mt-1 flex items-center gap-2">
+                    <input
+                      type="password"
+                      name="password"
+                      placeholder="新密码（至少 12 位）"
+                      class="rounded border border-slate-300 px-2 py-1 text-sm"
+                      required
+                    />
+                    <Button>重置密码</Button>
+                  </Form>
                   {isSelf ? null : (
                     <div class="mt-1">
                       <Form action={`/admin/users/${u.id}/delete`} class="inline-block">

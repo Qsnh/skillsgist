@@ -1,43 +1,33 @@
-import { env as rawEnv, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
-import { login, postForm, postMultipart, resetDb, seedUser } from "./helpers";
+import {
+  env, fixture, GOOD_MD, ORIGIN, postMultipart, resetDb, seedAndLogin, seedAndToken,
+} from "./helpers";
 
-// Binary fixtures can't be read with `node:fs` from inside a pool-workers
-// test: the worker's `node:fs` is a sandboxed, empty virtual filesystem with
-// no bridge to the host disk. `vitest.config.ts` reads the real files from
-// disk (it runs in plain Node) and exposes them here as `dataBlobBindings`.
-// Same `Cloudflare.Env`-is-untyped local-cast pattern as test/normalize.test.ts.
-const env = rawEnv as unknown as {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  WRAPPED_ZIP: ArrayBuffer;
-  FLAT_ZIP: ArrayBuffer;
-  NO_SKILL_MD_ZIP: ArrayBuffer;
-};
-
-const fixture = (name: "WRAPPED_ZIP" | "FLAT_ZIP" | "NO_SKILL_MD_ZIP") => new Uint8Array(env[name]);
-
-const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
-
-async function apiToken(cookie: string): Promise<string> {
-  const res = await postForm("/me/api-token", cookie);
-  const match = /sgt_[a-f0-9]{32}/.exec(await res.text());
-  if (!match) throw new Error("no token issued");
-  return match[0];
+/** `PUT /api/skills/:slug` — the one place this request is spelled out. */
+function putSkill(
+  token: string,
+  body: BodyInit,
+  opts: { slug?: string; contentType?: string; visibility?: string } = {},
+): Promise<Response> {
+  const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
+  return SELF.fetch(`${ORIGIN}/api/skills/${opts.slug ?? "demo-skill"}${query}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": opts.contentType ?? "text/markdown",
+    },
+    body,
+  });
 }
 
 describe("PUT /api/skills/:slug", () => {
   beforeEach(resetDb);
 
   it("publishes a zip and stores the artifact in R2", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/zip" },
-      body: fixture("WRAPPED_ZIP"),
-    });
+    const { token } = await seedAndToken({ username: "alice" });
+    const res = await putSkill(token, fixture("WRAPPED_ZIP"), { contentType: "application/zip" });
     expect(res.status).toBe(201);
     const body = await res.json<{ slug: string; version: number; digest: string }>();
     expect(body.slug).toBe("demo-skill");
@@ -53,26 +43,15 @@ describe("PUT /api/skills/:slug", () => {
   });
 
   it("stores rendered html alongside the version", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
+    const { token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD);
     const version = await getVersion(env.DB, "demo-skill", 1);
     expect(version?.html).toContain("<h1");
   });
 
   it("does not create a new version when content is unchanged", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const put = () =>
-      SELF.fetch("http://localhost/api/skills/demo-skill", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-        body: GOOD_MD,
-      });
+    const { token } = await seedAndToken({ username: "alice" });
+    const put = () => putSkill(token, GOOD_MD);
     expect((await put()).status).toBe(201);
     const second = await put();
     expect(second.status).toBe(200);
@@ -81,14 +60,8 @@ describe("PUT /api/skills/:slug", () => {
   });
 
   it("creates version 2 when content changes", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const put = (md: string) =>
-      SELF.fetch("http://localhost/api/skills/demo-skill", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-        body: md,
-      });
+    const { token } = await seedAndToken({ username: "alice" });
+    const put = (md: string) => putSkill(token, md);
     await put(GOOD_MD);
     const res = await put(`${GOOD_MD}\nmore text\n`);
     expect(res.status).toBe(201);
@@ -96,13 +69,8 @@ describe("PUT /api/skills/:slug", () => {
   });
 
   it("rejects a slug that disagrees with the frontmatter name", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const res = await SELF.fetch("http://localhost/api/skills/other-name", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
+    const { token } = await seedAndToken({ username: "alice" });
+    const res = await putSkill(token, GOOD_MD, { slug: "other-name" });
     expect(res.status).toBe(400);
     expect(await res.json<{ message: string }>()).toMatchObject({
       message: expect.stringContaining("demo-skill"),
@@ -110,40 +78,21 @@ describe("PUT /api/skills/:slug", () => {
   });
 
   it("rejects requests without a valid api token", async () => {
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: "Bearer sgt_deadbeef", "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
+    const res = await putSkill("sgt_deadbeef", GOOD_MD);
     expect(res.status).toBe(404);
   });
 
   it("stops a member overwriting another user's skill", async () => {
-    const alice = await seedUser({ username: "alice" });
-    const aliceToken = await apiToken(await login("alice", alice.password));
-    await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${aliceToken}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
-    const bob = await seedUser({ username: "bob", role: "member" });
-    const bobToken = await apiToken(await login("bob", bob.password));
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${bobToken}`, "Content-Type": "text/markdown" },
-      body: `${GOOD_MD}\nbob was here\n`,
-    });
+    const alice = await seedAndToken({ username: "alice" });
+    await putSkill(alice.token, GOOD_MD);
+    const bob = await seedAndToken({ username: "bob", role: "member" });
+    const res = await putSkill(bob.token, `${GOOD_MD}\nbob was here\n`);
     expect(res.status).toBe(403);
   });
 
   it("surfaces normalization errors as 400 with a reason", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/zip" },
-      body: fixture("NO_SKILL_MD_ZIP"),
-    });
+    const { token } = await seedAndToken({ username: "alice" });
+    const res = await putSkill(token, fixture("NO_SKILL_MD_ZIP"), { contentType: "application/zip" });
     expect(res.status).toBe(400);
     expect(await res.json<{ message: string }>()).toMatchObject({
       message: expect.stringContaining("SKILL.md"),
@@ -157,14 +106,9 @@ describe("PUT /api/skills/:slug", () => {
   // public skill to private), but that same short-circuit was previously
   // discarding a visibility the caller *did* explicitly choose.
   it("applies an explicit visibility on republish even though the skill already exists", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
+    const { token } = await seedAndToken({ username: "alice" });
     const putWithVisibility = (md: string, visibility: string) =>
-      SELF.fetch(`http://localhost/api/skills/demo-skill?visibility=${visibility}`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-        body: md,
-      });
+      putSkill(token, md, { visibility });
     await putWithVisibility(GOOD_MD, "public");
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
 
@@ -177,18 +121,9 @@ describe("PUT /api/skills/:slug", () => {
   // republish must mean "not supplied", not "supplied as private" — the
   // bug was that both cases collapsed to the same value at the call site.
   it("leaves visibility unchanged when an API republish omits ?visibility", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    await SELF.fetch("http://localhost/api/skills/demo-skill?visibility=public", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-      body: `${GOOD_MD}\nno visibility param this time\n`,
-    });
+    const { token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD, { visibility: "public" });
+    const res = await putSkill(token, `${GOOD_MD}\nno visibility param this time\n`);
     expect(res.status).toBe(201);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
   });
@@ -200,14 +135,8 @@ describe("PUT /api/skills/:slug", () => {
   // `BUCKET.put` (R2 error, isolate killed at the CPU/memory limit) would
   // leave things.
   it("repairs a missing R2 object when republishing identical bytes", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const token = await apiToken(await login("alice", password));
-    const put = () =>
-      SELF.fetch("http://localhost/api/skills/demo-skill", {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
-        body: GOOD_MD,
-      });
+    const { cookie, token } = await seedAndToken({ username: "alice" });
+    const put = () => putSkill(token, GOOD_MD);
 
     const first = await put();
     expect(first.status).toBe(201);
@@ -224,8 +153,7 @@ describe("PUT /api/skills/:slug", () => {
     const repaired = await env.BUCKET.get(versionRow!.r2_key);
     expect(repaired).not.toBeNull();
 
-    const cookie = await login("alice", password);
-    const download = await SELF.fetch("http://localhost/s/demo-skill/download", { headers: { Cookie: cookie } });
+    const download = await SELF.fetch(`${ORIGIN}/s/demo-skill/download`, { headers: { Cookie: cookie } });
     expect(download.status).toBe(200);
     expect(download.headers.get("Content-Type")).toBe("application/zip");
   });
@@ -236,21 +164,13 @@ describe("PUT /api/skills/:slug", () => {
   // an admin published on someone else's behalf. Ownership itself must
   // stay put: `insertVersion`'s ON CONFLICT clause never touches owner_id.
   it("records the publisher as version author_id while leaving skill ownership untouched", async () => {
-    const member = await seedUser({ username: "carol", role: "member" });
-    const memberToken = await apiToken(await login("carol", member.password));
-    await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${memberToken}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
+    const member = await seedAndToken({ username: "carol", role: "member" });
+    const memberToken = member.token;
+    await putSkill(memberToken, GOOD_MD);
 
-    const admin = await seedUser({ username: "root-admin", role: "admin" });
-    const adminToken = await apiToken(await login("root-admin", admin.password));
-    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "text/markdown" },
-      body: `${GOOD_MD}\nadmin republish\n`,
-    });
+    const admin = await seedAndToken({ username: "root-admin", role: "admin" });
+    const adminToken = admin.token;
+    const res = await putSkill(adminToken, `${GOOD_MD}\nadmin republish\n`);
     expect(res.status).toBe(201);
     const body = await res.json<{ version: number }>();
     expect(body.version).toBe(2);
@@ -267,8 +187,7 @@ describe("POST /new", () => {
   beforeEach(resetDb);
 
   it("publishes an uploaded file", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await postMultipart("/new", cookie, {
       file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
       visibility: "public",
@@ -279,16 +198,14 @@ describe("POST /new", () => {
   });
 
   it("publishes pasted markdown", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private" });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
   });
 
   it("re-renders the form with the reason on failure", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await postMultipart("/new", cookie, {
       markdown: "---\nname: Bad_Name\ndescription: x\n---\nbody",
     });
@@ -297,7 +214,7 @@ describe("POST /new", () => {
   });
 
   it("requires a login", async () => {
-    const res = await SELF.fetch("http://localhost/new", { redirect: "manual" });
+    const res = await SELF.fetch(`${ORIGIN}/new`, { redirect: "manual" });
     expect(res.status).toBe(302);
   });
 
@@ -306,8 +223,7 @@ describe("POST /new", () => {
   // "private" selected, and it must actually go private (previously it
   // stayed public silently, with a 302 success and no warning).
   it("applies visibility=private on republish even though the skill was already public", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
 
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
@@ -321,8 +237,7 @@ describe("POST /new", () => {
   });
 
   it("keeps visibility=public on republish through /new when selected again", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
 
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
 
@@ -339,8 +254,7 @@ describe("POST /s/:slug/edit", () => {
   beforeEach(resetDb);
 
   it("saves edited markdown as a new version", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD });
 
     const res = await postMultipart("/s/demo-skill/edit", cookie, {
@@ -355,8 +269,7 @@ describe("POST /s/:slug/edit", () => {
   // (this is the "fails open" side of the review finding — the edit path
   // itself was always correct, but had no regression test pinning it).
   it("does not change visibility when republishing through the edit path", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
 
     const res = await postMultipart("/s/demo-skill/edit", cookie, {

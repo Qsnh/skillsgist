@@ -1,14 +1,18 @@
 import { Hono } from "hono";
-import { getSkill, getUserByInstallKey, getVersionByDigest, listPublishedForIndex } from "../db/queries";
+import { digestFromArtifactFile, zipAttachment } from "../artifact";
+import type { AppEnv } from "../auth";
+import { getArtifactByDigest, getUserByInstallKey, listPublishedForIndex } from "../db/queries";
 import { buildIndex } from "../registry";
 import type { Env } from "../types";
 
-export const registryRoutes = new Hono<{ Bindings: Env }>();
+export const registryRoutes = new Hono<AppEnv>();
 
 const INDEX_SUFFIXES = [
   "/.well-known/agent-skills/index.json",
   "/.well-known/skills/index.json",
 ];
+
+const notFound = () => new Response("not found", { status: 404 });
 
 function indexResponse(body: unknown): Response {
   return new Response(JSON.stringify(body, null, 2), {
@@ -22,28 +26,17 @@ async function serveArtifact(
   file: string,
   visible: "public" | "any",
 ): Promise<Response> {
-  const match = /^([a-f0-9]{64})\.zip$/.exec(file);
-  if (!match) return new Response("not found", { status: 404 });
+  const digest = digestFromArtifactFile(file);
+  if (!digest) return notFound();
 
-  const skill = await getSkill(env.DB, slug);
-  if (!skill) return new Response("not found", { status: 404 });
-  if (visible === "public" && skill.visibility !== "public") {
-    return new Response("not found", { status: 404 });
-  }
+  const artifact = await getArtifactByDigest(env.DB, slug, digest);
+  if (!artifact) return notFound();
+  if (visible === "public" && artifact.visibility !== "public") return notFound();
 
-  const version = await getVersionByDigest(env.DB, slug, `sha256:${match[1]}`);
-  if (!version) return new Response("not found", { status: 404 });
+  const object = await env.BUCKET.get(artifact.r2_key);
+  if (!object) return notFound();
 
-  const object = await env.BUCKET.get(version.r2_key);
-  if (!object) return new Response("not found", { status: 404 });
-
-  return new Response(object.body, {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${slug}.zip"`,
-      "Cache-Control": visible === "public" ? "public, max-age=300" : "private, no-store",
-    },
-  });
+  return zipAttachment(object, slug, visible === "public");
 }
 
 for (const suffix of INDEX_SUFFIXES) {
@@ -66,9 +59,8 @@ registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
 // CLI 装单个私有 skill 时会把整条 URL 当作 basePath 再拼一次 .well-known，
 // 所以这里用通配接住任意深度的嵌套，统一返回该 key 可见的 index。
 registryRoutes.get("/i/:key/*", async (c) => {
-  const path = new URL(c.req.url).pathname;
   const key = c.req.param("key");
-  if (!INDEX_SUFFIXES.some((suffix) => path.endsWith(suffix))) return c.notFound();
+  if (!INDEX_SUFFIXES.some((suffix) => c.req.path.endsWith(suffix))) return c.notFound();
   const user = await getUserByInstallKey(c.env.DB, key);
   if (!user) return c.notFound();
   const rows = await listPublishedForIndex(c.env.DB, true);

@@ -6,8 +6,7 @@ import type { MiddlewareHandler } from "hono";
 import type { JSX } from "hono/jsx/jsx-runtime";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
-import type { Ctx } from "./auth";
-import type { Env } from "./types";
+import type { AppEnv, Ctx } from "./auth";
 
 // Everything that implements CSRF protection lives in this one file: the token
 // itself, the middleware that checks it, and the <Form> component that is the
@@ -95,7 +94,16 @@ export async function page(
   return c.html(<CsrfContext.Provider value={token}>{element}</CsrfContext.Provider>, status);
 }
 
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+export const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Prefix of the token-authenticated JSON API. One constant, because three
+ * layers have to agree on it: this middleware's exemption below, the JSON
+ * error shape in src/index.ts, and the route registration in
+ * routes/publish.tsx. Versioning the API under a different prefix would
+ * otherwise silently desynchronise them.
+ */
+export const API_PREFIX = "/api/";
 
 // Mutating routes that cannot carry a session-bound token because no session
 // exists yet. Layer 1 (Origin / Sec-Fetch-Site) still covers both.
@@ -107,7 +115,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 // account. If that becomes worth closing, that is the upgrade path.
 const TOKENLESS_PATHS = new Set(["/setup", "/login"]);
 
-export const csrfToken: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (SAFE_METHODS.has(c.req.method)) return next();
 
   // `/api/*` authenticates by `Authorization: Bearer` and never reads the
@@ -121,7 +129,7 @@ export const csrfToken: MiddlewareHandler<{ Bindings: Env }> = async (c, next) =
   // does) is intentional. A content-type rule would make this exemption
   // implicit, and a future cookie-authenticated JSON endpoint would inherit
   // it silently.
-  if (c.req.path.startsWith("/api/")) return next();
+  if (c.req.path.startsWith(API_PREFIX)) return next();
   if (TOKENLESS_PATHS.has(c.req.path)) return next();
 
   const expected = await sessionCsrf(c);

@@ -1,10 +1,27 @@
-import type { Context } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
-import { getUserById } from "./db/queries";
+import { decodeBase64, encodeBase64 } from "hono/utils/encode";
+import { getSkill, getUserById } from "./db/queries";
 import type { SkillRow, UserRow } from "./db/queries";
+import { sha256Hex, toHex } from "./hash";
 import type { Env } from "./types";
 
-export type Ctx = Context<{ Bindings: Env }>;
+/**
+ * The one Hono environment every app and route module is typed with.
+ *
+ * `user` is set by `requireUser` below, so a handler behind it reads the
+ * signed-in user off the context instead of resolving it again. `session` is
+ * the memoised session read — see `readSession`.
+ */
+export interface AppEnv {
+  Bindings: Env;
+  Variables: {
+    user: UserRow;
+    session: Promise<SessionPayload | null>;
+  };
+}
+
+export type Ctx = Context<AppEnv>;
 
 export const PBKDF2_ITERATIONS = 10_000;
 export const MIN_PASSWORD_LENGTH = 12;
@@ -16,27 +33,9 @@ export const CSRF_FIELD = "_csrf";
 
 const enc = new TextEncoder();
 
-function toBase64(bytes: Uint8Array): string {
-  let s = "";
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s);
-}
-
-function fromBase64(value: string): Uint8Array {
-  const bin = atob(value);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-async function deriveBits(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+async function deriveBits(password: string, salt: Uint8Array, iterations: number): Promise<ArrayBuffer> {
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    key,
-    256,
-  );
-  return new Uint8Array(bits);
+  return crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
 }
 
 export function constantTimeEqual(a: string, b: string): boolean {
@@ -52,7 +51,7 @@ export async function hashPassword(
 ): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const bits = await deriveBits(password, salt, iterations);
-  return `pbkdf2$${iterations}$${toBase64(salt)}$${toBase64(bits)}`;
+  return `pbkdf2$${iterations}$${encodeBase64(salt.buffer)}$${encodeBase64(bits)}`;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
@@ -62,22 +61,16 @@ export async function verifyPassword(password: string, stored: string): Promise<
   if (!Number.isInteger(iterations) || iterations < 1 || iterations > 1_000_000) return false;
   let salt: Uint8Array;
   try {
-    salt = fromBase64(parts[2]);
+    salt = decodeBase64(parts[2]);
   } catch {
     return false;
   }
   const bits = await deriveBits(password, salt, iterations);
-  return constantTimeEqual(toBase64(bits), parts[3]);
+  return constantTimeEqual(encodeBase64(bits), parts[3]);
 }
 
 export function randomHex(byteLength: number): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
-  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function sha256Hex(input: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", enc.encode(input));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return toHex(crypto.getRandomValues(new Uint8Array(byteLength)));
 }
 
 /**
@@ -119,7 +112,21 @@ export function clearSession(c: Ctx): void {
 // at deploy time gets logged out once and signs back in. That one-time cost is
 // deliberate: the alternative — honouring csrf-less sessions — would hand an
 // attacker a downgrade switch back to the unprotected behaviour.
-async function readSession(c: Ctx): Promise<SessionPayload | null> {
+//
+// Memoised on the context: verifying the cookie's HMAC is a WebCrypto
+// import+verify, and a single request asks for the session up to three times
+// (the CSRF middleware, `requireUser`, and `page()` rendering the token).
+// Caching the *promise* rather than the payload keeps "no session" — a
+// perfectly normal null — distinguishable from "not looked up yet".
+function readSession(c: Ctx): Promise<SessionPayload | null> {
+  const cached = c.get("session");
+  if (cached) return cached;
+  const pending = loadSession(c);
+  c.set("session", pending);
+  return pending;
+}
+
+async function loadSession(c: Ctx): Promise<SessionPayload | null> {
   const raw = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE);
   if (!raw) return null;
   let payload: { uid?: unknown; exp?: unknown; csrf?: unknown };
@@ -159,3 +166,61 @@ export async function userFromApiToken(c: Ctx): Promise<UserRow | null> {
 export function canManage(user: UserRow, skill: SkillRow): boolean {
   return user.role === "admin" || user.id === skill.owner_id;
 }
+
+/**
+ * Who may see a skill at all. Private skills are visible to any signed-in
+ * user (spec §6). One expression, so tightening this later — to owner and
+ * admins only, say — is a single edit rather than a hunt through the routes.
+ * The SQL equivalent is `listSkills`/`listPublishedForIndex`'s
+ * `includePrivate`, which callers derive from the same `user !== null`.
+ */
+export function canView(user: UserRow | null, skill: Pick<SkillRow, "visibility">): boolean {
+  return skill.visibility === "public" || user !== null;
+}
+
+/**
+ * Resolve the session user or redirect to /login, and hand the user to the
+ * handler through `c.get("user")`.
+ *
+ * Registered per route (`routes.post(path, requireUser, handler)`) rather
+ * than as a blanket `use()`: which routes demand a session is then visible in
+ * the route table instead of being a prologue every new handler has to
+ * remember to copy. src/csrf.tsx's layer-2 middleware leans on exactly that
+ * invariant.
+ */
+export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const user = await currentUser(c);
+  if (!user) return c.redirect("/login", 302);
+  c.set("user", user);
+  return next();
+};
+
+/**
+ * Load the skill named by `slug` and check the signed-in user may manage it.
+ * Use behind `requireUser`, which is what puts the user on the context.
+ *
+ * `slug` is passed in rather than read off `c`: these helpers take the
+ * pattern-less `Ctx`, where `c.req.param()` types as `string | undefined`,
+ * and the caller has the value already.
+ */
+export async function requireManagedSkill(
+  c: Ctx,
+  slug: string,
+  action: string,
+): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
+  const skill = await getSkill(c.env.DB, slug);
+  if (!skill) return { ok: false, response: await c.notFound() };
+  if (!canManage(c.get("user"), skill)) {
+    return { ok: false, response: c.text(`无权${action}这个 skill`, 403) };
+  }
+  return { ok: true, skill };
+}
+
+/** `requireUser`, plus an admin-only gate. */
+export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const user = await currentUser(c);
+  if (!user) return c.redirect("/login", 302);
+  if (user.role !== "admin") return c.text("仅管理员可访问", 403);
+  c.set("user", user);
+  return next();
+};

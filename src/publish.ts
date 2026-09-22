@@ -5,7 +5,9 @@ import { normalizeUpload, UploadError } from "./skills/normalize";
 import type { Env } from "./types";
 
 export class ForbiddenError extends Error {
+  // See the note on UploadError: the status and code belong to the error.
   readonly status = 403;
+  readonly code = "forbidden";
   constructor(message: string) {
     super(message);
     this.name = "ForbiddenError";
@@ -39,6 +41,19 @@ export async function publishBytes(
     throw new ForbiddenError(`skill ${normalized.name} 属于其他用户，无权覆盖`);
   }
 
+  // Final-review Fix 1: `insertVersion`'s ON CONFLICT clause deliberately
+  // never updates `visibility` (see the note on the call below), so for an
+  // existing skill this is the only place that write happens. It sits here,
+  // above the digest branch, rather than once per exit: a republish of
+  // unchanged content must honour an explicit choice too, and any future
+  // early return in this function would otherwise silently drop it again.
+  // `undefined` means the caller passed no visibility at all (the edit
+  // path) and must leave the column untouched. Ownership was just checked,
+  // so no further authorization is needed.
+  if (existing && opts.visibility !== undefined) {
+    await setVisibility(env.DB, existing.slug, opts.visibility);
+  }
+
   if (existing) {
     const latest = await getVersion(env.DB, existing.slug, existing.latest_version);
     if (latest?.digest === normalized.digest) {
@@ -56,15 +71,6 @@ export async function publishBytes(
           httpMetadata: { contentType: "application/zip" },
         });
       }
-      // Final-review Fix 1: visibility is only ever written by the
-      // ON CONFLICT branch's initial VALUES list (never by the UPDATE —
-      // that's deliberate, see below), so an explicitly-supplied
-      // visibility on an unchanged-content republish must be applied here
-      // too, or it's silently dropped exactly like the non-unchanged path
-      // below.
-      if (opts.visibility !== undefined) {
-        await setVisibility(env.DB, existing.slug, opts.visibility);
-      }
       return {
         slug: existing.slug,
         version: existing.latest_version,
@@ -76,7 +82,7 @@ export async function publishBytes(
   }
 
   const html = await renderMarkdown(normalized.skillMd);
-  const version = await insertVersion(env.DB, {
+  const { version, r2Key } = await insertVersion(env.DB, {
     slug: normalized.name,
     digest: normalized.digest,
     size: normalized.zip.byteLength,
@@ -97,23 +103,10 @@ export async function publishBytes(
     // column — deliberately, so a republish that passes no visibility
     // (the edit path) can't reset a public skill to private, and an
     // admin's republish can't silently flip it either. An *explicitly*
-    // supplied visibility on an existing skill is instead applied below,
-    // after the version is written.
+    // supplied visibility on an existing skill is applied by the
+    // `setVisibility` call above instead.
     visibility: opts.visibility ?? "private",
   });
-
-  // Final-review Fix 1: apply an explicitly-chosen visibility to an
-  // existing skill. `insertVersion`'s ON CONFLICT clause intentionally
-  // never updates `visibility` (see the comment above), so this is the
-  // only place that write happens. `opts.visibility` is `undefined` when
-  // the caller didn't pass one at all (the edit path) — that case must
-  // leave visibility untouched, which is exactly what skipping this call
-  // does. The caller has already established `canManage` for `existing`
-  // via the ForbiddenError check above, so no extra authorization check is
-  // needed here.
-  if (existing && opts.visibility !== undefined) {
-    await setVisibility(env.DB, normalized.name, opts.visibility);
-  }
 
   // Deliberate ordering: D1 rows are written before the R2 object. If R2
   // then fails, the version row points at a missing object — visible on
@@ -123,7 +116,10 @@ export async function publishBytes(
   // it when it doesn't, rather than short-circuiting on the digest alone.
   // Writing R2 first would risk an unreferenced R2 object that nothing can
   // detect if D1 then failed.
-  await env.BUCKET.put(`skills/${normalized.name}/${version}.zip`, normalized.zip, {
+  // `r2Key` comes back from `insertVersion`, which is what wrote it into
+  // `versions.r2_key` — the column every reader trusts. Re-deriving the same
+  // string here is how the stored key and the written object drift apart.
+  await env.BUCKET.put(r2Key, normalized.zip, {
     httpMetadata: { contentType: "application/zip" },
   });
 

@@ -1,8 +1,9 @@
+import { artifactUrl, DIGEST_PREFIX } from "./artifact";
 import { isValidDescription, isValidSkillName } from "./skills/frontmatter";
 
 export const DISCOVERY_SCHEMA = "https://schemas.agentskills.io/discovery/0.2.0/schema.json";
 
-const DIGEST_RE = /^sha256:[a-f0-9]{64}$/;
+const DIGEST_RE = new RegExp(`^${DIGEST_PREFIX}[a-f0-9]{64}$`);
 
 export interface IndexEntry {
   name: string;
@@ -49,7 +50,7 @@ export function buildIndex(
       name: row.slug,
       description: row.description,
       type: "archive",
-      url: `${baseUrl}/d/${row.slug}/${row.digest.slice("sha256:".length)}.zip`,
+      url: artifactUrl(baseUrl, row.slug, row.digest),
       digest: row.digest,
     });
   }

@@ -91,13 +91,9 @@ export async function renderMarkdown(md: string): Promise<string> {
         // invalidates the live attribute iterator as soon as removeAttribute
         // is called mid-iteration, so we iterate a plain array instead.
         for (const [name, value] of [...el.attributes]) {
-          // Redundant — the tokenizer already lowercases attribute names —
-          // but harmless, so left as-is (task-7 review, deferred).
-          if (name.toLowerCase().startsWith("on")) {
-            el.removeAttribute(name);
-            continue;
-          }
-          if (name === "style") {
+          // The tokenizer lowercases attribute names, so `name` is already
+          // lowercase here — no need to re-normalize before matching.
+          if (name === "style" || name.startsWith("on")) {
             el.removeAttribute(name);
             continue;
           }

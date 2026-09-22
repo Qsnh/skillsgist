@@ -34,6 +34,15 @@ export interface VersionRow {
   created_at: number;
 }
 
+/** Just the version rows a version list renders — see `listVersions`. */
+export type VersionSummary = Pick<VersionRow, "version" | "created_at">;
+
+/** Everything a download route needs, and nothing it doesn't. */
+export interface ArtifactRef {
+  r2_key: string;
+  visibility: "public" | "private";
+}
+
 export interface InsertVersionInput {
   slug: string;
   digest: string;
@@ -122,11 +131,20 @@ export async function updateUserRole(
 // acting admin first, in the same batch as the delete, keeps every skill
 // the departed user owned or published downloadable and attributed to a
 // user that still exists.
+//
+// `reassignTo` must be a *different* user: with both sides equal the two
+// UPDATEs are a no-op against the row about to be deleted, leaving those
+// foreign keys pointing at an id that no longer exists. The precondition
+// belongs here rather than in each caller, so a second caller (a cleanup
+// job, a bulk delete) can't reintroduce the corruption by forgetting it.
 export async function deleteUserReassigning(
   db: D1Database,
   userId: string,
   reassignTo: string,
 ): Promise<void> {
+  if (userId === reassignTo) {
+    throw new Error("deleteUserReassigning: cannot reassign a user's rows to itself");
+  }
   await db.batch([
     db.prepare("UPDATE skills SET owner_id = ? WHERE owner_id = ?").bind(reassignTo, userId),
     db.prepare("UPDATE versions SET author_id = ? WHERE author_id = ?").bind(reassignTo, userId),
@@ -157,6 +175,17 @@ export function getSkill(db: D1Database, slug: string): Promise<SkillRow | null>
   return db.prepare("SELECT * FROM skills WHERE slug = ?").bind(slug).first<SkillRow>();
 }
 
+/** `getSkill` with the owner's username folded in, the way `listSkills` does. */
+export function getSkillWithAuthor(
+  db: D1Database,
+  slug: string,
+): Promise<(SkillRow & { author: string }) | null> {
+  return db
+    .prepare("SELECT s.*, u.username AS author FROM skills s JOIN users u ON u.id = s.owner_id WHERE s.slug = ?")
+    .bind(slug)
+    .first<SkillRow & { author: string }>();
+}
+
 export function getVersion(db: D1Database, slug: string, version: number): Promise<VersionRow | null> {
   return db
     .prepare("SELECT * FROM versions WHERE slug = ? AND version = ?")
@@ -164,11 +193,14 @@ export function getVersion(db: D1Database, slug: string, version: number): Promi
     .first<VersionRow>();
 }
 
-export async function listVersions(db: D1Database, slug: string): Promise<VersionRow[]> {
+// Only the two columns the version list renders. `skill_md` and `html` are
+// the widest columns in the table, and `SELECT *` pulled both for every
+// version of the skill just to print a number and a date.
+export async function listVersions(db: D1Database, slug: string): Promise<VersionSummary[]> {
   const { results } = await db
-    .prepare("SELECT * FROM versions WHERE slug = ? ORDER BY version DESC")
+    .prepare("SELECT version, created_at FROM versions WHERE slug = ? ORDER BY version DESC")
     .bind(slug)
-    .all<VersionRow>();
+    .all<VersionSummary>();
   return results;
 }
 
@@ -186,7 +218,14 @@ export async function listPublishedForIndex(
   return results;
 }
 
-export async function insertVersion(db: D1Database, input: InsertVersionInput): Promise<number> {
+// Returns the `r2_key` it recorded as well as the version number: the caller
+// has to write the R2 object under exactly that key, and deriving the same
+// string a second time at the call site is how the stored key and the written
+// object drift apart.
+export async function insertVersion(
+  db: D1Database,
+  input: InsertVersionInput,
+): Promise<{ version: number; r2Key: string }> {
   const now = Date.now();
   const next = await db
     .prepare("SELECT COALESCE(MAX(version), 0) + 1 AS n FROM versions WHERE slug = ?")
@@ -216,7 +255,7 @@ export async function insertVersion(db: D1Database, input: InsertVersionInput): 
       ),
   ]);
 
-  return version;
+  return { version, r2Key };
 }
 
 export async function setVisibility(
@@ -262,13 +301,28 @@ export async function touchLogin(db: D1Database, userId: string, at: number): Pr
   await db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(at, userId).run();
 }
 
-export function getVersionByDigest(
+// The download routes need the object key and the skill's visibility, and
+// nothing else — joining beats fetching the whole skill row and then the
+// whole version row (which carries `skill_md` and `html`) in two round trips.
+const ARTIFACT_SQL =
+  "SELECT v.r2_key, s.visibility FROM skills s JOIN versions v ON v.slug = s.slug WHERE s.slug = ?";
+
+/** `version === null` means "whatever the skill's latest is". */
+export function getArtifactByVersion(
+  db: D1Database,
+  slug: string,
+  version: number | null,
+): Promise<ArtifactRef | null> {
+  return db
+    .prepare(`${ARTIFACT_SQL} AND v.version = COALESCE(?, s.latest_version)`)
+    .bind(slug, version)
+    .first<ArtifactRef>();
+}
+
+export function getArtifactByDigest(
   db: D1Database,
   slug: string,
   digest: string,
-): Promise<VersionRow | null> {
-  return db
-    .prepare("SELECT * FROM versions WHERE slug = ? AND digest = ?")
-    .bind(slug, digest)
-    .first<VersionRow>();
+): Promise<ArtifactRef | null> {
+  return db.prepare(`${ARTIFACT_SQL} AND v.digest = ?`).bind(slug, digest).first<ArtifactRef>();
 }

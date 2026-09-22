@@ -1,26 +1,21 @@
-import { env as rawEnv, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
-import { login, postForm, publishMarkdown, resetDb, seedUser } from "./helpers";
-
-// See test/db.test.ts for why `env` needs a local cast here.
-const env = rawEnv as unknown as { DB: D1Database };
-
-const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
+import {
+  apiToken, env, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin,
+  seedUser,
+} from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
 // token (see TOKENLESS_PATHS in src/csrf.tsx), so they post anonymously.
 const anon = (path: string, data: Record<string, string>) => postForm(path, null, data);
 
-const postAs = (path: string, cookie: string, data: Record<string, string> = {}) =>
-  postForm(path, cookie, data);
-
 describe("/setup", () => {
   beforeEach(resetDb);
 
   it("is reachable while no user exists", async () => {
-    const res = await SELF.fetch("http://localhost/setup");
+    const res = await SELF.fetch(`${ORIGIN}/setup`);
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("创建管理员");
   });
@@ -42,7 +37,7 @@ describe("/setup", () => {
 
   it("returns 404 once a user exists", async () => {
     await seedUser();
-    expect((await SELF.fetch("http://localhost/setup")).status).toBe(404);
+    expect((await SELF.fetch(`${ORIGIN}/setup`)).status).toBe(404);
   });
 
   it("cannot bootstrap a second admin after the first succeeds", async () => {
@@ -96,33 +91,30 @@ describe("/me", () => {
   beforeEach(resetDb);
 
   it("redirects anonymous visitors to /login", async () => {
-    const res = await SELF.fetch("http://localhost/me", { redirect: "manual" });
+    const res = await SELF.fetch(`${ORIGIN}/me`, { redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/login");
   });
 
   it("shows a ready-to-copy install command", async () => {
-    const { user, password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
-    const res = await SELF.fetch("http://localhost/me", { headers: { Cookie: cookie } });
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
     const html = await res.text();
     expect(html).toContain(`npx skills add`);
     expect(html).toContain(`/i/${user.install_key}`);
   });
 
   it("rotates the install key", async () => {
-    const { user, password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
-    const res = await postAs("/me/install-key", cookie);
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/install-key", cookie);
     expect(res.status).toBe(302);
     const after = await getUserByUsername(env.DB, "alice");
     expect(after?.install_key).not.toBe(user.install_key);
   });
 
   it("issues an api token once and stores only its hash", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
-    const res = await postAs("/me/api-token", cookie);
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/api-token", cookie);
     const html = await res.text();
     const match = /sgt_[a-f0-9]{32}/.exec(html);
     expect(match).not.toBeNull();
@@ -132,9 +124,8 @@ describe("/me", () => {
   });
 
   it("changes the password when the current one is supplied", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
-    const res = await postAs("/me/password", cookie, {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/password", cookie, {
       current: password,
       next: "another-long-password",
     });
@@ -147,16 +138,14 @@ describe("/admin/users", () => {
   beforeEach(resetDb);
 
   it("is forbidden for members", async () => {
-    const { password } = await seedUser({ username: "bob", role: "member" });
-    const cookie = await login("bob", password);
-    const res = await SELF.fetch("http://localhost/admin/users", { headers: { Cookie: cookie } });
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const res = await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(403);
   });
 
   it("lets an admin create a member", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
-    const res = await postAs("/admin/users", cookie, {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users", cookie, {
       username: "carol",
       password: "carols-long-password",
       role: "member",
@@ -172,10 +161,10 @@ describe("/admin/users", () => {
   // role-toggle and delete forms (and the delete note) must be absent from
   // the viewer's own row, while remaining present on every other row.
   it("hides the role-toggle and delete controls on the viewer's own row only", async () => {
-    const root = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", root.password);
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const cookie = root.cookie;
     await seedUser({ username: "carol", role: "member" });
-    const html = await (await SELF.fetch("http://localhost/admin/users", { headers: { Cookie: cookie } })).text();
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
 
     expect(html).toContain(`/admin/users/${root.user.id}/install-key`);
     expect(html).not.toContain(`/admin/users/${root.user.id}/role`);
@@ -205,38 +194,34 @@ describe("/admin/users/:id/*", () => {
   ];
 
   it("denies every route to a member with 403", async () => {
-    const { password } = await seedUser({ username: "bob", role: "member" });
-    const cookie = await login("bob", password);
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
     const target = await seedUser({ username: "carol", role: "member" });
     for (const { path, body } of endpoints) {
-      const res = await postAs(`/admin/users/${target.user.id}/${path}`, cookie, body);
+      const res = await postForm(`/admin/users/${target.user.id}/${path}`, cookie, body);
       expect(res.status).toBe(403);
     }
   });
 
   it("404s for an unknown user id on every route", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     for (const { path, body } of endpoints) {
-      const res = await postAs(`/admin/users/does-not-exist/${path}`, cookie, body);
+      const res = await postForm(`/admin/users/does-not-exist/${path}`, cookie, body);
       expect(res.status).toBe(404);
     }
   });
 
   it("lets an admin change a member's role", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
-    const res = await postAs(`/admin/users/${target.user.id}/role`, cookie, { role: "admin" });
+    const res = await postForm(`/admin/users/${target.user.id}/role`, cookie, { role: "admin" });
     expect(res.status).toBe(302);
     expect((await getUserByUsername(env.DB, "carol"))?.role).toBe("admin");
   });
 
   it("lets an admin reset a member's password", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
-    const res = await postAs(`/admin/users/${target.user.id}/password`, cookie, {
+    const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, {
       password: "carols-new-long-password",
     });
     expect(res.status).toBe(302);
@@ -244,47 +229,42 @@ describe("/admin/users/:id/*", () => {
   });
 
   it("rejects a too-short password reset with 400", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
-    const res = await postAs(`/admin/users/${target.user.id}/password`, cookie, { password: "short" });
+    const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, { password: "short" });
     expect(res.status).toBe(400);
   });
 
   it("lets an admin revoke a member's api token", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
-    const target = await seedUser({ username: "carol", role: "member" });
-    const carolCookie = await login("carol", target.password);
-    await postAs("/me/api-token", carolCookie);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const target = await seedAndLogin({ username: "carol", role: "member" });
+    const carolCookie = target.cookie;
+    await postForm("/me/api-token", carolCookie);
     expect((await getUserByUsername(env.DB, "carol"))?.api_token_hash).not.toBeNull();
 
-    const res = await postAs(`/admin/users/${target.user.id}/api-token/revoke`, cookie);
+    const res = await postForm(`/admin/users/${target.user.id}/api-token/revoke`, cookie);
     expect(res.status).toBe(302);
     expect((await getUserByUsername(env.DB, "carol"))?.api_token_hash).toBeNull();
   });
 
   it("refuses to demote the last remaining admin", async () => {
-    const { user, password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
-    const res = await postAs(`/admin/users/${user.id}/role`, cookie, { role: "member" });
+    const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm(`/admin/users/${user.id}/role`, cookie, { role: "member" });
     expect(res.status).toBe(400);
     expect((await getUserByUsername(env.DB, "root"))?.role).toBe("admin");
   });
 
   it("still allows demoting an admin when another admin remains", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const other = await seedUser({ username: "second-admin", role: "admin" });
-    const res = await postAs(`/admin/users/${other.user.id}/role`, cookie, { role: "member" });
+    const res = await postForm(`/admin/users/${other.user.id}/role`, cookie, { role: "member" });
     expect(res.status).toBe(302);
     expect((await getUserByUsername(env.DB, "second-admin"))?.role).toBe("member");
   });
 
   it("refuses to delete the last remaining admin", async () => {
-    const { user, password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
-    const res = await postAs(`/admin/users/${user.id}/delete`, cookie);
+    const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm(`/admin/users/${user.id}/delete`, cookie);
     expect(res.status).toBe(400);
     expect(await countUsers(env.DB)).toBe(1);
   });
@@ -302,37 +282,34 @@ describe("/admin/users/:id/*", () => {
   // "remove my own account" is something another admin does instead.
   describe("self-targeting guard", () => {
     it("refuses to let an admin delete themselves even when a second admin exists", async () => {
-      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
-      const rootCookie = await login("root", rootPw);
+      const { user: root, cookie: rootCookie } = await seedAndLogin({ username: "root", role: "admin" });
       await seedUser({ username: "second-admin", role: "admin" });
 
       await publishMarkdown(rootCookie, GOOD_MD, "public");
 
-      const res = await postAs(`/admin/users/${root.id}/delete`, rootCookie);
+      const res = await postForm(`/admin/users/${root.id}/delete`, rootCookie);
       expect(res.status).toBe(400);
       expect(await getUserByUsername(env.DB, "root")).not.toBeNull();
       expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(root.id);
     });
 
     it("refuses to let an admin demote themselves even when a second admin exists", async () => {
-      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
-      const rootCookie = await login("root", rootPw);
+      const { user: root, cookie: rootCookie } = await seedAndLogin({ username: "root", role: "admin" });
       await seedUser({ username: "second-admin", role: "admin" });
 
-      const res = await postAs(`/admin/users/${root.id}/role`, rootCookie, { role: "member" });
+      const res = await postForm(`/admin/users/${root.id}/role`, rootCookie, { role: "member" });
       expect(res.status).toBe(400);
       expect((await getUserByUsername(env.DB, "root"))?.role).toBe("admin");
     });
 
     it("still lets a different admin delete them, with reassignment intact", async () => {
-      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
-      const rootCookie = await login("root", rootPw);
-      const second = await seedUser({ username: "second-admin", role: "admin" });
-      const secondCookie = await login("second-admin", second.password);
+      const { user: root, cookie: rootCookie } = await seedAndLogin({ username: "root", role: "admin" });
+      const second = await seedAndLogin({ username: "second-admin", role: "admin" });
+      const secondCookie = second.cookie;
 
       await publishMarkdown(rootCookie, GOOD_MD, "public");
 
-      const res = await postAs(`/admin/users/${root.id}/delete`, secondCookie);
+      const res = await postForm(`/admin/users/${root.id}/delete`, secondCookie);
       expect(res.status).toBe(302);
       expect(await getUserByUsername(env.DB, "root")).toBeNull();
       expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(second.user.id);
@@ -343,37 +320,35 @@ describe("/admin/users/:id/*", () => {
   // granting read access to every private skill, and rotating it must
   // invalidate the old one at the exact endpoint the CLI uses.
   it("rotating a member's install key revokes the old one and enables the new one", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "dave", role: "member" });
     const oldKey = target.user.install_key;
 
-    const before = await SELF.fetch(`http://localhost/i/${oldKey}/.well-known/agent-skills/index.json`);
+    const before = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
     expect(before.status).toBe(200);
 
-    const res = await postAs(`/admin/users/${target.user.id}/install-key`, cookie);
+    const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
 
-    const afterOld = await SELF.fetch(`http://localhost/i/${oldKey}/.well-known/agent-skills/index.json`);
+    const afterOld = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
     expect(afterOld.status).toBe(404);
 
     const updated = await getUserByUsername(env.DB, "dave");
     expect(updated?.install_key).not.toBe(oldKey);
     const afterNew = await SELF.fetch(
-      `http://localhost/i/${updated!.install_key}/.well-known/agent-skills/index.json`,
+      `${ORIGIN}/i/${updated!.install_key}/.well-known/agent-skills/index.json`,
     );
     expect(afterNew.status).toBe(200);
   });
 
   it("reassigns owned skills and version authorship to the acting admin on delete, and keeps the skill downloadable", async () => {
-    const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
-    const rootCookie = await login("root", rootPw);
-    const member = await seedUser({ username: "erin", role: "member" });
-    const memberCookie = await login("erin", member.password);
+    const { user: root, cookie: rootCookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const member = await seedAndLogin({ username: "erin", role: "member" });
+    const memberCookie = member.cookie;
 
     await publishMarkdown(memberCookie, GOOD_MD, "public");
 
-    const res = await postAs(`/admin/users/${member.user.id}/delete`, rootCookie);
+    const res = await postForm(`/admin/users/${member.user.id}/delete`, rootCookie);
     expect(res.status).toBe(302);
 
     expect(await getUserByUsername(env.DB, "erin")).toBeNull();
@@ -382,7 +357,7 @@ describe("/admin/users/:id/*", () => {
     const version = await getVersion(env.DB, "demo-skill", 1);
     expect(version?.author_id).toBe(root.id);
 
-    const download = await SELF.fetch("http://localhost/s/demo-skill/download", { headers: { Cookie: rootCookie } });
+    const download = await SELF.fetch(`${ORIGIN}/s/demo-skill/download`, { headers: { Cookie: rootCookie } });
     expect(download.status).toBe(200);
   });
 });

@@ -1,5 +1,7 @@
+import { DIGEST_PREFIX } from "../artifact";
+import { sha256Hex } from "../hash";
 import { isValidDescription, isValidSkillName, parseFrontmatter } from "./frontmatter";
-import { readTarGz } from "./tar";
+import { isGzip, readTarGz } from "./tar";
 import { ArchiveError, readZip, writeZip, type ArchiveEntry } from "./zip";
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
@@ -7,7 +9,10 @@ export const MAX_UNPACKED_BYTES = 8 * 1024 * 1024;
 export const MAX_FILES = 200;
 
 export class UploadError extends Error {
+  // Status and machine-readable code travel with the error, so the routes
+  // map it without re-deciding either (see routes/publish.tsx).
   readonly status = 400;
+  readonly code = "invalid_upload";
   constructor(message: string) {
     super(message);
     this.name = "UploadError";
@@ -21,10 +26,6 @@ export interface NormalizedSkill {
   files: Array<{ path: string; size: number }>;
   zip: Uint8Array;
   digest: string;
-}
-
-function isGzip(b: Uint8Array): boolean {
-  return b.length > 1 && b[0] === 0x1f && b[1] === 0x8b;
 }
 
 function isZip(b: Uint8Array): boolean {
@@ -60,6 +61,10 @@ function stripWrapperDir(files: Map<string, Uint8Array>): Map<string, Uint8Array
   return out;
 }
 
+function dropJunk(files: Map<string, Uint8Array>): Map<string, Uint8Array> {
+  return new Map([...files].filter(([path]) => !isJunk(path)));
+}
+
 async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
   try {
     if (isGzip(bytes)) return await readTarGz(bytes);
@@ -72,11 +77,6 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
   // 解码再编码一次是为了把非法 UTF-8 字节规范成替换字符，保证 digest 稳定。
   const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes);
   return new Map([["SKILL.md", new TextEncoder().encode(text)]]);
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkill> {
@@ -93,12 +93,10 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
     cleaned.set(cleanPath(path), data);
   }
 
-  const files = stripWrapperDir(cleaned);
-  const filtered = new Map<string, Uint8Array>();
-  for (const [path, data] of files) {
-    if (isJunk(path)) continue;
-    filtered.set(path, data);
-  }
+  // Filtered twice on purpose: junk nested under a wrapper directory
+  // (`wrapper/__MACOSX/…`) only becomes top-level once the wrapper is
+  // stripped, and `isJunk` matches on a leading prefix.
+  const filtered = dropJunk(stripWrapperDir(cleaned));
 
   if (filtered.size === 0) throw new UploadError("压缩包内没有可用文件");
   if (filtered.size > MAX_FILES) {
@@ -134,8 +132,8 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
     skillMd,
     files: [...filtered]
       .map(([path, bytes]) => ({ path, size: bytes.byteLength }))
-      .sort((a, b) => (a.path < b.path ? -1 : 1)),
+      .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     zip,
-    digest: `sha256:${await sha256Hex(zip)}`,
+    digest: `${DIGEST_PREFIX}${await sha256Hex(zip)}`,
   };
 }

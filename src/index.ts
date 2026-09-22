@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
-import { csrfToken } from "./csrf";
+import type { AppEnv } from "./auth";
+import { API_PREFIX, csrfToken } from "./csrf";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
 import { skillsRoutes } from "./routes/skills";
 import { usersRoutes } from "./routes/users";
-import type { Env } from "./types";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
 // Final-review Fix 4a: the markdown sanitizer (src/render/markdown.ts)
 // runs once at publish time and the result is stored, so a future
@@ -77,7 +77,7 @@ app.onError((err, c) => {
   if (err instanceof HTTPException) return err.getResponse();
   console.error("unhandled", err);
   const accepts = c.req.header("Accept") ?? "";
-  if (c.req.path.startsWith("/api/") || accepts.includes("application/json")) {
+  if (c.req.path.startsWith(API_PREFIX) || accepts.includes("application/json")) {
     return c.json({ error: "internal_error", message: "服务内部错误" }, 500);
   }
   return c.html("<h1>服务内部错误</h1>", 500);

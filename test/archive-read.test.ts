@@ -1,28 +1,14 @@
-import { env as rawEnv } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { ArchiveError, readZip, writeZip } from "../src/skills/zip";
 import { gzipRetryLengths, readTarGz } from "../src/skills/tar";
-
-// Binary fixtures can't be read with `node:fs` from inside a pool-workers
-// test: the worker's `node:fs` is a sandboxed, empty virtual filesystem with
-// no bridge to the host disk (confirmed empirically — even `process.cwd()`
-// is unreachable). `vitest.config.ts` reads the real files from disk (it
-// runs in plain Node) and exposes them here as `dataBlobBindings`. Same
-// `Cloudflare.Env`-is-untyped local-cast pattern as test/db.test.ts.
-const env = rawEnv as unknown as {
-  FLAT_ZIP: ArrayBuffer;
-  WRAPPED_ZIP: ArrayBuffer;
-  FLAT_DOT_TAR_GZ: ArrayBuffer;
-  SYMLINK_TAR_GZ: ArrayBuffer;
-  BSDTAR_PADDED_TAR_GZ: ArrayBuffer;
-};
+import { fixture } from "./helpers";
 
 const dec = new TextDecoder();
-const flatZip = new Uint8Array(env.FLAT_ZIP);
-const wrappedZip = new Uint8Array(env.WRAPPED_ZIP);
-const flatDotTarGz = new Uint8Array(env.FLAT_DOT_TAR_GZ);
-const symlinkTarGz = new Uint8Array(env.SYMLINK_TAR_GZ);
-const bsdtarPaddedTarGz = new Uint8Array(env.BSDTAR_PADDED_TAR_GZ);
+const flatZip = fixture("FLAT_ZIP");
+const wrappedZip = fixture("WRAPPED_ZIP");
+const flatDotTarGz = fixture("FLAT_DOT_TAR_GZ");
+const symlinkTarGz = fixture("SYMLINK_TAR_GZ");
+const bsdtarPaddedTarGz = fixture("BSDTAR_PADDED_TAR_GZ");
 
 describe("readZip", () => {
   it("reads a zip produced by the system zip tool", async () => {

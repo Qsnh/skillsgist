@@ -1,8 +1,12 @@
-import { ArchiveError } from "./zip";
+import { ArchiveError, pipeBytes } from "./zip";
 
-async function inflateGzipMember(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+/** The gzip magic bytes. The only place this archive format is recognised. */
+export function isGzip(b: Uint8Array): boolean {
+  return b.length > 1 && b[0] === 0x1f && b[1] === 0x8b;
+}
+
+function inflateGzipMember(data: Uint8Array): Promise<Uint8Array> {
+  return pipeBytes(data, new DecompressionStream("gzip"));
 }
 
 function indexAfterLastNonZero(data: Uint8Array): number {
@@ -39,7 +43,6 @@ const GZIP_TRAILER_LEN = 8;
 // would silently re-run the identical failed decompression.
 export function gzipRetryLengths(data: Uint8Array): number[] {
   const floor = indexAfterLastNonZero(data);
-  if (floor >= data.length) return []; // no trailing zero padding to trim; probing can't change the outcome
   const lengths: number[] = [];
   for (let extra = 0; extra <= GZIP_TRAILER_LEN; extra++) {
     const end = floor + extra;
@@ -80,9 +83,7 @@ function readString(buf: Uint8Array, offset: number, length: number): string {
 }
 
 export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
-  if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) {
-    throw new ArchiveError("不是合法的 gzip 数据");
-  }
+  if (!isGzip(bytes)) throw new ArchiveError("不是合法的 gzip 数据");
   let tar: Uint8Array;
   try {
     tar = await gunzip(bytes);

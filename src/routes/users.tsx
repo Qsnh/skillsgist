@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import {
-  clearSession, currentUser, hashPassword, MIN_PASSWORD_LENGTH, randomHex,
-  sha256Hex, startSession, verifyPassword,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
+  startSession, verifyPassword,
 } from "../auth";
-import type { Ctx } from "../auth";
+import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
@@ -11,7 +11,7 @@ import {
   updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
-import type { Env } from "../types";
+import { sha256Hex } from "../hash";
 import { LoginPage, MePage, SetupPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
@@ -25,7 +25,13 @@ const USERNAME = /^[a-z0-9-]{2,32}$/;
 const DUMMY_PASSWORD_HASH =
   "pbkdf2$10000$gjyRMe6k+HkicrCTiEY7zg==$ZV/Ne/ZKCLOQWmnxZmtXlwKrXq7/0Th3ydwHLStYv28=";
 
-export const usersRoutes = new Hono<{ Bindings: Env }>();
+export const usersRoutes = new Hono<AppEnv>();
+
+const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
+
+/** Re-render the user list with an error. Every 400 on these routes is this. */
+const usersError = async (c: Ctx, admin: UserRow, error: string) =>
+  page(c, <UsersPage user={admin} users={await listUsers(c.env.DB)} error={error} />, 400);
 
 usersRoutes.get("/setup", async (c) => {
   if ((await countUsers(c.env.DB)) > 0) return c.notFound();
@@ -69,8 +75,7 @@ usersRoutes.post("/login", async (c) => {
   // timing responses.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
   if (!user || !ok) return page(c, <LoginPage error="用户名或密码不正确" />, 401);
-  await touchLogin(c.env.DB, user.id, Date.now());
-  await startSession(c, user.id);
+  await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
   return c.redirect("/", 302);
 });
 
@@ -79,38 +84,35 @@ usersRoutes.post("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/me", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
-  return page(c, <MePage user={user} origin={new URL(c.req.url).origin} />);
-});
+usersRoutes.get("/me", requireUser, async (c) =>
+  page(c, <MePage user={c.get("user")} origin={new URL(c.req.url).origin} />),
+);
 
-usersRoutes.post("/me/install-key", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
-  await updateInstallKey(c.env.DB, user.id, randomHex(16));
+usersRoutes.post("/me/install-key", requireUser, async (c) => {
+  await updateInstallKey(c.env.DB, c.get("user").id, randomHex(16));
   return c.redirect("/me", 302);
 });
 
-usersRoutes.post("/me/api-token", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
+usersRoutes.post("/me/api-token", requireUser, async (c) => {
+  const user = c.get("user");
   const token = `sgt_${randomHex(16)}`;
-  await updateApiTokenHash(c.env.DB, user.id, await sha256Hex(token));
-  const fresh = await getUserById(c.env.DB, user.id);
-  return page(c, <MePage user={fresh ?? user} origin={new URL(c.req.url).origin} newToken={token} />);
+  const api_token_hash = await sha256Hex(token);
+  await updateApiTokenHash(c.env.DB, user.id, api_token_hash);
+  // The hash is the only column that changed and we just computed it — no
+  // need to read the row back to render it.
+  return page(
+    c,
+    <MePage user={{ ...user, api_token_hash }} origin={new URL(c.req.url).origin} newToken={token} />,
+  );
 });
 
-usersRoutes.post("/me/api-token/revoke", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
-  await updateApiTokenHash(c.env.DB, user.id, null);
+usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
+  await updateApiTokenHash(c.env.DB, c.get("user").id, null);
   return c.redirect("/me", 302);
 });
 
-usersRoutes.post("/me/password", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
+usersRoutes.post("/me/password", requireUser, async (c) => {
+  const user = c.get("user");
   const body = await c.req.parseBody();
   const origin = new URL(c.req.url).origin;
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
@@ -124,142 +126,114 @@ usersRoutes.post("/me/password", async (c) => {
   return c.redirect("/me", 302);
 });
 
-usersRoutes.get("/admin/users", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
-  if (user.role !== "admin") return c.text("仅管理员可访问", 403);
-  return page(c, <UsersPage user={user} users={await listUsers(c.env.DB)} />);
-});
+usersRoutes.get("/admin/users", requireAdmin, async (c) =>
+  page(c, <UsersPage user={c.get("user")} users={await listUsers(c.env.DB)} />),
+);
 
-usersRoutes.post("/admin/users", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
-  if (user.role !== "admin") return c.text("仅管理员可访问", 403);
+usersRoutes.post("/admin/users", requireAdmin, async (c) => {
+  const admin = c.get("user");
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
-  const role = body.role === "admin" ? "admin" : "member";
-  const fail = async (error: string) =>
-    page(c, <UsersPage user={user} users={await listUsers(c.env.DB)} error={error} />, 400);
-  if (!USERNAME.test(username)) return fail("用户名必须是 2-32 位的小写字母、数字或连字符");
-  if (password.length < MIN_PASSWORD_LENGTH) return fail(`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
-  if (await getUserByUsername(c.env.DB, username)) return fail("用户名已存在");
+  if (!USERNAME.test(username)) {
+    return usersError(c, admin, "用户名必须是 2-32 位的小写字母、数字或连字符");
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return usersError(c, admin, `密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
+  }
+  if (await getUserByUsername(c.env.DB, username)) return usersError(c, admin, "用户名已存在");
   await createUser(c.env.DB, {
-    id: randomHex(8), username, passwordHash: await hashPassword(password), role, installKey: randomHex(16),
+    id: randomHex(8),
+    username,
+    passwordHash: await hashPassword(password),
+    role: roleOf(body.role),
+    installKey: randomHex(16),
   });
   return c.redirect("/admin/users", 302);
 });
 
 // --- Final-review Fix 3: admin-only revocation levers -----------------
 // Spec §7.1 lists 建号、改角色、重置密码、删号 for GET/POST /admin/users;
-// only create existed. Every route below is admin-only and 404s for an
-// unknown target id, checked before any mutation.
+// only create existed. Every route below is admin-only (`requireAdmin`) and
+// 404s for an unknown target id, checked before any mutation.
 
-async function requireAdminAndTarget(
+/**
+ * The `:id` target of an admin route.
+ *
+ * `allowSelf` defaults to false, so a new destructive lever added next to
+ * these gets the safe behaviour without its author having to think of it.
+ * Self-targeting is refused rather than made to work: `deleteUserReassigning`
+ * cannot reassign a user's rows to itself (it rejects that outright), and
+ * changing your own role from the admin panel while your session is live is
+ * the same class of footgun. "Remove or demote my own account" is something
+ * another admin does.
+ */
+async function adminTarget(
   c: Ctx,
+  id: string,
+  opts: { allowSelf?: boolean; selfError?: string } = {},
 ): Promise<{ ok: true; admin: UserRow; target: UserRow } | { ok: false; response: Response }> {
-  const admin = await currentUser(c);
-  if (!admin) return { ok: false, response: c.redirect("/login", 302) };
-  if (admin.role !== "admin") return { ok: false, response: c.text("仅管理员可访问", 403) };
-  // `c` is the generic `Ctx` (no path pattern attached), so `param()`'s
-  // overloads fall back to `string | undefined` even though every route
-  // that calls this helper is registered with `:id` in its pattern — same
-  // situation as `routes/skills.tsx`'s `download()`.
-  const target = await getUserById(c.env.DB, c.req.param("id") as string);
+  const admin = c.get("user");
+  const target = await getUserById(c.env.DB, id);
   if (!target) return { ok: false, response: await c.notFound() };
+  if (target.id === admin.id && !opts.allowSelf) {
+    return {
+      ok: false,
+      response: await usersError(c, admin, opts.selfError ?? "不能对自己的账号执行这个操作，请让另一位管理员操作"),
+    };
+  }
   return { ok: true, admin, target };
 }
 
-usersRoutes.post("/admin/users/:id/role", async (c) => {
-  const guard = await requireAdminAndTarget(c);
+usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), {
+    selfError: "不能修改自己的角色，请让另一位管理员操作",
+  });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
-  // Regression 1 (scoped re-review): self-targeting must be refused
-  // outright, independent of the last-admin count check below — see the
-  // comment on the delete route for why (deleteUserReassigning has the
-  // sharper failure mode, but changing your own role through the admin
-  // panel while a normal-user session is live is just as much a footgun
-  // this route shouldn't allow). "Remove/demote my own account" is
-  // something another admin does.
-  if (target.id === admin.id) {
-    return page(
-      c,
-      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能修改自己的角色，请让另一位管理员操作" />,
-      400,
-    );
-  }
   const body = await c.req.parseBody();
-  const role = body.role === "admin" ? "admin" : "member";
+  const role = roleOf(body.role);
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return page(
-      c,
-      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能取消最后一个管理员的权限" />,
-      400,
-    );
+    return usersError(c, admin, "不能取消最后一个管理员的权限");
   }
   await updateUserRole(c.env.DB, target.id, role);
   return c.redirect("/admin/users", 302);
 });
 
-usersRoutes.post("/admin/users/:id/password", async (c) => {
-  const guard = await requireAdminAndTarget(c);
+usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  const { admin, target } = guard;
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return page(
-      c,
-      <UsersPage user={admin} users={await listUsers(c.env.DB)} error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />,
-      400,
-    );
+    return usersError(c, guard.admin, `密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
   }
-  await updatePassword(c.env.DB, target.id, await hashPassword(password));
+  await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
   return c.redirect("/admin/users", 302);
 });
 
-usersRoutes.post("/admin/users/:id/install-key", async (c) => {
-  const guard = await requireAdminAndTarget(c);
+usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
   return c.redirect("/admin/users", 302);
 });
 
-usersRoutes.post("/admin/users/:id/api-token/revoke", async (c) => {
-  const guard = await requireAdminAndTarget(c);
+usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateApiTokenHash(c.env.DB, guard.target.id, null);
   return c.redirect("/admin/users", 302);
 });
 
-usersRoutes.post("/admin/users/:id/delete", async (c) => {
-  const guard = await requireAdminAndTarget(c);
+usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), {
+    selfError: "不能删除自己的账号，请让另一位管理员操作",
+  });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
-  // Regression 1 (scoped re-review of the final fix wave): the last-admin
-  // guard below only checks the *count* of admins, so on its own it never
-  // stopped an admin from targeting their own id while a second admin
-  // exists. deleteUserReassigning(db, target.id, admin.id) would then run
-  // with the same id on both sides — the owner_id/author_id reassignment
-  // UPDATEs are a no-op against the row about to be deleted, so the
-  // foreign keys skills.owner_id and versions.author_id end up pointing at
-  // a user id that no longer exists. Refuse self-targeting outright,
-  // regardless of how many other admins exist, rather than trying to make
-  // self-reassignment work — "remove my own account" is something another
-  // admin does instead.
-  if (target.id === admin.id) {
-    return page(
-      c,
-      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除自己的账号，请让另一位管理员操作" />,
-      400,
-    );
-  }
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return page(
-      c,
-      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除最后一个管理员" />,
-      400,
-    );
+    return usersError(c, admin, "不能删除最后一个管理员");
   }
   // Reassigns skills.owner_id and versions.author_id to the acting admin
   // in the same db.batch() as the delete (see deleteUserReassigning) —

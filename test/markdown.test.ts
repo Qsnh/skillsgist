@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { renderMarkdown } from "../src/render/markdown";
 
+/**
+ * An href the sanitizer must drop: the attribute is gone, the link text
+ * survives. Every payload below is checked through this one assertion pair,
+ * so tightening what "dropped" means is a single edit.
+ */
+async function expectHrefDropped(href: string) {
+  const html = await renderMarkdown(`<a href="${href}">click</a>`);
+  expect(html).not.toContain("href=");
+  expect(html).toContain("click");
+}
+
+/** An href the sanitizer must leave exactly as written. */
+async function expectHrefKept(href: string) {
+  const html = await renderMarkdown(`<a href="${href}">link</a>`);
+  expect(html).toContain(`href="${href}"`);
+}
+
 describe("renderMarkdown", () => {
   it("renders headings and code blocks", async () => {
     const html = await renderMarkdown("# Title\n\n```js\nconst a = 1;\n```\n");
@@ -51,62 +68,21 @@ describe("renderMarkdown", () => {
   // browser sees "javascript:" where the old regex didn't. These pin the
   // exact bypass payloads the reviewer ran against the vulnerable build.
   describe("dangerous-scheme obfuscation (task-7 review finding 1)", () => {
-    it("strips a javascript: href obfuscated with a raw tab", async () => {
-      const html = await renderMarkdown('<a href="java\tscript:alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
+    it.each([
+      ["a javascript: href obfuscated with a raw tab", "java\tscript:alert(1)"],
+      ["a javascript: href obfuscated with a raw newline", "java\nscript:alert(1)"],
+      ["a javascript: href obfuscated with an HTML tab entity", "java&#9;script:alert(1)"],
+      ["a data: href obfuscated with a raw tab", "da\tta:text/html,evil"],
+      ["a data: href obfuscated with an HTML tab entity", "da&#9;ta:text/html,evil"],
+      ["a vbscript: href obfuscated with a raw tab", "vb\tscript:msgbox(1)"],
+      ["a vbscript: href obfuscated with an HTML tab entity", "vb&#9;script:msgbox(1)"],
+    ])("strips %s", (_label, href) => expectHrefDropped(href));
 
-    it("strips a javascript: href obfuscated with a raw newline", async () => {
-      const html = await renderMarkdown('<a href="java\nscript:alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a javascript: href obfuscated with an HTML tab entity", async () => {
-      const html = await renderMarkdown('<a href="java&#9;script:alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a data: href obfuscated with a raw tab", async () => {
-      const html = await renderMarkdown('<a href="da\tta:text/html,evil">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a data: href obfuscated with an HTML tab entity", async () => {
-      const html = await renderMarkdown('<a href="da&#9;ta:text/html,evil">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a vbscript: href obfuscated with a raw tab", async () => {
-      const html = await renderMarkdown('<a href="vb\tscript:msgbox(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a vbscript: href obfuscated with an HTML tab entity", async () => {
-      const html = await renderMarkdown('<a href="vb&#9;script:msgbox(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("keeps an https: link intact", async () => {
-      const html = await renderMarkdown('<a href="https://example.com/docs">click</a>');
-      expect(html).toContain('href="https://example.com/docs"');
-    });
-
-    it("keeps a mailto: link intact", async () => {
-      const html = await renderMarkdown('<a href="mailto:test@example.com">email</a>');
-      expect(html).toContain('href="mailto:test@example.com"');
-    });
-
-    it("keeps a relative link intact", async () => {
-      const html = await renderMarkdown('<a href="/docs/getting-started">rel</a>');
-      expect(html).toContain('href="/docs/getting-started"');
-    });
+    it.each([
+      "https://example.com/docs",
+      "mailto:test@example.com",
+      "/docs/getting-started",
+    ])("keeps %s intact", (href) => expectHrefKept(href));
   });
 
   // Regression tests for task-7 review finding, round 2: the round-1 fix
@@ -119,66 +95,26 @@ describe("renderMarkdown", () => {
   // renders the stored HTML. Each must assert the attribute is gone, not
   // merely that the literal scheme substring is absent.
   describe("dangerous-scheme obfuscation via character references (task-7 review, round 2)", () => {
-    it("strips an href with a named entity encoding the colon", async () => {
-      const html = await renderMarkdown('<a href="javascript&colon;alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips an href with a numeric entity encoding the colon", async () => {
-      const html = await renderMarkdown('<a href="javascript&#58;alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips an href with a numeric entity missing its trailing semicolon", async () => {
-      const html = await renderMarkdown('<a href="javascript&#58alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips an href with a hex numeric entity encoding the colon", async () => {
-      const html = await renderMarkdown('<a href="javascript&#x3a;alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("strips a data: href with a named entity encoding the colon", async () => {
-      const html = await renderMarkdown('<a href="data&colon;text/html,evil">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
+    it.each([
+      ["a named entity encoding the colon", "javascript&colon;alert(1)"],
+      ["a numeric entity encoding the colon", "javascript&#58;alert(1)"],
+      ["a numeric entity missing its trailing semicolon", "javascript&#58alert(1)"],
+      ["a hex numeric entity encoding the colon", "javascript&#x3a;alert(1)"],
+      ["a data: scheme with a named entity encoding the colon", "data&colon;text/html,evil"],
+      ["a scheme letter (not the colon) entity-encoded", "&#106;avascript:alert(1)"],
+    ])("strips an href with %s", (_label, href) => expectHrefDropped(href));
 
     it("strips a srcset with a named entity encoding the colon", async () => {
       const html = await renderMarkdown('<img srcset="javascript&colon;alert(1) 1x">');
       expect(html).not.toContain("srcset=");
     });
 
-    it("strips an href with a scheme letter (not the colon) entity-encoded", async () => {
-      const html = await renderMarkdown('<a href="&#106;avascript:alert(1)">click</a>');
-      expect(html).not.toContain("href=");
-      expect(html).toContain("click");
-    });
-
-    it("keeps a query-only relative href intact", async () => {
-      const html = await renderMarkdown('<a href="?a=1&b=2">q</a>');
-      expect(html).toContain('href="?a=1&b=2"');
-    });
-
-    it("keeps a fragment-only relative href intact", async () => {
-      const html = await renderMarkdown('<a href="#frag&x">f</a>');
-      expect(html).toContain('href="#frag&x"');
-    });
-
-    it("keeps a relative href with a query string intact", async () => {
-      const html = await renderMarkdown('<a href="page.html?a=1&b=2">p</a>');
-      expect(html).toContain('href="page.html?a=1&b=2"');
-    });
-
-    it("keeps an https href with a query string intact", async () => {
-      const html = await renderMarkdown('<a href="https://example.com/a?b=1&c=2">e</a>');
-      expect(html).toContain('href="https://example.com/a?b=1&c=2"');
-    });
+    it.each([
+      "?a=1&b=2",
+      "#frag&x",
+      "page.html?a=1&b=2",
+      "https://example.com/a?b=1&c=2",
+    ])("keeps the relative or https href %s intact", (href) => expectHrefKept(href));
   });
 
   // Regression test for task-7 review finding 2: `style` was never

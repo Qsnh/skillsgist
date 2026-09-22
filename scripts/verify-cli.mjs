@@ -42,6 +42,15 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+/** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
+async function installTo(url, extraArgs = []) {
+  const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], {
+    env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config") },
+  });
+  return home;
+}
+
 function findFile(root, relative) {
   if (!existsSync(root)) return null;
   const stack = [root];
@@ -139,31 +148,28 @@ try {
 
   // 3. 发布一个私有 skill（wrapped.zip：SKILL.md 包在 demo-skill/ 目录下，
   // 顺带验证去外层包装目录的路径）
-  const fixture = readFileSync(new URL("../test/fixtures/wrapped.zip", import.meta.url));
-  const publish = await fetch(`${ORIGIN}/api/skills/demo-skill`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/zip" },
-    body: fixture,
-  });
-  if (publish.status !== 201 && publish.status !== 200) {
-    throw new Error(`发布失败：${publish.status} ${await publish.text()}`);
-  }
+  const publishFixture = async (name, contentType) => {
+    const res = await fetch(`${ORIGIN}/api/skills/demo-skill`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
+      body: readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url)),
+    });
+    // 201 = 新版本，200 = 内容未变；两者都算发布成功。
+    if (res.status !== 201 && res.status !== 200) {
+      throw new Error(`${name} 发布失败：${res.status} ${await res.text()}`);
+    }
+    return res.status;
+  };
+
+  await publishFixture("wrapped.zip", "application/zip");
   log("已发布 demo-skill");
 
   // 3b. 同一个 skill 再用一个 macOS `tar czf` 产出的、块对齐补零的 tar.gz 重新
   // 发布一次。内容和 wrapped.zip 解包后完全一样，所以大概率落在 unchanged
   // (200) 分支，但这走的是真实 HTTP 请求 + workerd 运行时，而不是 vitest 沙箱，
   // 用来确认这条"容忍 bsdtar 尾部填充"的路径在真实部署形态下也是通的。
-  const bsdtarFixture = readFileSync(new URL("../test/fixtures/bsdtar-padded.tar.gz", import.meta.url));
-  const publish2 = await fetch(`${ORIGIN}/api/skills/demo-skill`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/gzip" },
-    body: bsdtarFixture,
-  });
-  if (publish2.status !== 201 && publish2.status !== 200) {
-    throw new Error(`bsdtar-padded.tar.gz 发布失败：${publish2.status} ${await publish2.text()}`);
-  }
-  log(`bsdtar-padded.tar.gz 发布通过（${publish2.status}）`);
+  const status = await publishFixture("bsdtar-padded.tar.gz", "application/gzip");
+  log(`bsdtar-padded.tar.gz 发布通过（${status}）`);
 
   // 4. 校验 index 中的 digest 与产物字节一致
   const index = await (
@@ -178,12 +184,7 @@ try {
   log("digest 校验通过");
 
   // 5. 用真实的 npx skills 安装到一个隔离的 HOME，避免污染本机 skills 目录
-  const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-  await run(
-    "npx",
-    ["--yes", "skills", "add", `${ORIGIN}/i/${installKey}`, "-g", "-y", "-s", "demo-skill", "--copy"],
-    { env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config") } },
-  );
+  const home = await installTo(`${ORIGIN}/i/${installKey}`, ["-s", "demo-skill"]);
 
   const installed = findFile(home, join("demo-skill", "SKILL.md"));
   if (!installed) throw new Error(`npx skills 未把 demo-skill 装到 ${home}`);
@@ -200,12 +201,7 @@ try {
   log(`安装成功：${installed}`);
 
   // 6. 单个 skill 的安装路径也要能用
-  const home2 = mkdtempSync(join(tmpdir(), "skillsgist-verify-single-"));
-  await run(
-    "npx",
-    ["--yes", "skills", "add", `${ORIGIN}/i/${installKey}/.well-known/agent-skills/demo-skill`, "-g", "-y", "--copy"],
-    { env: { ...process.env, HOME: home2, USERPROFILE: home2, XDG_CONFIG_HOME: join(home2, ".config") } },
-  );
+  const home2 = await installTo(`${ORIGIN}/i/${installKey}/.well-known/agent-skills/demo-skill`);
   if (!findFile(home2, join("demo-skill", "SKILL.md"))) {
     throw new Error("单 skill 安装路径不生效");
   }

@@ -69,6 +69,15 @@ export function Button(props: { children?: unknown }) {
   );
 }
 
-export function Alert(props: { children?: unknown }) {
-  return <p class="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{props.children}</p>;
+/** Renders nothing without a message, so call sites need no `? :` around it. */
+export function Alert(props: { message?: string }) {
+  if (!props.message) return null;
+  return <p class="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{props.message}</p>;
+}
+
+/** A dark, scrollable code block — install commands, generated tokens. */
+export function CodeBlock(props: { children?: unknown }) {
+  return (
+    <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">{props.children}</pre>
+  );
 }

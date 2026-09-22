@@ -1,8 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { expect, it } from "vitest";
+import { ORIGIN } from "./helpers";
 
 it("responds on /healthz", async () => {
-  const res = await SELF.fetch("http://localhost/healthz");
+  const res = await SELF.fetch(`${ORIGIN}/healthz`);
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok");
 });
@@ -24,7 +25,7 @@ it("responds on /healthz", async () => {
 // the URL-scheme allowlist in render/markdown.ts only ever lets through
 // http/https/mailto, so a data: image can never survive sanitization.
 it("sets a restrictive CSP header on HTML page responses", async () => {
-  const res = await SELF.fetch("http://localhost/login");
+  const res = await SELF.fetch(`${ORIGIN}/login`);
   expect(res.headers.get("Content-Type")).toContain("text/html");
   const csp = res.headers.get("Content-Security-Policy");
   expect(csp).toBe(
@@ -34,7 +35,7 @@ it("sets a restrictive CSP header on HTML page responses", async () => {
 });
 
 it("does not set a CSP header on a JSON response", async () => {
-  const res = await SELF.fetch("http://localhost/.well-known/agent-skills/index.json");
+  const res = await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/index.json`);
   expect(res.headers.get("Content-Security-Policy")).toBeNull();
 });
 
@@ -42,6 +43,6 @@ it("does not set a CSP header on a JSON response", async () => {
 // and changes the box model out from under Tailwind. Every page goes through
 // the same Layout, so asserting one is enough to pin it.
 it("starts HTML pages with a doctype so browsers don't use quirks mode", async () => {
-  const html = await (await SELF.fetch("http://localhost/login")).text();
+  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
   expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="zh-CN">/);
 });

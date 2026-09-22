@@ -1,20 +1,11 @@
-import { env as rawEnv } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as q from "../src/db/queries";
+import { env, resetDb } from "./helpers";
 
-// `cloudflare:test`'s `env` types as the ambient `Cloudflare.Env` (an empty
-// interface until `wrangler types` wires up project-specific bindings, which
-// is out of scope here — see task-1-report.md deviation #5 for the same issue
-// in test/setup.ts). Local cast only; runtime behavior is unaffected.
-const env = rawEnv as unknown as { DB: D1Database };
-
-async function reset() {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM versions"),
-    env.DB.prepare("DELETE FROM skills"),
-    env.DB.prepare("DELETE FROM users"),
-  ]);
-}
+const seedU1 = () =>
+  q.createUser(env.DB, {
+    id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
+  });
 
 const base = {
   digest: "sha256:" + "a".repeat(64),
@@ -27,13 +18,11 @@ const base = {
 };
 
 describe("queries", () => {
-  beforeEach(reset);
+  beforeEach(resetDb);
 
   it("counts users and round-trips one", async () => {
     expect(await q.countUsers(env.DB)).toBe(0);
-    await q.createUser(env.DB, {
-      id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
-    });
+    await seedU1();
     expect(await q.countUsers(env.DB)).toBe(1);
     const byName = await q.getUserByUsername(env.DB, "alice");
     expect(byName?.id).toBe("u1");
@@ -42,9 +31,7 @@ describe("queries", () => {
   });
 
   it("allocates version numbers monotonically per slug", async () => {
-    await q.createUser(env.DB, {
-      id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
-    });
+    await seedU1();
     const v1 = await q.insertVersion(env.DB, {
       ...base, slug: "demo", authorId: "u1", visibility: "private",
     });
@@ -52,17 +39,18 @@ describe("queries", () => {
       ...base, slug: "demo", authorId: "u1", visibility: "private",
       digest: "sha256:" + "b".repeat(64),
     });
-    expect(v1).toBe(1);
-    expect(v2).toBe(2);
+    expect(v1).toEqual({ version: 1, r2Key: "skills/demo/1.zip" });
+    expect(v2).toEqual({ version: 2, r2Key: "skills/demo/2.zip" });
+    // The key it returns is the key it recorded — publish.ts writes the R2
+    // object under exactly this, instead of re-deriving the string.
+    expect((await q.getVersion(env.DB, "demo", 2))?.r2_key).toBe(v2.r2Key);
     const skill = await q.getSkill(env.DB, "demo");
     expect(skill?.latest_version).toBe(2);
     expect(await q.listVersions(env.DB, "demo")).toHaveLength(2);
   });
 
   it("hides private skills from the public index", async () => {
-    await q.createUser(env.DB, {
-      id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
-    });
+    await seedU1();
     await q.insertVersion(env.DB, { ...base, slug: "secret", authorId: "u1", visibility: "private" });
     await q.insertVersion(env.DB, {
       ...base, slug: "shared", authorId: "u1", visibility: "public",
@@ -75,9 +63,7 @@ describe("queries", () => {
   });
 
   it("returns r2 keys when deleting a skill", async () => {
-    await q.createUser(env.DB, {
-      id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
-    });
+    await seedU1();
     await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
     const keys = await q.deleteSkill(env.DB, "demo");
     expect(keys).toEqual(["skills/demo/1.zip"]);

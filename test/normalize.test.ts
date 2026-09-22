@@ -1,27 +1,9 @@
-import { env as rawEnv } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { MAX_FILES, normalizeUpload, UploadError } from "../src/skills/normalize";
 import { readZip, writeZip } from "../src/skills/zip";
-
-// Binary fixtures can't be read with `node:fs` from inside a pool-workers
-// test: the worker's `node:fs` is a sandboxed, empty virtual filesystem with
-// no bridge to the host disk. `vitest.config.ts` reads the real files from
-// disk (it runs in plain Node) and exposes them here as `dataBlobBindings`.
-// Same `Cloudflare.Env`-is-untyped local-cast pattern as test/archive-read.test.ts.
-const env = rawEnv as unknown as {
-  FLAT_ZIP: ArrayBuffer;
-  WRAPPED_ZIP: ArrayBuffer;
-  FLAT_DOT_TAR_GZ: ArrayBuffer;
-  SYMLINK_TAR_GZ: ArrayBuffer;
-  BSDTAR_PADDED_TAR_GZ: ArrayBuffer;
-  NO_SKILL_MD_ZIP: ArrayBuffer;
-};
-
-const fixture = (name: keyof typeof env) => new Uint8Array(env[name]);
+import { fixture, GOOD_MD } from "./helpers";
 
 const enc = new TextEncoder();
-
-const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
 
 describe("normalizeUpload", () => {
   it("accepts a bare SKILL.md", async () => {

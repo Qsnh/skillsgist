@@ -31,9 +31,20 @@ export function crc32(data: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+/**
+ * Run `data` through a (de)compression transform and collect the result.
+ * Shared by the deflate/inflate paths here and by tar.ts's gunzip.
+ */
+export async function pipeBytes(
+  data: Uint8Array,
+  transform: CompressionStream | DecompressionStream,
+): Promise<Uint8Array> {
+  const stream = new Blob([data]).stream().pipeThrough(transform);
   return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  return pipeBytes(data, new CompressionStream("deflate-raw"));
 }
 
 // 1980-01-01，zip 规范里最小的合法日期。固定它让同样的内容产出同样的字节。
@@ -122,9 +133,8 @@ export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
   return out;
 }
 
-async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  return pipeBytes(data, new DecompressionStream("deflate-raw"));
 }
 
 function findEocd(view: DataView, length: number): number {
@@ -146,8 +156,14 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
   const files = new Map<string, Uint8Array>();
   const dec = new TextDecoder();
 
-  for (let i = 0; i < count; i++) {
-    try {
+  // The whole read is wrapped once rather than per iteration: every failure
+  // mode here aborts the read anyway, and callers rely on only ArchiveError
+  // coming out (see archive-read.test.ts). A truncated/corrupt deflate stream
+  // makes DecompressionStream throw its own exception type, and a corrupt
+  // central directory can send DataView offsets out of bounds, throwing a raw
+  // RangeError — normalize both so the contract holds for every path.
+  try {
+    for (let i = 0; i < count; i++) {
       if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("zip 中央目录损坏");
       const flags = view.getUint16(offset + 8, true);
       const method = view.getUint16(offset + 10, true);
@@ -179,17 +195,11 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
 
       if (content.byteLength !== uncompressedSize) throw new ArchiveError(`zip 条目大小不符：${name}`);
       files.set(name, content);
-    } catch (err) {
-      // Every other failure mode here throws ArchiveError; callers rely on
-      // that (see archive-read.test.ts). But a truncated/corrupt deflate
-      // stream makes DecompressionStream throw its own exception type, and
-      // a corrupt central directory can send DataView offsets out of
-      // bounds, throwing a raw RangeError. Normalize both into ArchiveError
-      // so the contract holds for every path through this loop.
-      if (err instanceof ArchiveError) throw err;
-      const message = err instanceof Error ? err.message : String(err);
-      throw new ArchiveError(`zip 条目解析失败：${message}`);
     }
+  } catch (err) {
+    if (err instanceof ArchiveError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ArchiveError(`zip 条目解析失败：${message}`);
   }
 
   return files;

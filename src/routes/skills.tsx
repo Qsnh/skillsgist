@@ -1,14 +1,15 @@
 import { Hono } from "hono";
-import { canManage, currentUser } from "../auth";
-import type { Ctx } from "../auth";
+import { zipAttachment } from "../artifact";
+import { canManage, canView, currentUser, requireManagedSkill, requireUser } from "../auth";
+import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
-  deleteSkill, getSkill, getUserById, getVersion, listSkills, listVersions, setVisibility,
+  deleteSkill, getArtifactByVersion, getSkillWithAuthor, getVersion, listSkills, listVersions,
+  setVisibility,
 } from "../db/queries";
-import type { Env } from "../types";
 import { IndexPage, SkillPage } from "../views/skills";
 
-export const skillsRoutes = new Hono<{ Bindings: Env }>();
+export const skillsRoutes = new Hono<AppEnv>();
 
 skillsRoutes.get("/", async (c) => {
   const user = await currentUser(c);
@@ -20,81 +21,61 @@ skillsRoutes.get("/", async (c) => {
 skillsRoutes.get("/s/:slug", async (c) => {
   const user = await currentUser(c);
   const slug = c.req.param("slug");
-  const skill = await getSkill(c.env.DB, slug);
+  const skill = await getSkillWithAuthor(c.env.DB, slug);
   if (!skill) return c.notFound();
-  if (skill.visibility === "private" && !user) return c.notFound();
+  if (!canView(user, skill)) return c.notFound();
 
   const requested = Number(c.req.query("v") ?? skill.latest_version);
-  const version = await getVersion(c.env.DB, slug, Number.isInteger(requested) ? requested : skill.latest_version);
+  const [version, versions] = await Promise.all([
+    getVersion(c.env.DB, slug, Number.isInteger(requested) ? requested : skill.latest_version),
+    listVersions(c.env.DB, slug),
+  ]);
   if (!version) return c.notFound();
-
-  const author = await getUserById(c.env.DB, skill.owner_id);
 
   return page(
     c,
     <SkillPage
       user={user}
-      skill={{ ...skill, author: author?.username ?? "unknown" }}
+      skill={skill}
       version={version}
-      versions={await listVersions(c.env.DB, slug)}
+      versions={versions}
       origin={new URL(c.req.url).origin}
       canManage={user ? canManage(user, skill) : false}
     />,
   );
 });
 
-async function download(c: Ctx, versionNumber?: number) {
+async function download(c: Ctx, slug: string, versionNumber: number | null) {
   const user = await currentUser(c);
-  // `c` is typed as the generic `Ctx` (no path pattern attached), so Hono's
-  // param() overloads fall back to `string | undefined` here even though
-  // both call sites below only ever reach this function via a route
-  // registered with `:slug` in its pattern, where it's always present.
-  const slug = c.req.param("slug") as string;
-  const skill = await getSkill(c.env.DB, slug);
-  if (!skill) return c.notFound();
-  if (skill.visibility === "private" && !user) return c.notFound();
+  const artifact = await getArtifactByVersion(c.env.DB, slug, versionNumber);
+  if (!artifact || !canView(user, artifact)) return c.notFound();
 
-  const version = await getVersion(c.env.DB, slug, versionNumber ?? skill.latest_version);
-  if (!version) return c.notFound();
-
-  const object = await c.env.BUCKET.get(version.r2_key);
+  const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return c.notFound();
 
-  return new Response(object.body, {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${slug}.zip"`,
-      "Cache-Control": skill.visibility === "public" ? "public, max-age=300" : "private, no-store",
-    },
-  });
+  return zipAttachment(object, slug, artifact.visibility === "public");
 }
 
-skillsRoutes.get("/s/:slug/download", (c) => download(c));
+skillsRoutes.get("/s/:slug/download", (c) => download(c, c.req.param("slug"), null));
 
 skillsRoutes.get("/s/:slug/v/:version/download", (c) => {
   const n = Number(c.req.param("version"));
   if (!Number.isInteger(n) || n < 1) return c.notFound();
-  return download(c, n);
+  return download(c, c.req.param("slug"), n);
 });
 
-skillsRoutes.post("/s/:slug/visibility", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
+skillsRoutes.post("/s/:slug/visibility", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const skill = await getSkill(c.env.DB, slug);
-  if (!skill) return c.notFound();
-  if (!canManage(user, skill)) return c.text("无权修改这个 skill", 403);
-  await setVisibility(c.env.DB, slug, skill.visibility === "public" ? "private" : "public");
+  const guard = await requireManagedSkill(c, slug, "修改");
+  if (!guard.ok) return guard.response;
+  await setVisibility(c.env.DB, slug, guard.skill.visibility === "public" ? "private" : "public");
   return c.redirect(`/s/${slug}`, 302);
 });
 
-skillsRoutes.post("/s/:slug/delete", async (c) => {
-  const user = await currentUser(c);
-  if (!user) return c.redirect("/login", 302);
+skillsRoutes.post("/s/:slug/delete", requireUser, async (c) => {
   const slug = c.req.param("slug");
-  const skill = await getSkill(c.env.DB, slug);
-  if (!skill) return c.notFound();
-  if (!canManage(user, skill)) return c.text("无权删除这个 skill", 403);
+  const guard = await requireManagedSkill(c, slug, "删除");
+  if (!guard.ok) return guard.response;
   const keys = await deleteSkill(c.env.DB, slug);
   await Promise.all(keys.map((key) => c.env.BUCKET.delete(key)));
   return c.redirect("/", 302);

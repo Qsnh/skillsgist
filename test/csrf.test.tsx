@@ -1,22 +1,23 @@
-import { env as rawEnv, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { Hono } from "hono";
 import { setSignedCookie } from "hono/cookie";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SESSION_COOKIE, sessionCsrf } from "../src/auth";
 import type { Ctx } from "../src/auth";
-import { page } from "../src/csrf";
+import { page, SAFE_METHODS } from "../src/csrf";
 import { getSkill, getUserById } from "../src/db/queries";
 import app from "../src/index";
 import { Layout } from "../src/views/layout";
-import { csrfFor, login, ORIGIN, postForm, publishMarkdown, resetDb, seedUser } from "./helpers";
+import {
+  csrfFor, env as bindings, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb,
+  seedAndLogin, seedUser,
+} from "./helpers";
 import type { Env } from "../src/types";
 
-// See test/db.test.ts for why `env` needs a local cast here.
-const env = rawEnv as unknown as { DB: D1Database; SESSION_SECRET: string };
-
-const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
-
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+// `SESSION_SECRET` is a plain string binding, not one of the typed ones in
+// helpers' `env`, so this file widens the same object rather than re-casting
+// `cloudflare:test`'s.
+const env = bindings as typeof bindings & { SESSION_SECRET: string };
 
 // ---------------------------------------------------------------------------
 // The two exemptions from the session-bound token check, each with a test
@@ -106,8 +107,7 @@ describe("token layer", () => {
   beforeEach(resetDb);
 
   it("rejects every protected route when the token is missing", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publishMarkdown(cookie, GOOD_MD, "private");
     const { user: target } = await seedUser({ username: "bob", role: "member" });
 
@@ -135,8 +135,7 @@ describe("token layer", () => {
   });
 
   it("accepts a request carrying the session's token", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await postForm("/me/install-key", cookie);
     expect(res.status).toBe(302);
   });
@@ -146,8 +145,7 @@ describe("token layer", () => {
     ["empty", ""],
     ["wrong", "f".repeat(32)],
   ])("rejects a $0 token", async (_label, token) => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const body = new URLSearchParams();
     if (token !== undefined) body.set("_csrf", token);
     const res = await SELF.fetch(`${ORIGIN}/me/install-key`, {
@@ -179,8 +177,7 @@ describe("token layer", () => {
   // `parseBody` returns `{}` for it, so there is no token to find — the check
   // has to fail closed rather than treat "unparseable" as "no token required".
   it("rejects a text/plain body, which carries no parseable token", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
     const res = await SELF.fetch(`${ORIGIN}/me/install-key`, {
       method: "POST",
@@ -196,8 +193,7 @@ describe("Origin / Sec-Fetch-Site layer", () => {
   beforeEach(resetDb);
 
   const postWith = async (headers: Record<string, string>) => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
     return SELF.fetch(`${ORIGIN}/me/install-key`, {
       method: "POST",
@@ -237,8 +233,7 @@ describe("/api/* exemption", () => {
   beforeEach(resetDb);
 
   it("publishes with a Bearer token, no Origin and no CSRF token", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const tokenRes = await postForm("/me/api-token", cookie);
     const apiToken = /sgt_[a-f0-9]{32}/.exec(await tokenRes.text())![0];
 
@@ -254,8 +249,7 @@ describe("/api/* exemption", () => {
   // the namespace has no cookie-authenticated door, so skipping the token
   // check there cannot expose anything.
   it("cannot be authenticated by a session cookie alone", async () => {
-    const { password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await SELF.fetch(`${ORIGIN}/api/skills/demo-skill`, {
       method: "PUT",
       headers: { Cookie: cookie, "Content-Type": "text/markdown" },
@@ -293,7 +287,7 @@ describe("session payload", () => {
       );
       return c.text("ok");
     });
-    const legacy = (await minter.request("http://localhost/")).headers.get("Set-Cookie")!.split(";")[0];
+    const legacy = (await minter.request(`${ORIGIN}/`)).headers.get("Set-Cookie")!.split(";")[0];
 
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: legacy }, redirect: "manual" });
     expect(res.status).toBe(302);
@@ -313,8 +307,17 @@ describe("page() and <Form>", () => {
     const [a, b] = await Promise.all([csrfFor(aliceCookie), csrfFor(bobCookie)]);
     expect(a).not.toBe(b);
     // Each token must be the one its own session actually holds.
-    const sessionOf = async (cookie: string) =>
-      sessionCsrf({ env, req: { raw: new Request(ORIGIN, { headers: { Cookie: cookie } }) } } as unknown as Ctx);
+    // `sessionCsrf` memoises the session read on the context, so the stub
+    // needs the per-request variable storage a real Context provides.
+    const sessionOf = async (cookie: string) => {
+      const vars = new Map<string, unknown>();
+      return sessionCsrf({
+        env,
+        req: { raw: new Request(ORIGIN, { headers: { Cookie: cookie } }) },
+        get: (key: string) => vars.get(key),
+        set: (key: string, value: unknown) => vars.set(key, value),
+      } as unknown as Ctx);
+    };
     expect(await sessionOf(aliceCookie)).toBe(a);
     expect(await sessionOf(bobCookie)).toBe(b);
   });
@@ -325,15 +328,14 @@ describe("page() and <Form>", () => {
     // Layout renders the logout <Form> whenever a user is signed in.
     bare.get("/", (c) => c.html(<Layout title="t" user={user} />));
     bare.onError(() => new Response("boom", { status: 500 }));
-    expect((await bare.request("http://localhost/")).status).toBe(500);
+    expect((await bare.request(`${ORIGIN}/`)).status).toBe(500);
   });
 
   it("emits the token when the same tree goes through page()", async () => {
-    const { user, password } = await seedUser({ username: "alice" });
-    const cookie = await login("alice", password);
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
     const wrapped = new Hono<{ Bindings: Env }>();
     wrapped.get("/", (c) => page(c as unknown as Ctx, <Layout title="t" user={user} />));
-    const res = await wrapped.request("http://localhost/", { headers: { Cookie: cookie } }, env);
+    const res = await wrapped.request(`${ORIGIN}/`, { headers: { Cookie: cookie } }, env);
     expect(await res.text()).toContain(`value="${await csrfFor(cookie)}"`);
   });
 });
@@ -347,8 +349,7 @@ describe("rendered forms", () => {
     formsIn(html).filter((f) => /<form[^>]*\bmethod="post"/i.test(f));
 
   it("puts a token in every POST form on every signed-in page", async () => {
-    const { password } = await seedUser({ username: "root", role: "admin" });
-    const cookie = await login("root", password);
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publishMarkdown(cookie, GOOD_MD, "private");
 
     for (const path of ["/", "/s/demo-skill", "/me", "/admin/users", "/new", "/s/demo-skill/edit"]) {

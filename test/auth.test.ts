@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  canManage, hashPassword, PBKDF2_ITERATIONS, randomHex, sha256Hex, verifyPassword,
+  canManage, hashPassword, PBKDF2_ITERATIONS, randomHex, verifyPassword,
 } from "../src/auth";
+import { sha256Hex } from "../src/hash";
 import type { SkillRow, UserRow } from "../src/db/queries";
 
 const user = (over: Partial<UserRow> = {}): UserRow => ({

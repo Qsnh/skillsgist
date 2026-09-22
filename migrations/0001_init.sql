@@ -9,6 +9,11 @@ CREATE TABLE users (
   last_login_at  INTEGER
 );
 
+-- Every `PUT /api/skills/:slug` looks a user up by this hash; without an
+-- index that is a full table scan (username and install_key get one for
+-- free from their UNIQUE constraints).
+CREATE INDEX idx_users_api_token_hash ON users(api_token_hash);
+
 CREATE TABLE skills (
   slug           TEXT PRIMARY KEY,
   description    TEXT NOT NULL,
