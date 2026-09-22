@@ -39,7 +39,13 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
   );
 }
 
-export function EditSkillPage(props: { user: UserRow; slug: string; markdown: string; error?: string }) {
+export function EditSkillPage(props: {
+  user: UserRow;
+  slug: string;
+  markdown: string;
+  files: string[];
+  error?: string;
+}) {
   return (
     <Layout title={`编辑 ${props.slug}`} user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">编辑 {props.slug}</h1>
@@ -56,6 +62,11 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
         >
           {props.markdown}
         </textarea>
+        {props.files.length > 0 ? (
+          <p class="text-xs text-slate-500">
+            这些文件会原样带到新版本：{props.files.join("、")}
+          </p>
+        ) : null}
         <Button>保存为新版本</Button>
       </Form>
     </Layout>

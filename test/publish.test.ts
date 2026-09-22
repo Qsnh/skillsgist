@@ -1,6 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
+import { readZip } from "../src/skills/zip";
 import {
   env, fixture, GOOD_MD, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken,
 } from "./helpers";
@@ -274,6 +275,82 @@ describe("POST /s/:slug/edit", () => {
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+
+  // 只改文本时，旧版本里 references/ 和 scripts/ 下的文件必须原样带到新版本。
+  // 此前它们会被静默丢掉：文本框内容被当成整个上传体，normalizeUpload 把一段
+  // 裸 markdown 理解成「只含 SKILL.md 的 skill」，而页面返回的是 302 成功。
+  it("carries SKILL.md's sibling files into the new version on a text-only edit", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+      markdown: `${v1!.skill_md}\nedited\n`,
+    });
+    expect(res.status).toBe(302);
+
+    const v2 = await getVersion(env.DB, "demo-skill", 2);
+    expect(v2!.skill_md).toContain("edited");
+    expect(JSON.parse(v2!.files).map((f: { path: string }) => f.path)).toEqual([
+      "SKILL.md",
+      "references/api.md",
+      "scripts/run.sh",
+    ]);
+  });
+
+  // D1 里的 files 列对了不等于 R2 里的包对了——装 skill 的人拿到的是 R2 那份。
+  it("writes the carried files into the stored artifact too", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+
+    await postMultipart("/s/demo-skill/edit", cookie, { markdown: `${v1!.skill_md}\nedited\n` });
+
+    const v2 = await getVersion(env.DB, "demo-skill", 2);
+    const object = await env.BUCKET.get(v2!.r2_key);
+    expect(object).not.toBeNull();
+    const unpacked = await readZip(new Uint8Array(await object!.arrayBuffer()));
+    expect([...unpacked.keys()].sort()).toEqual([
+      "SKILL.md",
+      "references/api.md",
+      "scripts/run.sh",
+    ]);
+    expect(new TextDecoder().decode(unpacked.get("SKILL.md")!)).toContain("edited");
+  });
+
+  // 上一版的包读不出来时，宁可挡住也不要发一个悄悄少了文件的新版本。
+  it("refuses a text-only edit when the current archive is missing from storage", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+    await env.BUCKET.delete(v1!.r2_key);
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+      markdown: `${v1!.skill_md}\nedited\n`,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("上传压缩包");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("names the files a text-only edit will carry forward", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+
+    const html = await (
+      await SELF.fetch(`${ORIGIN}/s/demo-skill/edit`, { headers: { Cookie: cookie } })
+    ).text();
+    expect(html).toContain("references/api.md");
+    expect(html).toContain("scripts/run.sh");
   });
 });
 

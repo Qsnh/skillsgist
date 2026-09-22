@@ -1,7 +1,8 @@
 import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
-import type { UserRow } from "./db/queries";
+import type { UserRow, VersionRow } from "./db/queries";
 import { renderMarkdown } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
+import { readZip, writeZip } from "./skills/zip";
 import type { Env } from "./types";
 
 export class ForbiddenError extends Error {
@@ -130,4 +131,35 @@ export async function publishBytes(
     unchanged: false,
     files: normalized.files,
   };
+}
+
+/**
+ * 一次「只改文本」的编辑该发布的字节：上一版的压缩包，SKILL.md 换成 `skillMd`。
+ *
+ * 一个 skill 不只有 SKILL.md——`references/`、`scripts/` 里的文件都在包里，
+ * 而编辑框只装得下其中一个。直接把文本框内容当整包发出去会连一句提示都没有
+ * 地删掉其余文件，所以在这里把它们带过去。
+ */
+export async function repackWithSkillMd(
+  env: Env,
+  latest: VersionRow,
+  skillMd: string,
+): Promise<Uint8Array> {
+  const bytes = new TextEncoder().encode(skillMd);
+  const files = JSON.parse(latest.files) as Array<{ path: string }>;
+  // 本来就只有 SKILL.md：省掉一次 R2 读，也让下面那个报错不会挡住一个根本
+  // 不需要旧包的编辑。
+  if (!files.some((f) => f.path !== "SKILL.md")) return bytes;
+
+  // 读不到就挡住，而不是退回「只发 SKILL.md」——那正是这个函数要消灭的静默丢失。
+  const object = await env.BUCKET.get(latest.r2_key);
+  if (!object) {
+    throw new UploadError(
+      `v${latest.version} 的压缩包在存储里找不到了，没法保留 SKILL.md 以外的文件；请改用「上传压缩包」发一份完整的`,
+    );
+  }
+
+  const entries = await readZip(new Uint8Array(await object.arrayBuffer()));
+  entries.set("SKILL.md", bytes);
+  return writeZip([...entries].map(([path, data]) => ({ path, data })));
 }

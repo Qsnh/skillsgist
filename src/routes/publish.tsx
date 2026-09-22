@@ -3,7 +3,8 @@ import { requireManagedSkill, requireUser, userFromApiToken } from "../auth";
 import type { AppEnv } from "../auth";
 import { API_PREFIX, page } from "../csrf";
 import { getVersion } from "../db/queries";
-import { ForbiddenError, publishBytes } from "../publish";
+import type { VersionRow } from "../db/queries";
+import { ForbiddenError, publishBytes, repackWithSkillMd } from "../publish";
 import { UploadError } from "../skills/normalize";
 import { EditSkillPage, NewSkillPage, UploadVersionPage } from "../views/publish";
 
@@ -29,6 +30,13 @@ function visibilityOf(value: unknown): "public" | "private" | undefined {
  */
 function publishFailure(err: unknown): (UploadError | ForbiddenError) | null {
   return err instanceof UploadError || err instanceof ForbiddenError ? err : null;
+}
+
+/** 一次「只改文本」的编辑会原样带走的路径——SKILL.md 之外的全部。 */
+function siblingPaths(latest: VersionRow): string[] {
+  return (JSON.parse(latest.files) as Array<{ path: string }>)
+    .map((f) => f.path)
+    .filter((path) => path !== "SKILL.md");
 }
 
 async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array> {
@@ -64,7 +72,15 @@ publishRoutes.get("/s/:slug/edit", requireUser, async (c) => {
   if (!guard.ok) return guard.response;
   const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
   if (!latest) return c.notFound();
-  return page(c, <EditSkillPage user={c.get("user")} slug={slug} markdown={latest.skill_md} />);
+  return page(
+    c,
+    <EditSkillPage
+      user={c.get("user")}
+      slug={slug}
+      markdown={latest.skill_md}
+      files={siblingPaths(latest)}
+    />,
+  );
 });
 
 publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
@@ -72,10 +88,14 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   const slug = c.req.param("slug");
   const guard = await requireManagedSkill(c, slug, "编辑");
   if (!guard.ok) return guard.response;
+  const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
+  if (!latest) return c.notFound();
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
   try {
-    const bytes = new TextEncoder().encode(`${markdown.trim()}\n`);
+    if (!markdown.trim()) throw new UploadError("SKILL.md 不能为空");
+    // 这一页只改得动 SKILL.md，其余文件从上一版的包里带过来。
+    const bytes = await repackWithSkillMd(c.env, latest, `${markdown.trim()}\n`);
     await publishBytes(c.env, user, bytes, { expectedSlug: slug });
     return c.redirect(`/s/${slug}`, 302);
   } catch (err) {
@@ -83,7 +103,13 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
     if (!failure) throw err;
     return page(
       c,
-      <EditSkillPage user={user} slug={slug} markdown={markdown} error={failure.message} />,
+      <EditSkillPage
+        user={user}
+        slug={slug}
+        markdown={markdown}
+        files={siblingPaths(latest)}
+        error={failure.message}
+      />,
       failure.status,
     );
   }
