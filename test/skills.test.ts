@@ -1,7 +1,7 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill } from "../src/db/queries";
-import { login, resetDb, seedUser } from "./helpers";
+import { login, postForm, publishMarkdown, resetDb, seedUser } from "./helpers";
 
 // See test/db.test.ts for why `env` needs a local cast here.
 const env = rawEnv as unknown as { DB: D1Database; BUCKET: R2Bucket };
@@ -9,23 +9,9 @@ const env = rawEnv as unknown as { DB: D1Database; BUCKET: R2Bucket };
 const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo Heading\n";
 const OTHER_MD = "---\nname: other-skill\ndescription: Another skill.\n---\n\n# Other\n";
 
-async function publish(cookie: string, markdown: string, visibility: "public" | "private") {
-  const form = new FormData();
-  form.set("markdown", markdown);
-  form.set("visibility", visibility);
-  const res = await SELF.fetch("http://localhost/new", {
-    method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual",
-  });
-  if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
-}
+const publish = publishMarkdown;
 
-const post = (path: string, cookie: string) =>
-  SELF.fetch(`http://localhost${path}`, {
-    method: "POST",
-    headers: { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({}),
-    redirect: "manual",
-  });
+const post = (path: string, cookie: string) => postForm(path, cookie);
 
 describe("GET /", () => {
   beforeEach(resetDb);

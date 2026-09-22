@@ -1,3 +1,4 @@
+import { Form } from "../csrf";
 import { Alert, Button, Field, Layout } from "./layout";
 import type { UserRow } from "../db/queries";
 
@@ -6,6 +7,9 @@ export function SetupPage(props: { error?: string }) {
     <Layout title="初始化" user={null}>
       <h1 class="mb-4 text-xl font-semibold">创建管理员</h1>
       {props.error ? <Alert>{props.error}</Alert> : null}
+      {/* Plain <form>, not <Form>: no session exists during bootstrap, so
+          there is no session-bound token to render. Covered by the Origin /
+          Sec-Fetch-Site layer only — see TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/setup" class="max-w-sm space-y-4">
         <Field label="用户名" name="username" hint="小写字母、数字与连字符，2-32 位" />
         <Field label="密码" name="password" type="password" hint="至少 12 个字符" />
@@ -20,6 +24,8 @@ export function LoginPage(props: { error?: string }) {
     <Layout title="登录" user={null}>
       <h1 class="mb-4 text-xl font-semibold">登录</h1>
       {props.error ? <Alert>{props.error}</Alert> : null}
+      {/* Plain <form>, not <Form>: same reason as SetupPage above — no session
+          to bind a token to yet. See TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/login" class="max-w-sm space-y-4">
         <Field label="用户名" name="username" />
         <Field label="密码" name="password" type="password" />
@@ -42,9 +48,9 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
         <p class="mt-2 text-xs text-slate-500">
           这串 key 只有安装权限，不能登录、发布或删除。怀疑泄漏时点下面的按钮重置。
         </p>
-        <form method="post" action="/me/install-key" class="mt-2">
+        <Form action="/me/install-key" class="mt-2">
           <Button>重置 install key</Button>
-        </form>
+        </Form>
       </section>
 
       <section class="mb-8">
@@ -60,20 +66,20 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
           </p>
         )}
         <div class="mt-2 flex gap-2">
-          <form method="post" action="/me/api-token"><Button>生成新 token</Button></form>
+          <Form action="/me/api-token"><Button>生成新 token</Button></Form>
           {props.user.api_token_hash ? (
-            <form method="post" action="/me/api-token/revoke"><Button>吊销</Button></form>
+            <Form action="/me/api-token/revoke"><Button>吊销</Button></Form>
           ) : null}
         </div>
       </section>
 
       <section>
         <h2 class="mb-2 font-medium">修改密码</h2>
-        <form method="post" action="/me/password" class="max-w-sm space-y-4">
+        <Form action="/me/password" class="max-w-sm space-y-4">
           <Field label="当前密码" name="current" type="password" />
           <Field label="新密码" name="next" type="password" hint="至少 12 个字符" />
           <Button>保存</Button>
-        </form>
+        </Form>
       </section>
     </Layout>
   );
@@ -107,22 +113,22 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                 <td class="space-y-2 py-2">
                   {isSelf ? null : (
                     <>
-                      <form method="post" action={`/admin/users/${u.id}/role`} class="inline-block">
+                      <Form action={`/admin/users/${u.id}/role`} class="inline-block">
                         <input type="hidden" name="role" value={u.role === "admin" ? "member" : "admin"} />
                         <Button>{u.role === "admin" ? "降为 member" : "升为 admin"}</Button>
-                      </form>{" "}
+                      </Form>{" "}
                     </>
                   )}
-                  <form method="post" action={`/admin/users/${u.id}/install-key`} class="inline-block">
+                  <Form action={`/admin/users/${u.id}/install-key`} class="inline-block">
                     <Button>轮换 install key</Button>
-                  </form>{" "}
+                  </Form>{" "}
                   {u.api_token_hash ? (
-                    <form method="post" action={`/admin/users/${u.id}/api-token/revoke`} class="inline-block">
+                    <Form action={`/admin/users/${u.id}/api-token/revoke`} class="inline-block">
                       <Button>吊销 api token</Button>
-                    </form>
+                    </Form>
                   ) : null}
                   <div class="mt-1 flex items-center gap-2">
-                    <form method="post" action={`/admin/users/${u.id}/password`} class="flex items-center gap-2">
+                    <Form action={`/admin/users/${u.id}/password`} class="flex items-center gap-2">
                       <input
                         type="password"
                         name="password"
@@ -131,13 +137,13 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                         required
                       />
                       <Button>重置密码</Button>
-                    </form>
+                    </Form>
                   </div>
                   {isSelf ? null : (
                     <div class="mt-1">
-                      <form method="post" action={`/admin/users/${u.id}/delete`} class="inline-block">
+                      <Form action={`/admin/users/${u.id}/delete`} class="inline-block">
                         <Button>删除账号</Button>
-                      </form>
+                      </Form>
                       <p class="mt-1 max-w-xs text-xs text-slate-500">
                         删除会把这个用户拥有的 skill 与已发布版本的作者记录转给你。想保留作者记录的话，改用「降为
                         member」加「轮换 install key」，不要删除。
@@ -151,7 +157,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
         </tbody>
       </table>
       <h2 class="mb-2 font-medium">新增用户</h2>
-      <form method="post" action="/admin/users" class="max-w-sm space-y-4">
+      <Form action="/admin/users" class="max-w-sm space-y-4">
         <Field label="用户名" name="username" />
         <Field label="初始密码" name="password" type="password" hint="至少 12 个字符" />
         <label class="block">
@@ -162,7 +168,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
           </select>
         </label>
         <Button>创建</Button>
-      </form>
+      </Form>
     </Layout>
   );
 }

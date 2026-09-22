@@ -92,9 +92,12 @@ try {
   log("wrangler dev 已就绪");
 
   // 1. 建管理员并登录
+  //
+  // 所有变更请求都要带 Origin：hono/csrf 会拒掉既没有 Origin 也没有
+  // Sec-Fetch-Site 的表单 POST，而 Node 的 fetch 两个都不会自动发（浏览器会）。
   const setup = await fetch(`${ORIGIN}/setup`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
     body: new URLSearchParams({ username: "verifier", password: PASSWORD }),
     redirect: "manual",
   });
@@ -104,7 +107,7 @@ try {
 
   const loginRes = await fetch(`${ORIGIN}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
     body: new URLSearchParams({ username: "verifier", password: PASSWORD }),
     redirect: "manual",
   });
@@ -113,13 +116,23 @@ try {
   log("已登录");
 
   // 2. 取 api token 与 install key
+  //
+  // /me/api-token 是会话鉴权的变更路由，除 Origin 外还要带上会话绑定的 CSRF
+  // token；它渲染在 /me 页面的隐藏字段里。
+  const meHtml = await (await fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+  const csrf = /name="_csrf" value="([a-f0-9]{32})"/.exec(meHtml)?.[1];
+  if (!csrf) throw new Error("未能读取 CSRF token");
+
   const tokenHtml = await (
-    await fetch(`${ORIGIN}/me/api-token`, { method: "POST", headers: { Cookie: cookie } })
+    await fetch(`${ORIGIN}/me/api-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, Origin: ORIGIN },
+      body: new URLSearchParams({ _csrf: csrf }),
+    })
   ).text();
   const token = /sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0];
   if (!token) throw new Error("未能生成 api token");
 
-  const meHtml = await (await fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
   const installKey = /\/i\/([a-f0-9]{32})/.exec(meHtml)?.[1];
   if (!installKey) throw new Error("未能读取 install key");
   log(`install key: ${installKey.slice(0, 8)}…`);

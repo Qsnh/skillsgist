@@ -1,7 +1,7 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
-import { login, resetDb, seedUser } from "./helpers";
+import { login, postForm, postMultipart, resetDb, seedUser } from "./helpers";
 
 // Binary fixtures can't be read with `node:fs` from inside a pool-workers
 // test: the worker's `node:fs` is a sandboxed, empty virtual filesystem with
@@ -21,11 +21,7 @@ const fixture = (name: "WRAPPED_ZIP" | "FLAT_ZIP" | "NO_SKILL_MD_ZIP") => new Ui
 const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
 
 async function apiToken(cookie: string): Promise<string> {
-  const res = await SELF.fetch("http://localhost/me/api-token", {
-    method: "POST",
-    headers: { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({}),
-  });
+  const res = await postForm("/me/api-token", cookie);
   const match = /sgt_[a-f0-9]{32}/.exec(await res.text());
   if (!match) throw new Error("no token issued");
   return match[0];
@@ -273,11 +269,9 @@ describe("POST /new", () => {
   it("publishes an uploaded file", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const form = new FormData();
-    form.set("file", new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }));
-    form.set("visibility", "public");
-    const res = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual",
+    const res = await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+      visibility: "public",
     });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/s/demo-skill");
@@ -287,12 +281,7 @@ describe("POST /new", () => {
   it("publishes pasted markdown", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const form = new FormData();
-    form.set("markdown", GOOD_MD);
-    form.set("visibility", "private");
-    const res = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual",
-    });
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private" });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
   });
@@ -300,10 +289,8 @@ describe("POST /new", () => {
   it("re-renders the form with the reason on failure", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const form = new FormData();
-    form.set("markdown", "---\nname: Bad_Name\ndescription: x\n---\nbody");
-    const res = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: cookie }, body: form,
+    const res = await postMultipart("/new", cookie, {
+      markdown: "---\nname: Bad_Name\ndescription: x\n---\nbody",
     });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("name");
@@ -322,17 +309,12 @@ describe("POST /new", () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
 
-    const first = new FormData();
-    first.set("markdown", GOOD_MD);
-    first.set("visibility", "public");
-    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: first, redirect: "manual" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
 
-    const second = new FormData();
-    second.set("markdown", `${GOOD_MD}\nrepublished\n`);
-    second.set("visibility", "private");
-    const res = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: cookie }, body: second, redirect: "manual",
+    const res = await postMultipart("/new", cookie, {
+      markdown: `${GOOD_MD}\nrepublished\n`,
+      visibility: "private",
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
@@ -342,16 +324,11 @@ describe("POST /new", () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
 
-    const first = new FormData();
-    first.set("markdown", GOOD_MD);
-    first.set("visibility", "public");
-    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: first, redirect: "manual" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
 
-    const second = new FormData();
-    second.set("markdown", `${GOOD_MD}\nrepublished again\n`);
-    second.set("visibility", "public");
-    const res = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: cookie }, body: second, redirect: "manual",
+    const res = await postMultipart("/new", cookie, {
+      markdown: `${GOOD_MD}\nrepublished again\n`,
+      visibility: "public",
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
@@ -364,14 +341,10 @@ describe("POST /s/:slug/edit", () => {
   it("saves edited markdown as a new version", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const form = new FormData();
-    form.set("markdown", GOOD_MD);
-    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: form });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
 
-    const edit = new FormData();
-    edit.set("markdown", `${GOOD_MD}\nedited\n`);
-    const res = await SELF.fetch("http://localhost/s/demo-skill/edit", {
-      method: "POST", headers: { Cookie: cookie }, body: edit, redirect: "manual",
+    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+      markdown: `${GOOD_MD}\nedited\n`,
     });
     expect(res.status).toBe(302);
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
@@ -384,15 +357,10 @@ describe("POST /s/:slug/edit", () => {
   it("does not change visibility when republishing through the edit path", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const form = new FormData();
-    form.set("markdown", GOOD_MD);
-    form.set("visibility", "public");
-    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
 
-    const edit = new FormData();
-    edit.set("markdown", `${GOOD_MD}\nedited\n`);
-    const res = await SELF.fetch("http://localhost/s/demo-skill/edit", {
-      method: "POST", headers: { Cookie: cookie }, body: edit, redirect: "manual",
+    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+      markdown: `${GOOD_MD}\nedited\n`,
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");

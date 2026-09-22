@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { canManage, currentUser } from "../auth";
 import type { Ctx } from "../auth";
+import { page } from "../csrf";
 import {
   deleteSkill, getSkill, getUserById, getVersion, listSkills, listVersions, setVisibility,
 } from "../db/queries";
@@ -13,7 +14,7 @@ skillsRoutes.get("/", async (c) => {
   const user = await currentUser(c);
   const q = c.req.query("q") ?? "";
   const skills = await listSkills(c.env.DB, { includePrivate: user !== null, q: q || undefined });
-  return c.html(<IndexPage user={user} skills={skills} q={q} origin={new URL(c.req.url).origin} />);
+  return page(c, <IndexPage user={user} skills={skills} q={q} origin={new URL(c.req.url).origin} />);
 });
 
 skillsRoutes.get("/s/:slug", async (c) => {
@@ -29,7 +30,8 @@ skillsRoutes.get("/s/:slug", async (c) => {
 
   const author = await getUserById(c.env.DB, skill.owner_id);
 
-  return c.html(
+  return page(
+    c,
     <SkillPage
       user={user}
       skill={{ ...skill, author: author?.username ?? "unknown" }}

@@ -120,7 +120,16 @@ CREATE TABLE users (
 
 ### 5.3 会话
 
-Hono 的 signed cookie（`setSignedCookie` / `getSignedCookie`，密钥来自 `SESSION_SECRET`），载荷 `{ uid, exp }`，有效期 30 天，`HttpOnly; Secure; SameSite=Lax; Path=/`。不建 sessions 表。
+Hono 的 signed cookie（`setSignedCookie` / `getSignedCookie`，密钥来自 `SESSION_SECRET`），载荷 `{ uid, exp, csrf }`，有效期 30 天，`HttpOnly; Secure; SameSite=Lax; Path=/`。不建 sessions 表。
+
+`csrf` 是每个会话一枚的随机 token（16 字节 hex）。它随会话签名一起下发，渲染进每个变更表单的隐藏字段 `_csrf`，提交时比对。放在签名会话里而不是放在第二个独立 cookie 里，是为了让它无法被同站的兄弟子域注入——`SameSite=Lax` 的作用域是可注册域，常见的 double-submit 模式在这种场景下会被绕过。载荷里没有 `csrf` 的会话一律视为无效会话。
+
+### 5.3.1 CSRF 防护
+
+两层，都是全局中间件，默认对所有非安全方法生效：
+
+1. `hono/csrf`：要求 `Sec-Fetch-Site: same-origin`，否则要求同源的 `Origin`；两者都没有就拒绝。只作用于表单可提交的 content-type，所以 `PUT /api/skills/:slug` 的 `application/zip` 请求不受影响。
+2. 会话绑定的 `_csrf` token 比对。豁免：`/api/*`（Bearer 鉴权，不读 cookie）、`POST /setup` 与 `POST /login`（尚无会话可绑定，只由第一层覆盖）。
 
 ### 5.4 首次部署
 

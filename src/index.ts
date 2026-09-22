@@ -1,5 +1,7 @@
 import { Hono } from "hono";
+import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
+import { csrfToken } from "./csrf";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
 import { skillsRoutes } from "./routes/skills";
@@ -34,6 +36,32 @@ app.use("*", async (c, next) => {
   }
 });
 
+// CSRF layer 1: reject any state-changing request that a browser would only
+// send cross-site. `hono/csrf` accepts `Sec-Fetch-Site: same-origin`, else a
+// same-origin `Origin` header, and rejects when it has neither to go on.
+//
+// Sec-Fetch-Site is the sharper of the two signals: `Sec-` is a forbidden
+// header prefix so page JS cannot set it, and unlike `Origin` it distinguishes
+// same-origin from same-*site* — which is the gap SameSite=Lax leaves open,
+// since Lax is scoped to the registrable domain and treats every sibling
+// subdomain as same-site.
+//
+// It only applies to content-types a form element can actually submit
+// (urlencoded, multipart, text/plain), defaulting to text/plain when the
+// header is absent so a header-less POST is still checked. Anything else is
+// left alone, which is what lets `PUT /api/skills/:slug` keep publishing
+// `application/zip` bodies with no Origin header: a cross-site request with a
+// non-form content-type needs a CORS preflight, and nothing here serves CORS
+// headers, so the preflight cannot succeed.
+//
+// The default origin comparison is against `new URL(c.req.url).origin`, which
+// on Workers is the real client-facing URL. Behind a proxy that rewrites
+// scheme or Host this would need `options.origin`.
+app.use("*", csrf());
+
+// CSRF layer 2: the session-bound token. See src/csrf.tsx.
+app.use("*", csrfToken);
+
 app.get("/healthz", (c) => c.text("ok"));
 app.route("/", registryRoutes);
 app.route("/", usersRoutes);
@@ -44,7 +72,8 @@ app.onError((err, c) => {
   // Hono's *default* error handler is what renders an HTTPException using the
   // response the exception carries. Registering onError replaces that default
   // outright, so without this branch every HTTPException raised anywhere in
-  // Hono would be logged as unhandled and answered with a misleading 500.
+  // Hono — including the 403 from the `csrf()` middleware above — would be
+  // logged as unhandled and answered with a misleading 500.
   if (err instanceof HTTPException) return err.getResponse();
   console.error("unhandled", err);
   const accepts = c.req.header("Accept") ?? "";

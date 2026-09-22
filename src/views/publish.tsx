@@ -1,3 +1,4 @@
+import { Form } from "../csrf";
 import { Alert, Button, Layout } from "./layout";
 import type { UserRow } from "../db/queries";
 
@@ -6,7 +7,7 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
     <Layout title="发布 skill" user={props.user}>
       <h1 class="mb-4 text-xl font-semibold">发布 skill</h1>
       {props.error ? <Alert>{props.error}</Alert> : null}
-      <form method="post" action="/new" enctype="multipart/form-data" class="space-y-6">
+      <Form action="/new" enctype="multipart/form-data" class="space-y-6">
         <div>
           <span class="block text-sm font-medium text-slate-700">上传压缩包</span>
           <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="mt-1 block text-sm" />
@@ -33,7 +34,7 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
           </select>
         </label>
         <Button>发布</Button>
-      </form>
+      </Form>
     </Layout>
   );
 }
@@ -44,7 +45,7 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
       <h1 class="mb-4 text-xl font-semibold">编辑 {props.slug}</h1>
       {props.error ? <Alert>{props.error}</Alert> : null}
       <p class="mb-4 text-sm text-slate-500">保存会发布一个新版本，旧版本保留。</p>
-      <form method="post" action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
+      <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
         <textarea
           name="markdown"
           rows={24}
@@ -53,7 +54,7 @@ export function EditSkillPage(props: { user: UserRow; slug: string; markdown: st
           {props.markdown}
         </textarea>
         <Button>保存为新版本</Button>
-      </form>
+      </Form>
     </Layout>
   );
 }

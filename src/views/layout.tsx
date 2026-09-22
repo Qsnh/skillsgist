@@ -1,3 +1,4 @@
+import { Form } from "../csrf";
 import type { UserRow } from "../db/queries";
 
 export function Layout(props: { title: string; user: UserRow | null; children?: unknown }) {
@@ -21,9 +22,9 @@ export function Layout(props: { title: string; user: UserRow | null; children?: 
                   <a href="/admin/users" class="text-sm text-slate-600 hover:text-slate-900">用户</a>
                 ) : null}
                 <a href="/me" class="text-sm text-slate-600 hover:text-slate-900">{props.user.username}</a>
-                <form method="post" action="/logout">
+                <Form action="/logout">
                   <button type="submit" class="text-sm text-slate-600 hover:text-slate-900">退出</button>
-                </form>
+                </Form>
               </>
             ) : (
               <a href="/login" class="text-sm text-slate-600 hover:text-slate-900">登录</a>
@@ -31,7 +32,7 @@ export function Layout(props: { title: string; user: UserRow | null; children?: 
           </nav>
         </header>
         <main class="mx-auto max-w-4xl px-4 py-8">{props.children}</main>
-      </body>
+    </body>
     </html>
   );
 }

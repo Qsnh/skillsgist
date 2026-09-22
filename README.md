@@ -36,6 +36,10 @@ zip -r - . | curl -X PUT --data-binary @- \
 
 API token 在 `/me` 页面按需生成。它只走 header，不会进入 URL。
 
+上面这条 curl 不需要 CSRF token 也不需要 `Origin` 头：`/api/*` 只认
+`Authorization: Bearer`，压根不读会话 cookie，所以浏览器无法代替你发起它。网页表单
+走的是另一条路——会话绑定的 CSRF token，自动带上，不用你管。
+
 ## 首次部署
 
 ```bash

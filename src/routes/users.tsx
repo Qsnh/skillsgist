@@ -4,6 +4,7 @@ import {
   sha256Hex, startSession, verifyPassword,
 } from "../auth";
 import type { Ctx } from "../auth";
+import { page } from "../csrf";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
   getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
@@ -28,7 +29,7 @@ export const usersRoutes = new Hono<{ Bindings: Env }>();
 
 usersRoutes.get("/setup", async (c) => {
   if ((await countUsers(c.env.DB)) > 0) return c.notFound();
-  return c.html(<SetupPage />);
+  return page(c, <SetupPage />);
 });
 
 usersRoutes.post("/setup", async (c) => {
@@ -37,10 +38,10 @@ usersRoutes.post("/setup", async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   if (!USERNAME.test(username)) {
-    return c.html(<SetupPage error="用户名必须是 2-32 位的小写字母、数字或连字符" />, 400);
+    return page(c, <SetupPage error="用户名必须是 2-32 位的小写字母、数字或连字符" />, 400);
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return c.html(<SetupPage error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
+    return page(c, <SetupPage error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
   }
   const id = randomHex(8);
   const inserted = await createFirstAdmin(c.env.DB, {
@@ -56,7 +57,7 @@ usersRoutes.post("/setup", async (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/login", async (c) => c.html(<LoginPage />));
+usersRoutes.get("/login", async (c) => page(c, <LoginPage />));
 
 usersRoutes.post("/login", async (c) => {
   const body = await c.req.parseBody();
@@ -67,7 +68,7 @@ usersRoutes.post("/login", async (c) => {
   // failure paths take the same time and a username can't be enumerated by
   // timing responses.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return c.html(<LoginPage error="用户名或密码不正确" />, 401);
+  if (!user || !ok) return page(c, <LoginPage error="用户名或密码不正确" />, 401);
   await touchLogin(c.env.DB, user.id, Date.now());
   await startSession(c, user.id);
   return c.redirect("/", 302);
@@ -81,7 +82,7 @@ usersRoutes.post("/logout", (c) => {
 usersRoutes.get("/me", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect("/login", 302);
-  return c.html(<MePage user={user} origin={new URL(c.req.url).origin} />);
+  return page(c, <MePage user={user} origin={new URL(c.req.url).origin} />);
 });
 
 usersRoutes.post("/me/install-key", async (c) => {
@@ -97,7 +98,7 @@ usersRoutes.post("/me/api-token", async (c) => {
   const token = `sgt_${randomHex(16)}`;
   await updateApiTokenHash(c.env.DB, user.id, await sha256Hex(token));
   const fresh = await getUserById(c.env.DB, user.id);
-  return c.html(<MePage user={fresh ?? user} origin={new URL(c.req.url).origin} newToken={token} />);
+  return page(c, <MePage user={fresh ?? user} origin={new URL(c.req.url).origin} newToken={token} />);
 });
 
 usersRoutes.post("/me/api-token/revoke", async (c) => {
@@ -113,11 +114,11 @@ usersRoutes.post("/me/password", async (c) => {
   const body = await c.req.parseBody();
   const origin = new URL(c.req.url).origin;
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return c.html(<MePage user={user} origin={origin} error="当前密码不正确" />, 400);
+    return page(c, <MePage user={user} origin={origin} error="当前密码不正确" />, 400);
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return c.html(<MePage user={user} origin={origin} error={`新密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
+    return page(c, <MePage user={user} origin={origin} error={`新密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   return c.redirect("/me", 302);
@@ -127,7 +128,7 @@ usersRoutes.get("/admin/users", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect("/login", 302);
   if (user.role !== "admin") return c.text("仅管理员可访问", 403);
-  return c.html(<UsersPage user={user} users={await listUsers(c.env.DB)} />);
+  return page(c, <UsersPage user={user} users={await listUsers(c.env.DB)} />);
 });
 
 usersRoutes.post("/admin/users", async (c) => {
@@ -139,7 +140,7 @@ usersRoutes.post("/admin/users", async (c) => {
   const password = String(body.password ?? "");
   const role = body.role === "admin" ? "admin" : "member";
   const fail = async (error: string) =>
-    c.html(<UsersPage user={user} users={await listUsers(c.env.DB)} error={error} />, 400);
+    page(c, <UsersPage user={user} users={await listUsers(c.env.DB)} error={error} />, 400);
   if (!USERNAME.test(username)) return fail("用户名必须是 2-32 位的小写字母、数字或连字符");
   if (password.length < MIN_PASSWORD_LENGTH) return fail(`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`);
   if (await getUserByUsername(c.env.DB, username)) return fail("用户名已存在");
@@ -181,7 +182,8 @@ usersRoutes.post("/admin/users/:id/role", async (c) => {
   // this route shouldn't allow). "Remove/demote my own account" is
   // something another admin does.
   if (target.id === admin.id) {
-    return c.html(
+    return page(
+      c,
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能修改自己的角色，请让另一位管理员操作" />,
       400,
     );
@@ -189,7 +191,8 @@ usersRoutes.post("/admin/users/:id/role", async (c) => {
   const body = await c.req.parseBody();
   const role = body.role === "admin" ? "admin" : "member";
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return c.html(
+    return page(
+      c,
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能取消最后一个管理员的权限" />,
       400,
     );
@@ -205,7 +208,8 @@ usersRoutes.post("/admin/users/:id/password", async (c) => {
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return c.html(
+    return page(
+      c,
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />,
       400,
     );
@@ -244,13 +248,15 @@ usersRoutes.post("/admin/users/:id/delete", async (c) => {
   // self-reassignment work — "remove my own account" is something another
   // admin does instead.
   if (target.id === admin.id) {
-    return c.html(
+    return page(
+      c,
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除自己的账号，请让另一位管理员操作" />,
       400,
     );
   }
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return c.html(
+    return page(
+      c,
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除最后一个管理员" />,
       400,
     );

@@ -11,6 +11,9 @@ export const MIN_PASSWORD_LENGTH = 12;
 export const SESSION_COOKIE = "sg_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Name of the hidden form field carrying the CSRF token. See src/csrf.tsx. */
+export const CSRF_FIELD = "_csrf";
+
 const enc = new TextEncoder();
 
 function toBase64(bytes: Uint8Array): string {
@@ -36,7 +39,7 @@ async function deriveBits(password: string, salt: Uint8Array, iterations: number
   return new Uint8Array(bits);
 }
 
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -77,8 +80,24 @@ export async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * The signed-cookie session payload. `csrf` is the per-session CSRF token:
+ * binding it to the session (rather than to a second, independent cookie) is
+ * what makes the token resistant to cookie injection from a sibling
+ * subdomain — see the header comment in src/csrf.tsx for the full argument.
+ */
+interface SessionPayload {
+  uid: string;
+  exp: number;
+  csrf: string;
+}
+
 export async function startSession(c: Ctx, userId: string): Promise<void> {
-  const payload = JSON.stringify({ uid: userId, exp: Date.now() + SESSION_TTL_MS });
+  const payload = JSON.stringify({
+    uid: userId,
+    exp: Date.now() + SESSION_TTL_MS,
+    csrf: randomHex(16),
+  } satisfies SessionPayload);
   await setSignedCookie(c, SESSION_COOKIE, payload, c.env.SESSION_SECRET, {
     httpOnly: true,
     secure: new URL(c.req.url).protocol === "https:",
@@ -92,10 +111,18 @@ export function clearSession(c: Ctx): void {
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
 }
 
-export async function currentUser(c: Ctx): Promise<UserRow | null> {
+// Single place that reads and validates the session cookie, so `currentUser`
+// and `sessionCsrf` can never disagree about whether a session is usable.
+//
+// A payload with no `csrf` is treated as no session at all. Sessions issued
+// before CSRF protection existed are exactly that shape, so everyone signed in
+// at deploy time gets logged out once and signs back in. That one-time cost is
+// deliberate: the alternative — honouring csrf-less sessions — would hand an
+// attacker a downgrade switch back to the unprotected behaviour.
+async function readSession(c: Ctx): Promise<SessionPayload | null> {
   const raw = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE);
   if (!raw) return null;
-  let payload: { uid?: unknown; exp?: unknown };
+  let payload: { uid?: unknown; exp?: unknown; csrf?: unknown };
   try {
     payload = JSON.parse(raw);
   } catch {
@@ -103,7 +130,19 @@ export async function currentUser(c: Ctx): Promise<UserRow | null> {
   }
   if (typeof payload.uid !== "string") return null;
   if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
-  return await getUserById(c.env.DB, payload.uid);
+  if (typeof payload.csrf !== "string" || payload.csrf === "") return null;
+  return { uid: payload.uid, exp: payload.exp, csrf: payload.csrf };
+}
+
+export async function currentUser(c: Ctx): Promise<UserRow | null> {
+  const session = await readSession(c);
+  if (!session) return null;
+  return await getUserById(c.env.DB, session.uid);
+}
+
+/** The current session's CSRF token, or null when there is no usable session. */
+export async function sessionCsrf(c: Ctx): Promise<string | null> {
+  return (await readSession(c))?.csrf ?? null;
 }
 
 export async function userFromApiToken(c: Ctx): Promise<UserRow | null> {

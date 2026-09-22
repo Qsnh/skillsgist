@@ -1,3 +1,4 @@
+import { Form } from "../csrf";
 import { Layout } from "./layout";
 import type { SkillRow, UserRow, VersionRow } from "../db/queries";
 
@@ -26,6 +27,8 @@ export function IndexPage(props: {
 }) {
   return (
     <Layout title="全部 skill" user={props.user}>
+      {/* Plain <form>: a GET form must not carry the token — it would end up
+          in the query string and from there in Referer headers. */}
       <form method="get" action="/" class="mb-6 flex gap-2">
         <input
           name="q"
@@ -104,16 +107,16 @@ export function SkillPage(props: {
               <a href={`/s/${props.skill.slug}/edit`} class="rounded border border-slate-300 px-3 py-1.5">
                 编辑
               </a>
-              <form method="post" action={`/s/${props.skill.slug}/visibility`}>
+              <Form action={`/s/${props.skill.slug}/visibility`}>
                 <button type="submit" class="rounded border border-slate-300 px-3 py-1.5">
                   {props.skill.visibility === "public" ? "改为 private" : "改为 public"}
                 </button>
-              </form>
-              <form method="post" action={`/s/${props.skill.slug}/delete`}>
+              </Form>
+              <Form action={`/s/${props.skill.slug}/delete`}>
                 <button type="submit" class="rounded border border-red-300 px-3 py-1.5 text-red-700">
                   删除
                 </button>
-              </form>
+              </Form>
             </>
           ) : null}
         </div>

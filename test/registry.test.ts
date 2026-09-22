@@ -2,7 +2,7 @@ import { env as rawEnv, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setVisibility } from "../src/db/queries";
 import { buildIndex } from "../src/registry";
-import { login, resetDb, seedUser } from "./helpers";
+import { login, publishMarkdown, resetDb, seedUser } from "./helpers";
 
 // See test/db.test.ts for why `env` needs a local cast here.
 const env = rawEnv as unknown as { DB: D1Database };
@@ -33,15 +33,7 @@ function assertValidEntry(entry: Record<string, unknown>) {
   expect(DIGEST_RE.test(entry.digest as string)).toBe(true);
 }
 
-async function publish(cookie: string, markdown: string, visibility: "public" | "private") {
-  const form = new FormData();
-  form.set("markdown", markdown);
-  form.set("visibility", visibility);
-  const res = await SELF.fetch("http://localhost/new", {
-    method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual",
-  });
-  if (res.status !== 302) throw new Error(`publish failed: ${res.status}`);
-}
+const publish = publishMarkdown;
 
 // Final-review Fix 5 (spec gap): spec §9 requires logging a warning when
 // buildIndex drops a row that fails its own name/description/digest

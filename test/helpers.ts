@@ -9,6 +9,14 @@ import type { UserRow } from "../src/db/queries";
 // only; runtime behavior is unaffected.
 const env = rawEnv as unknown as { DB: D1Database };
 
+export const ORIGIN = "http://localhost";
+
+// Every state-changing request needs an Origin header now: `hono/csrf` rejects
+// a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and neither
+// `SELF.fetch` nor Node's `fetch` sends either on its own the way a browser
+// would. Anything that posts through these helpers gets it for free.
+const SAME_ORIGIN = { Origin: ORIGIN };
+
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM versions"),
@@ -35,13 +43,74 @@ export async function seedUser(
 }
 
 export async function login(username: string, password: string): Promise<string> {
-  const res = await SELF.fetch("http://localhost/login", {
+  const res = await SELF.fetch(`${ORIGIN}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...SAME_ORIGIN },
     body: new URLSearchParams({ username, password }),
     redirect: "manual",
   });
   const cookie = res.headers.get("Set-Cookie");
   if (!cookie) throw new Error(`login failed: ${res.status}`);
   return cookie.split(";")[0];
+}
+
+/**
+ * The session's CSRF token, read back out of a rendered page.
+ *
+ * Scraping the HTML rather than deriving the token from `SESSION_SECRET` is
+ * deliberate: it means every helper below also proves the form actually
+ * rendered a token, so a view that stopped emitting one would fail the whole
+ * suite rather than quietly weakening it.
+ */
+export async function csrfFor(cookie: string): Promise<string> {
+  const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+  const match = /name="_csrf" value="([a-f0-9]{32})"/.exec(await res.text());
+  if (!match) throw new Error(`no CSRF token rendered on /me (status ${res.status})`);
+  return match[1];
+}
+
+/** POST a urlencoded form. Pass `cookie: null` to post as an anonymous visitor. */
+export async function postForm(
+  path: string,
+  cookie: string | null,
+  data: Record<string, string> = {},
+): Promise<Response> {
+  const fields = cookie ? { ...data, _csrf: await csrfFor(cookie) } : data;
+  return SELF.fetch(`${ORIGIN}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      ...SAME_ORIGIN,
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: new URLSearchParams(fields),
+    redirect: "manual",
+  });
+}
+
+/** POST a multipart form (the upload routes). `fields` may carry File values. */
+export async function postMultipart(
+  path: string,
+  cookie: string | null,
+  fields: Record<string, string | Blob>,
+): Promise<Response> {
+  const form = new FormData();
+  if (cookie) form.set("_csrf", await csrfFor(cookie));
+  for (const [key, value] of Object.entries(fields)) form.set(key, value);
+  return SELF.fetch(`${ORIGIN}${path}`, {
+    method: "POST",
+    headers: { ...SAME_ORIGIN, ...(cookie ? { Cookie: cookie } : {}) },
+    body: form,
+    redirect: "manual",
+  });
+}
+
+/** Publish `markdown` through `POST /new`, failing loudly if it doesn't redirect. */
+export async function publishMarkdown(
+  cookie: string,
+  markdown: string,
+  visibility: "public" | "private",
+): Promise<void> {
+  const res = await postMultipart("/new", cookie, { markdown, visibility });
+  if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
 }

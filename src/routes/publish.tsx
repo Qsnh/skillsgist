@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { canManage, currentUser, userFromApiToken } from "../auth";
+import { page } from "../csrf";
 import { getSkill, getVersion } from "../db/queries";
 import { ForbiddenError, publishBytes } from "../publish";
 import { UploadError } from "../skills/normalize";
@@ -33,7 +34,7 @@ async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array>
 publishRoutes.get("/new", async (c) => {
   const user = await currentUser(c);
   if (!user) return c.redirect("/login", 302);
-  return c.html(<NewSkillPage user={user} />);
+  return page(c, <NewSkillPage user={user} />);
 });
 
 publishRoutes.post("/new", async (c) => {
@@ -47,10 +48,10 @@ publishRoutes.post("/new", async (c) => {
     return c.redirect(`/s/${result.slug}`, 302);
   } catch (err) {
     if (err instanceof UploadError) {
-      return c.html(<NewSkillPage user={user} error={err.message} markdown={markdown} />, 400);
+      return page(c, <NewSkillPage user={user} error={err.message} markdown={markdown} />, 400);
     }
     if (err instanceof ForbiddenError) {
-      return c.html(<NewSkillPage user={user} error={err.message} markdown={markdown} />, 403);
+      return page(c, <NewSkillPage user={user} error={err.message} markdown={markdown} />, 403);
     }
     throw err;
   }
@@ -65,7 +66,7 @@ publishRoutes.get("/s/:slug/edit", async (c) => {
   if (!canManage(user, skill)) return c.text("无权编辑这个 skill", 403);
   const latest = await getVersion(c.env.DB, slug, skill.latest_version);
   if (!latest) return c.notFound();
-  return c.html(<EditSkillPage user={user} slug={slug} markdown={latest.skill_md} />);
+  return page(c, <EditSkillPage user={user} slug={slug} markdown={latest.skill_md} />);
 });
 
 publishRoutes.post("/s/:slug/edit", async (c) => {
@@ -83,7 +84,7 @@ publishRoutes.post("/s/:slug/edit", async (c) => {
     return c.redirect(`/s/${slug}`, 302);
   } catch (err) {
     if (err instanceof UploadError) {
-      return c.html(<EditSkillPage user={user} slug={slug} markdown={markdown} error={err.message} />, 400);
+      return page(c, <EditSkillPage user={user} slug={slug} markdown={markdown} error={err.message} />, 400);
     }
     throw err;
   }

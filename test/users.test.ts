@@ -2,22 +2,19 @@ import { env as rawEnv, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
-import { login, resetDb, seedUser } from "./helpers";
+import { login, postForm, publishMarkdown, resetDb, seedUser } from "./helpers";
 
 // See test/db.test.ts for why `env` needs a local cast here.
 const env = rawEnv as unknown as { DB: D1Database };
 
 const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo\n";
 
-const form = (data: Record<string, string>) => ({
-  method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  body: new URLSearchParams(data),
-  redirect: "manual" as const,
-});
+// `/setup` and `/login` are the two mutating routes with no session-bound CSRF
+// token (see TOKENLESS_PATHS in src/csrf.tsx), so they post anonymously.
+const anon = (path: string, data: Record<string, string>) => postForm(path, null, data);
 
 const postAs = (path: string, cookie: string, data: Record<string, string> = {}) =>
-  SELF.fetch(`http://localhost${path}`, { ...form(data), headers: { ...form(data).headers, Cookie: cookie } });
+  postForm(path, cookie, data);
 
 describe("/setup", () => {
   beforeEach(resetDb);
@@ -29,10 +26,7 @@ describe("/setup", () => {
   });
 
   it("creates the first admin and signs them in", async () => {
-    const res = await SELF.fetch(
-      "http://localhost/setup",
-      form({ username: "root", password: "a-very-long-password" }),
-    );
+    const res = await anon("/setup", { username: "root", password: "a-very-long-password" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Set-Cookie")).toContain("sg_session=");
     const user = await getUserByUsername(env.DB, "root");
@@ -41,7 +35,7 @@ describe("/setup", () => {
   });
 
   it("rejects passwords shorter than 12 characters", async () => {
-    const res = await SELF.fetch("http://localhost/setup", form({ username: "root", password: "short" }));
+    const res = await anon("/setup", { username: "root", password: "short" });
     expect(res.status).toBe(400);
     expect(await countUsers(env.DB)).toBe(0);
   });
@@ -52,16 +46,10 @@ describe("/setup", () => {
   });
 
   it("cannot bootstrap a second admin after the first succeeds", async () => {
-    const first = await SELF.fetch(
-      "http://localhost/setup",
-      form({ username: "root", password: "a-very-long-password" }),
-    );
+    const first = await anon("/setup", { username: "root", password: "a-very-long-password" });
     expect(first.status).toBe(302);
 
-    const second = await SELF.fetch(
-      "http://localhost/setup",
-      form({ username: "intruder", password: "another-long-password" }),
-    );
+    const second = await anon("/setup", { username: "intruder", password: "another-long-password" });
     expect(second.status).toBe(404);
     expect(second.headers.get("Set-Cookie")).toBeNull();
     expect(await countUsers(env.DB)).toBe(1);
@@ -73,15 +61,15 @@ describe("/login", () => {
 
   it("sets a session cookie on success", async () => {
     const { password } = await seedUser({ username: "alice" });
-    const res = await SELF.fetch("http://localhost/login", form({ username: "alice", password }));
+    const res = await anon("/login", { username: "alice", password });
     expect(res.status).toBe(302);
     expect(res.headers.get("Set-Cookie")).toContain("sg_session=");
   });
 
   it("gives the same generic error for a bad password and a missing user", async () => {
     await seedUser({ username: "alice" });
-    const bad = await SELF.fetch("http://localhost/login", form({ username: "alice", password: "wrong-password-x" }));
-    const missing = await SELF.fetch("http://localhost/login", form({ username: "nobody", password: "wrong-password-x" }));
+    const bad = await anon("/login", { username: "alice", password: "wrong-password-x" });
+    const missing = await anon("/login", { username: "nobody", password: "wrong-password-x" });
     expect(bad.status).toBe(401);
     expect(missing.status).toBe(401);
     expect(await bad.text()).toContain("用户名或密码不正确");
@@ -95,10 +83,7 @@ describe("/login", () => {
     // don't assert on wall-clock timing (flaky); we assert the call happens.
     const spy = vi.spyOn(auth, "verifyPassword");
     try {
-      const res = await SELF.fetch(
-        "http://localhost/login",
-        form({ username: "nobody", password: "wrong-password-x" }),
-      );
+      const res = await anon("/login", { username: "nobody", password: "wrong-password-x" });
       expect(res.status).toBe(401);
       expect(spy).toHaveBeenCalledTimes(1);
     } finally {
@@ -128,9 +113,7 @@ describe("/me", () => {
   it("rotates the install key", async () => {
     const { user, password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const res = await SELF.fetch("http://localhost/me/install-key", {
-      ...form({}), headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie },
-    });
+    const res = await postAs("/me/install-key", cookie);
     expect(res.status).toBe(302);
     const after = await getUserByUsername(env.DB, "alice");
     expect(after?.install_key).not.toBe(user.install_key);
@@ -139,9 +122,7 @@ describe("/me", () => {
   it("issues an api token once and stores only its hash", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const res = await SELF.fetch("http://localhost/me/api-token", {
-      ...form({}), headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie },
-    });
+    const res = await postAs("/me/api-token", cookie);
     const html = await res.text();
     const match = /sgt_[a-f0-9]{32}/.exec(html);
     expect(match).not.toBeNull();
@@ -153,11 +134,9 @@ describe("/me", () => {
   it("changes the password when the current one is supplied", async () => {
     const { password } = await seedUser({ username: "alice" });
     const cookie = await login("alice", password);
-    const res = await SELF.fetch("http://localhost/me/password", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie },
-      body: new URLSearchParams({ current: password, next: "another-long-password" }),
-      redirect: "manual",
+    const res = await postAs("/me/password", cookie, {
+      current: password,
+      next: "another-long-password",
     });
     expect(res.status).toBe(302);
     await login("alice", "another-long-password");
@@ -177,11 +156,10 @@ describe("/admin/users", () => {
   it("lets an admin create a member", async () => {
     const { password } = await seedUser({ username: "root", role: "admin" });
     const cookie = await login("root", password);
-    const res = await SELF.fetch("http://localhost/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie },
-      body: new URLSearchParams({ username: "carol", password: "carols-long-password", role: "member" }),
-      redirect: "manual",
+    const res = await postAs("/admin/users", cookie, {
+      username: "carol",
+      password: "carols-long-password",
+      role: "member",
     });
     expect(res.status).toBe(302);
     const carol = await getUserByUsername(env.DB, "carol");
@@ -328,12 +306,7 @@ describe("/admin/users/:id/*", () => {
       const rootCookie = await login("root", rootPw);
       await seedUser({ username: "second-admin", role: "admin" });
 
-      const publishForm = new FormData();
-      publishForm.set("markdown", GOOD_MD);
-      publishForm.set("visibility", "public");
-      await SELF.fetch("http://localhost/new", {
-        method: "POST", headers: { Cookie: rootCookie }, body: publishForm, redirect: "manual",
-      });
+      await publishMarkdown(rootCookie, GOOD_MD, "public");
 
       const res = await postAs(`/admin/users/${root.id}/delete`, rootCookie);
       expect(res.status).toBe(400);
@@ -357,12 +330,7 @@ describe("/admin/users/:id/*", () => {
       const second = await seedUser({ username: "second-admin", role: "admin" });
       const secondCookie = await login("second-admin", second.password);
 
-      const publishForm = new FormData();
-      publishForm.set("markdown", GOOD_MD);
-      publishForm.set("visibility", "public");
-      await SELF.fetch("http://localhost/new", {
-        method: "POST", headers: { Cookie: rootCookie }, body: publishForm, redirect: "manual",
-      });
+      await publishMarkdown(rootCookie, GOOD_MD, "public");
 
       const res = await postAs(`/admin/users/${root.id}/delete`, secondCookie);
       expect(res.status).toBe(302);
@@ -403,13 +371,7 @@ describe("/admin/users/:id/*", () => {
     const member = await seedUser({ username: "erin", role: "member" });
     const memberCookie = await login("erin", member.password);
 
-    const publishForm = new FormData();
-    publishForm.set("markdown", GOOD_MD);
-    publishForm.set("visibility", "public");
-    const publishRes = await SELF.fetch("http://localhost/new", {
-      method: "POST", headers: { Cookie: memberCookie }, body: publishForm, redirect: "manual",
-    });
-    expect(publishRes.status).toBe(302);
+    await publishMarkdown(memberCookie, GOOD_MD, "public");
 
     const res = await postAs(`/admin/users/${member.user.id}/delete`, rootCookie);
     expect(res.status).toBe(302);
