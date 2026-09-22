@@ -8,7 +8,15 @@ import { EditSkillPage, NewSkillPage } from "../views/publish";
 
 export const publishRoutes = new Hono<{ Bindings: Env }>();
 
-function visibilityOf(value: unknown): "public" | "private" {
+// `undefined` here must mean "the caller didn't supply a visibility at
+// all" (e.g. `PUT /api/skills/:slug` with no `?visibility=` query param),
+// distinct from "explicitly chose private" — `publishBytes` treats those
+// two cases differently on a republish (see final-review Fix 1). Only an
+// absent value maps to `undefined`; any present-but-unrecognized value
+// (including "") is still treated as an explicit choice and defaults to
+// "private", same as before.
+function visibilityOf(value: unknown): "public" | "private" | undefined {
+  if (value === undefined) return undefined;
   return value === "public" ? "public" : "private";
 }
 

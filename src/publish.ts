@@ -1,4 +1,4 @@
-import { getSkill, getVersion, insertVersion } from "./db/queries";
+import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { UserRow } from "./db/queries";
 import { renderMarkdown } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
@@ -42,6 +42,29 @@ export async function publishBytes(
   if (existing) {
     const latest = await getVersion(env.DB, existing.slug, existing.latest_version);
     if (latest?.digest === normalized.digest) {
+      // Final-review Fix 2: a digest match alone doesn't prove the artifact
+      // is actually fetchable. A prior publish could have written the D1
+      // rows and then failed the R2 put (R2 error, or the isolate killed at
+      // the CPU/memory limit right at that boundary) — see the ordering
+      // comment on the BUCKET.put below. Confirm the object exists before
+      // trusting "unchanged"; if it's missing, repair it by re-putting the
+      // same bytes under the same key instead of reporting success forever
+      // over a 404 artifact.
+      const object = await env.BUCKET.head(latest.r2_key);
+      if (!object) {
+        await env.BUCKET.put(latest.r2_key, normalized.zip, {
+          httpMetadata: { contentType: "application/zip" },
+        });
+      }
+      // Final-review Fix 1: visibility is only ever written by the
+      // ON CONFLICT branch's initial VALUES list (never by the UPDATE —
+      // that's deliberate, see below), so an explicitly-supplied
+      // visibility on an unchanged-content republish must be applied here
+      // too, or it's silently dropped exactly like the non-unchanged path
+      // below.
+      if (opts.visibility !== undefined) {
+        await setVisibility(env.DB, existing.slug, opts.visibility);
+      }
       return {
         slug: existing.slug,
         version: existing.latest_version,
@@ -68,13 +91,38 @@ export async function publishBytes(
     // who publishes a new version to it — this only changes what
     // versions.author_id records.
     authorId: user.id,
+    // Only used for the initial INSERT VALUES when the skill doesn't exist
+    // yet (new skills default private, per spec §6). When `existing` is
+    // true, `insertVersion`'s ON CONFLICT DO UPDATE never touches this
+    // column — deliberately, so a republish that passes no visibility
+    // (the edit path) can't reset a public skill to private, and an
+    // admin's republish can't silently flip it either. An *explicitly*
+    // supplied visibility on an existing skill is instead applied below,
+    // after the version is written.
     visibility: opts.visibility ?? "private",
   });
 
+  // Final-review Fix 1: apply an explicitly-chosen visibility to an
+  // existing skill. `insertVersion`'s ON CONFLICT clause intentionally
+  // never updates `visibility` (see the comment above), so this is the
+  // only place that write happens. `opts.visibility` is `undefined` when
+  // the caller didn't pass one at all (the edit path) — that case must
+  // leave visibility untouched, which is exactly what skipping this call
+  // does. The caller has already established `canManage` for `existing`
+  // via the ForbiddenError check above, so no extra authorization check is
+  // needed here.
+  if (existing && opts.visibility !== undefined) {
+    await setVisibility(env.DB, normalized.name, opts.visibility);
+  }
+
   // Deliberate ordering: D1 rows are written before the R2 object. If R2
   // then fails, the version row points at a missing object — visible on
-  // download (404) and fixed by republishing. Writing R2 first would risk
-  // an unreferenced R2 object that nothing can detect if D1 then failed.
+  // download (404). Republishing identical bytes now repairs this: the
+  // unchanged-digest branch above verifies (via BUCKET.head) that the
+  // object actually exists before trusting the digest match, and re-puts
+  // it when it doesn't, rather than short-circuiting on the digest alone.
+  // Writing R2 first would risk an unreferenced R2 object that nothing can
+  // detect if D1 then failed.
   await env.BUCKET.put(`skills/${normalized.name}/${version}.zip`, normalized.zip, {
     httpMetadata: { contentType: "application/zip" },
   });

@@ -154,6 +154,86 @@ describe("PUT /api/skills/:slug", () => {
     });
   });
 
+  // Final-review Fix 1: an explicitly-supplied `?visibility=` must actually
+  // apply, even when the skill already exists. `insertVersion`'s
+  // ON CONFLICT clause intentionally never touches `visibility` (see F3 in
+  // the ledger — that's what keeps a no-visibility edit from resetting a
+  // public skill to private), but that same short-circuit was previously
+  // discarding a visibility the caller *did* explicitly choose.
+  it("applies an explicit visibility on republish even though the skill already exists", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const token = await apiToken(await login("alice", password));
+    const putWithVisibility = (md: string, visibility: string) =>
+      SELF.fetch(`http://localhost/api/skills/demo-skill?visibility=${visibility}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+        body: md,
+      });
+    await putWithVisibility(GOOD_MD, "public");
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+
+    const res = await putWithVisibility(`${GOOD_MD}\nrepublish\n`, "private");
+    expect(res.status).toBe(201);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
+  });
+
+  // Final-review Fix 1 (continued): omitting `?visibility` entirely on a
+  // republish must mean "not supplied", not "supplied as private" — the
+  // bug was that both cases collapsed to the same value at the call site.
+  it("leaves visibility unchanged when an API republish omits ?visibility", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const token = await apiToken(await login("alice", password));
+    await SELF.fetch("http://localhost/api/skills/demo-skill?visibility=public", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+      body: GOOD_MD,
+    });
+    const res = await SELF.fetch("http://localhost/api/skills/demo-skill", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+      body: `${GOOD_MD}\nno visibility param this time\n`,
+    });
+    expect(res.status).toBe(201);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+
+  // Final-review Fix 2: a failed/missing R2 object for the current latest
+  // version must be self-healed by republishing identical bytes, not
+  // masked forever behind `{ unchanged: true }`. Simulates the failure by
+  // deleting the R2 object directly, the same way an interrupted
+  // `BUCKET.put` (R2 error, isolate killed at the CPU/memory limit) would
+  // leave things.
+  it("repairs a missing R2 object when republishing identical bytes", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const token = await apiToken(await login("alice", password));
+    const put = () =>
+      SELF.fetch("http://localhost/api/skills/demo-skill", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+        body: GOOD_MD,
+      });
+
+    const first = await put();
+    expect(first.status).toBe(201);
+    const { version } = await first.json<{ version: number }>();
+    const versionRow = await getVersion(env.DB, "demo-skill", version);
+    expect(versionRow).not.toBeNull();
+    await env.BUCKET.delete(versionRow!.r2_key);
+    expect(await env.BUCKET.get(versionRow!.r2_key)).toBeNull();
+
+    const second = await put();
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ unchanged: true });
+
+    const repaired = await env.BUCKET.get(versionRow!.r2_key);
+    expect(repaired).not.toBeNull();
+
+    const cookie = await login("alice", password);
+    const download = await SELF.fetch("http://localhost/s/demo-skill/download", { headers: { Cookie: cookie } });
+    expect(download.status).toBe(200);
+    expect(download.headers.get("Content-Type")).toBe("application/zip");
+  });
+
   // Correction 1 (task-10 brief override): `versions.author_id` must record
   // who actually published a version, not who owns the skill — otherwise
   // the column is just a copy of `skills.owner_id` and can never show that
@@ -233,6 +313,49 @@ describe("POST /new", () => {
     const res = await SELF.fetch("http://localhost/new", { redirect: "manual" });
     expect(res.status).toBe(302);
   });
+
+  // Final-review Fix 1: this is the exact failure scenario from the review
+  // — alice publishes a skill as public, then republishes through /new with
+  // "private" selected, and it must actually go private (previously it
+  // stayed public silently, with a 302 success and no warning).
+  it("applies visibility=private on republish even though the skill was already public", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const cookie = await login("alice", password);
+
+    const first = new FormData();
+    first.set("markdown", GOOD_MD);
+    first.set("visibility", "public");
+    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: first, redirect: "manual" });
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+
+    const second = new FormData();
+    second.set("markdown", `${GOOD_MD}\nrepublished\n`);
+    second.set("visibility", "private");
+    const res = await SELF.fetch("http://localhost/new", {
+      method: "POST", headers: { Cookie: cookie }, body: second, redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
+  });
+
+  it("keeps visibility=public on republish through /new when selected again", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const cookie = await login("alice", password);
+
+    const first = new FormData();
+    first.set("markdown", GOOD_MD);
+    first.set("visibility", "public");
+    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: first, redirect: "manual" });
+
+    const second = new FormData();
+    second.set("markdown", `${GOOD_MD}\nrepublished again\n`);
+    second.set("visibility", "public");
+    const res = await SELF.fetch("http://localhost/new", {
+      method: "POST", headers: { Cookie: cookie }, body: second, redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
 });
 
 describe("POST /s/:slug/edit", () => {
@@ -252,5 +375,26 @@ describe("POST /s/:slug/edit", () => {
     });
     expect(res.status).toBe(302);
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
+  });
+
+  // Final-review Fix 1: the edit path must never pass a visibility at all,
+  // so a public skill stays public across an edit-triggered republish
+  // (this is the "fails open" side of the review finding — the edit path
+  // itself was always correct, but had no regression test pinning it).
+  it("does not change visibility when republishing through the edit path", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    const cookie = await login("alice", password);
+    const form = new FormData();
+    form.set("markdown", GOOD_MD);
+    form.set("visibility", "public");
+    await SELF.fetch("http://localhost/new", { method: "POST", headers: { Cookie: cookie }, body: form, redirect: "manual" });
+
+    const edit = new FormData();
+    edit.set("markdown", `${GOOD_MD}\nedited\n`);
+    const res = await SELF.fetch("http://localhost/s/demo-skill/edit", {
+      method: "POST", headers: { Cookie: cookie }, body: edit, redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
   });
 });
