@@ -173,6 +173,19 @@ usersRoutes.post("/admin/users/:id/role", async (c) => {
   const guard = await requireAdminAndTarget(c);
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
+  // Regression 1 (scoped re-review): self-targeting must be refused
+  // outright, independent of the last-admin count check below — see the
+  // comment on the delete route for why (deleteUserReassigning has the
+  // sharper failure mode, but changing your own role through the admin
+  // panel while a normal-user session is live is just as much a footgun
+  // this route shouldn't allow). "Remove/demote my own account" is
+  // something another admin does.
+  if (target.id === admin.id) {
+    return c.html(
+      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能修改自己的角色，请让另一位管理员操作" />,
+      400,
+    );
+  }
   const body = await c.req.parseBody();
   const role = body.role === "admin" ? "admin" : "member";
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
@@ -219,6 +232,23 @@ usersRoutes.post("/admin/users/:id/delete", async (c) => {
   const guard = await requireAdminAndTarget(c);
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
+  // Regression 1 (scoped re-review of the final fix wave): the last-admin
+  // guard below only checks the *count* of admins, so on its own it never
+  // stopped an admin from targeting their own id while a second admin
+  // exists. deleteUserReassigning(db, target.id, admin.id) would then run
+  // with the same id on both sides — the owner_id/author_id reassignment
+  // UPDATEs are a no-op against the row about to be deleted, so the
+  // foreign keys skills.owner_id and versions.author_id end up pointing at
+  // a user id that no longer exists. Refuse self-targeting outright,
+  // regardless of how many other admins exist, rather than trying to make
+  // self-reassignment work — "remove my own account" is something another
+  // admin does instead.
+  if (target.id === admin.id) {
+    return c.html(
+      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除自己的账号，请让另一位管理员操作" />,
+      400,
+    );
+  }
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
     return c.html(
       <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除最后一个管理员" />,

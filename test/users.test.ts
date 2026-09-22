@@ -187,6 +187,26 @@ describe("/admin/users", () => {
     const carol = await getUserByUsername(env.DB, "carol");
     expect(carol?.role).toBe("member");
   });
+
+  // Regression 1 (scoped re-review): the server refuses a self-targeted
+  // role change or delete outright, but a UI that still renders a control
+  // the server will always reject is a bad guard on its own — the
+  // role-toggle and delete forms (and the delete note) must be absent from
+  // the viewer's own row, while remaining present on every other row.
+  it("hides the role-toggle and delete controls on the viewer's own row only", async () => {
+    const root = await seedUser({ username: "root", role: "admin" });
+    const cookie = await login("root", root.password);
+    await seedUser({ username: "carol", role: "member" });
+    const html = await (await SELF.fetch("http://localhost/admin/users", { headers: { Cookie: cookie } })).text();
+
+    expect(html).toContain(`/admin/users/${root.user.id}/install-key`);
+    expect(html).not.toContain(`/admin/users/${root.user.id}/role`);
+    expect(html).not.toContain(`/admin/users/${root.user.id}/delete`);
+
+    const carol = await getUserByUsername(env.DB, "carol");
+    expect(html).toContain(`/admin/users/${carol!.id}/role`);
+    expect(html).toContain(`/admin/users/${carol!.id}/delete`);
+  });
 });
 
 // Final-review Fix 3: spec §7.1 specifies GET/POST /admin/users covering
@@ -289,6 +309,66 @@ describe("/admin/users/:id/*", () => {
     const res = await postAs(`/admin/users/${user.id}/delete`, cookie);
     expect(res.status).toBe(400);
     expect(await countUsers(env.DB)).toBe(1);
+  });
+
+  // Regression 1 (scoped re-review of the final fix wave): the last-admin
+  // guard only checks the *count* of admins, so it never stopped an admin
+  // from targeting their own id while a second admin exists.
+  // deleteUserReassigning(db, target.id, admin.id) then runs with the same
+  // id on both sides — the owner_id reassignment is a no-op, and the very
+  // next statement deletes that row, leaving every skill the admin owned
+  // pointing at a user id that no longer exists (and silently vanishing
+  // from listSkills's INNER JOIN). Self-service demotion/deletion must be
+  // refused outright, regardless of how many other admins exist — that's
+  // simpler than trying to make self-reassignment work, and it just means
+  // "remove my own account" is something another admin does instead.
+  describe("self-targeting guard", () => {
+    it("refuses to let an admin delete themselves even when a second admin exists", async () => {
+      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
+      const rootCookie = await login("root", rootPw);
+      await seedUser({ username: "second-admin", role: "admin" });
+
+      const publishForm = new FormData();
+      publishForm.set("markdown", GOOD_MD);
+      publishForm.set("visibility", "public");
+      await SELF.fetch("http://localhost/new", {
+        method: "POST", headers: { Cookie: rootCookie }, body: publishForm, redirect: "manual",
+      });
+
+      const res = await postAs(`/admin/users/${root.id}/delete`, rootCookie);
+      expect(res.status).toBe(400);
+      expect(await getUserByUsername(env.DB, "root")).not.toBeNull();
+      expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(root.id);
+    });
+
+    it("refuses to let an admin demote themselves even when a second admin exists", async () => {
+      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
+      const rootCookie = await login("root", rootPw);
+      await seedUser({ username: "second-admin", role: "admin" });
+
+      const res = await postAs(`/admin/users/${root.id}/role`, rootCookie, { role: "member" });
+      expect(res.status).toBe(400);
+      expect((await getUserByUsername(env.DB, "root"))?.role).toBe("admin");
+    });
+
+    it("still lets a different admin delete them, with reassignment intact", async () => {
+      const { user: root, password: rootPw } = await seedUser({ username: "root", role: "admin" });
+      const rootCookie = await login("root", rootPw);
+      const second = await seedUser({ username: "second-admin", role: "admin" });
+      const secondCookie = await login("second-admin", second.password);
+
+      const publishForm = new FormData();
+      publishForm.set("markdown", GOOD_MD);
+      publishForm.set("visibility", "public");
+      await SELF.fetch("http://localhost/new", {
+        method: "POST", headers: { Cookie: rootCookie }, body: publishForm, redirect: "manual",
+      });
+
+      const res = await postAs(`/admin/users/${root.id}/delete`, secondCookie);
+      expect(res.status).toBe(302);
+      expect(await getUserByUsername(env.DB, "root")).toBeNull();
+      expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(second.user.id);
+    });
   });
 
   // The immediate revocation lever: install_key is a plaintext capability
