@@ -13,6 +13,7 @@
     "deploy": "npm run build && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "verify:cli": "node scripts/verify-cli.mjs",
+    "check:english": "node scripts/check-english.mjs",
     "fixtures": "./scripts/make-fixtures.sh"
   },
   "repository": {
