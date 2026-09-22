@@ -1,6 +1,6 @@
 import { marked } from "marked";
 
-// Final-review Fix 4b: this used to be a blocklist (13 named tags,
+// This used to be a blocklist (13 named tags,
 // anything unlisted passed through unexamined) — the same shape the
 // attribute layer moved away from below, after two review rounds found
 // live bypasses in its predecessor. An allowlist doesn't need to guess

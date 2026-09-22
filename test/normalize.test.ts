@@ -42,7 +42,7 @@ describe("normalizeUpload", () => {
 
   it("accepts a tarball padded by bsdtar's default gzip (macOS tar czf)", async () => {
     // bsdtar-padded.tar.gz is what macOS's default `tar czf` produces: the
-    // gzip stream is zero-padded to a block boundary. readTarGz (Task 4)
+    // gzip stream is zero-padded to a block boundary. readTarGz
     // already tolerates this at the reader level; pin the tolerance at the
     // pipeline level too, since this is the single most likely real-world
     // upload shape from a macOS user.

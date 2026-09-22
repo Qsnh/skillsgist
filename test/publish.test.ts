@@ -99,12 +99,11 @@ describe("PUT /api/skills/:slug", () => {
     });
   });
 
-  // Final-review Fix 1: an explicitly-supplied `?visibility=` must actually
-  // apply, even when the skill already exists. `insertVersion`'s
-  // ON CONFLICT clause intentionally never touches `visibility` (see F3 in
-  // the ledger — that's what keeps a no-visibility edit from resetting a
-  // public skill to private), but that same short-circuit was previously
-  // discarding a visibility the caller *did* explicitly choose.
+  // An explicitly-supplied `?visibility=` must actually apply, even when the
+  // skill already exists. `insertVersion`'s ON CONFLICT clause intentionally
+  // never touches `visibility` — that's what keeps a no-visibility edit from
+  // resetting a public skill to private — but that same short-circuit used to
+  // discard a visibility the caller *did* explicitly choose.
   it("applies an explicit visibility on republish even though the skill already exists", async () => {
     const { token } = await seedAndToken({ username: "alice" });
     const putWithVisibility = (md: string, visibility: string) =>
@@ -117,9 +116,9 @@ describe("PUT /api/skills/:slug", () => {
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
   });
 
-  // Final-review Fix 1 (continued): omitting `?visibility` entirely on a
-  // republish must mean "not supplied", not "supplied as private" — the
-  // bug was that both cases collapsed to the same value at the call site.
+  // Omitting `?visibility` entirely on a republish must mean "not supplied",
+  // not "supplied as private" — both cases used to collapse to the same value
+  // at the call site.
   it("leaves visibility unchanged when an API republish omits ?visibility", async () => {
     const { token } = await seedAndToken({ username: "alice" });
     await putSkill(token, GOOD_MD, { visibility: "public" });
@@ -128,7 +127,7 @@ describe("PUT /api/skills/:slug", () => {
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
   });
 
-  // Final-review Fix 2: a failed/missing R2 object for the current latest
+  // A failed/missing R2 object for the current latest
   // version must be self-healed by republishing identical bytes, not
   // masked forever behind `{ unchanged: true }`. Simulates the failure by
   // deleting the R2 object directly, the same way an interrupted
@@ -158,7 +157,7 @@ describe("PUT /api/skills/:slug", () => {
     expect(download.headers.get("Content-Type")).toBe("application/zip");
   });
 
-  // Correction 1 (task-10 brief override): `versions.author_id` must record
+  // `versions.author_id` must record
   // who actually published a version, not who owns the skill — otherwise
   // the column is just a copy of `skills.owner_id` and can never show that
   // an admin published on someone else's behalf. Ownership itself must
@@ -218,10 +217,9 @@ describe("POST /new", () => {
     expect(res.status).toBe(302);
   });
 
-  // Final-review Fix 1: this is the exact failure scenario from the review
-  // — alice publishes a skill as public, then republishes through /new with
-  // "private" selected, and it must actually go private (previously it
-  // stayed public silently, with a 302 success and no warning).
+  // Alice publishes a skill as public, then republishes through /new with
+  // "private" selected, and it must actually go private — this used to stay
+  // public silently, with a 302 success and no warning.
   it("applies visibility=private on republish even though the skill was already public", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
 
@@ -264,10 +262,9 @@ describe("POST /s/:slug/edit", () => {
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
   });
 
-  // Final-review Fix 1: the edit path must never pass a visibility at all,
-  // so a public skill stays public across an edit-triggered republish
-  // (this is the "fails open" side of the review finding — the edit path
-  // itself was always correct, but had no regression test pinning it).
+  // The edit path must never pass a visibility at all, so a public skill
+  // stays public across an edit-triggered republish. This side always
+  // behaved correctly but had no test pinning it.
   it("does not change visibility when republishing through the edit path", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });

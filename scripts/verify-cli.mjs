@@ -10,12 +10,11 @@ import { tmpdir } from "node:os";
 const PORT = 8788;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PASSWORD = "verify-cli-password";
-// wrangler dev has no way to read `.dev.vars` we don't control and this repo
-// ships none (Tasks 1-12 never ran a real `wrangler dev`, only the sandboxed
-// vitest-pool-workers runtime, which injects SESSION_SECRET as a Miniflare
-// binding). Without it, `c.env.SESSION_SECRET` is undefined and every route
-// that touches a session cookie 500s. `--var` injects it for just this
-// process without requiring any file on disk.
+// wrangler dev reads SESSION_SECRET from `.dev.vars`, and this repo ships
+// none — the test suite runs on vitest-pool-workers, which injects the secret
+// as a Miniflare binding instead. Without it `c.env.SESSION_SECRET` is
+// undefined and every route that touches a session cookie 500s. `--var`
+// injects it for just this process without requiring any file on disk.
 const SESSION_SECRET = randomBytes(32).toString("hex");
 
 function log(msg) {

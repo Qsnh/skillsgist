@@ -61,13 +61,12 @@ describe("renderMarkdown", () => {
     expect(html).not.toContain("<script>alert(1)</script>");
   });
 
-  // Regression tests for task-7 review finding 1: a blocklist regex
-  // (`/^\s*(javascript|data|vbscript):/i`) only caught the scheme as one
-  // contiguous substring, but the WHATWG URL Standard strips ASCII
-  // tab/CR/LF from anywhere in a URL before parsing its scheme, so a
-  // browser sees "javascript:" where the old regex didn't. These pin the
-  // exact bypass payloads the reviewer ran against the vulnerable build.
-  describe("dangerous-scheme obfuscation (task-7 review finding 1)", () => {
+  // A blocklist regex (`/^\s*(javascript|data|vbscript):/i`) only caught the
+  // scheme as one contiguous substring, but the WHATWG URL Standard strips
+  // ASCII tab/CR/LF from anywhere in a URL before parsing its scheme, so a
+  // browser sees "javascript:" where such a regex doesn't. These pin the exact
+  // bypass payloads that defeated it.
+  describe("dangerous-scheme obfuscation", () => {
     it.each([
       ["a javascript: href obfuscated with a raw tab", "java\tscript:alert(1)"],
       ["a javascript: href obfuscated with a raw newline", "java\nscript:alert(1)"],
@@ -85,16 +84,15 @@ describe("renderMarkdown", () => {
     ])("keeps %s intact", (href) => expectHrefKept(href));
   });
 
-  // Regression tests for task-7 review finding, round 2: the round-1 fix
-  // still extracted the scheme with a character-class regex, which failed
-  // to match — and so fell through to "no scheme, allow" — whenever an
-  // HTML character reference (named or numeric, semicolon or not) appeared
-  // in the scheme segment. Browsers decode character references in
-  // attribute values during tokenization, before any URL parsing, so these
-  // all reconstruct a live dangerous URL by the time a visitor's browser
-  // renders the stored HTML. Each must assert the attribute is gone, not
-  // merely that the literal scheme substring is absent.
-  describe("dangerous-scheme obfuscation via character references (task-7 review, round 2)", () => {
+  // Extracting the scheme with a character-class regex fails to match — and so
+  // falls through to "no scheme, allow" — whenever an HTML character reference
+  // (named or numeric, semicolon or not) appears in the scheme segment.
+  // Browsers decode character references in attribute values during
+  // tokenization, before any URL parsing, so these all reconstruct a live
+  // dangerous URL by the time a visitor's browser renders the stored HTML.
+  // Each must assert the attribute is gone, not merely that the literal
+  // scheme substring is absent.
+  describe("dangerous-scheme obfuscation via character references", () => {
     it.each([
       ["a named entity encoding the colon", "javascript&colon;alert(1)"],
       ["a numeric entity encoding the colon", "javascript&#58;alert(1)"],
@@ -117,8 +115,7 @@ describe("renderMarkdown", () => {
     ])("keeps the relative or https href %s intact", (href) => expectHrefKept(href));
   });
 
-  // Regression test for task-7 review finding 2: `style` was never
-  // inspected, so `style="background:url(...)"` could beacon out to an
+  // An uninspected `style` lets `style="background:url(...)"` beacon out to an
   // attacker-controlled host on every page view.
   it("strips the style attribute", async () => {
     const html = await renderMarkdown('<div style="background:url(https://evil.example/beacon)">hi</div>');
@@ -128,7 +125,7 @@ describe("renderMarkdown", () => {
 
   // A blocked tag other than script/iframe, to confirm el.remove() taking
   // children with it isn't special-cased to just those two tags. `form` is
-  // not on the Fix 4b allowlist, so it's still removed; the nested `input`
+  // not on ALLOWED_TAGS, so it's still removed; the nested `input`
   // is now individually allowed (GFM task lists emit one), but it never
   // gets a chance to survive on its own because removing `form` drops its
   // entire subtree regardless of what any nested element's own handler
@@ -142,13 +139,11 @@ describe("renderMarkdown", () => {
     expect(html).toContain("after");
   });
 
-  // Final-review Fix 4b: the tag layer was a blocklist (13 named tags,
-  // anything unlisted passed through) where spec §10 requires an
-  // allowlist, matching what the attribute layer already does. These pin
-  // that ordinary markdown constructs still render correctly under the
-  // new allowlist, and that elements never enumerated in the old blocklist
-  // are now removed by default instead of passing through.
-  describe("tag allowlist (final-review Fix 4b)", () => {
+  // Spec §10 requires an allowlist for the tag layer, matching what the
+  // attribute layer already does. These pin that ordinary markdown constructs
+  // still render correctly under it, and that unlisted elements are removed by
+  // default rather than passing through.
+  describe("tag allowlist", () => {
     it("keeps every ordinary markdown construct intact", async () => {
       const md = [
         "# H1",

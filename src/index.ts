@@ -10,7 +10,7 @@ import { usersRoutes } from "./routes/users";
 
 const app = new Hono<AppEnv>();
 
-// Final-review Fix 4a: the markdown sanitizer (src/render/markdown.ts)
+// The markdown sanitizer (src/render/markdown.ts)
 // runs once at publish time and the result is stored, so a future
 // sanitizer improvement never retroactively cleans HTML that's already in
 // the database. A CSP costs nothing at request time and makes any
@@ -18,7 +18,7 @@ const app = new Hono<AppEnv>();
 // same-origin `/app.css` and ships no inline or external script, so
 // `'self'` is sufficient with no `unsafe-inline` carve-out needed.
 //
-// Regression 2 (scoped re-review): `img-src` needs its own directive.
+// `img-src` needs its own directive.
 // Without it, `img-src` falls back to `default-src 'self'`, but the
 // sanitizer's URL-scheme allowlist deliberately preserves external
 // `http`/`https` image sources (badges, screenshots are the normal case

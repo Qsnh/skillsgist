@@ -155,7 +155,7 @@ describe("/admin/users", () => {
     expect(carol?.role).toBe("member");
   });
 
-  // Regression 1 (scoped re-review): the server refuses a self-targeted
+  // The server refuses a self-targeted
   // role change or delete outright, but a UI that still renders a control
   // the server will always reject is a bad guard on its own — the
   // role-toggle and delete forms (and the delete note) must be absent from
@@ -176,12 +176,12 @@ describe("/admin/users", () => {
   });
 });
 
-// Final-review Fix 3: spec §7.1 specifies GET/POST /admin/users covering
-// 建号 (create), 改角色 (change role), 重置密码 (reset password) and 删号
-// (delete) — only create existed. These five routes are the revocation
-// levers a departed member's account needs: without them an admin has no
-// way to demote, rotate a leaked install_key, or remove the account at
-// all, only the member themselves could rotate their own key from /me.
+// Spec §7.1 specifies GET/POST /admin/users covering 建号 (create), 改角色
+// (change role), 重置密码 (reset password) and 删号 (delete). These five routes
+// are the revocation levers a departed member's account needs: without them an
+// admin has no way to demote, rotate a leaked install_key, or remove the
+// account at all — only the member themselves could rotate their own key
+// from /me.
 describe("/admin/users/:id/*", () => {
   beforeEach(resetDb);
 
@@ -269,7 +269,7 @@ describe("/admin/users/:id/*", () => {
     expect(await countUsers(env.DB)).toBe(1);
   });
 
-  // Regression 1 (scoped re-review of the final fix wave): the last-admin
+  // The last-admin
   // guard only checks the *count* of admins, so it never stopped an admin
   // from targeting their own id while a second admin exists.
   // deleteUserReassigning(db, target.id, admin.id) then runs with the same

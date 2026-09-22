@@ -29,7 +29,7 @@ export function buildIndex(
 ): { $schema: string; skills: IndexEntry[] } {
   const skills: IndexEntry[] = [];
   for (const row of rows) {
-    // Final-review Fix 5 (spec gap): spec §9 requires a warning when a row
+    // Spec §9 requires a warning when a row
     // is dropped, so an operator has some signal if this branch is ever
     // reached — normalizeUpload already enforces these same checks at
     // publish time, so in practice this is defense-in-depth, but silence

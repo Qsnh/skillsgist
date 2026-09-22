@@ -152,10 +152,9 @@ usersRoutes.post("/admin/users", requireAdmin, async (c) => {
   return c.redirect("/admin/users", 302);
 });
 
-// --- Final-review Fix 3: admin-only revocation levers -----------------
-// Spec §7.1 lists 建号、改角色、重置密码、删号 for GET/POST /admin/users;
-// only create existed. Every route below is admin-only (`requireAdmin`) and
-// 404s for an unknown target id, checked before any mutation.
+// Admin-only revocation levers (spec §7.1: 建号、改角色、重置密码、删号).
+// Every route below is admin-only (`requireAdmin`) and 404s for an unknown
+// target id, checked before any mutation.
 
 /**
  * The `:id` target of an admin route.

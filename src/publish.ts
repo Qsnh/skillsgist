@@ -41,7 +41,7 @@ export async function publishBytes(
     throw new ForbiddenError(`skill ${normalized.name} 属于其他用户，无权覆盖`);
   }
 
-  // Final-review Fix 1: `insertVersion`'s ON CONFLICT clause deliberately
+  // `insertVersion`'s ON CONFLICT clause deliberately
   // never updates `visibility` (see the note on the call below), so for an
   // existing skill this is the only place that write happens. It sits here,
   // above the digest branch, rather than once per exit: a republish of
@@ -57,7 +57,7 @@ export async function publishBytes(
   if (existing) {
     const latest = await getVersion(env.DB, existing.slug, existing.latest_version);
     if (latest?.digest === normalized.digest) {
-      // Final-review Fix 2: a digest match alone doesn't prove the artifact
+      // A digest match alone doesn't prove the artifact
       // is actually fetchable. A prior publish could have written the D1
       // rows and then failed the R2 put (R2 error, or the isolate killed at
       // the CPU/memory limit right at that boundary) — see the ordering
@@ -91,7 +91,7 @@ export async function publishBytes(
     skill_md: normalized.skillMd,
     html,
     files: JSON.stringify(normalized.files),
-    // Correction 1 (task-10 brief override): always record the publisher,
+    // Always record the publisher,
     // not the skill's owner. `insertVersion`'s ON CONFLICT clause never
     // touches owner_id, so an existing skill's ownership is unaffected by
     // who publishes a new version to it — this only changes what

@@ -8,14 +8,14 @@ it("responds on /healthz", async () => {
   expect(await res.text()).toBe("ok");
 });
 
-// Final-review Fix 4a: the markdown sanitizer's tag layer moved from a
-// blocklist to an allowlist (see test/markdown.test.ts), but sanitized
+// The markdown sanitizer's tag layer is an allowlist
+// (see test/markdown.test.ts), but sanitized
 // HTML is rendered once at publish time and stored — a future sanitizer
 // improvement never retroactively cleans what's already in the database.
 // A CSP header makes any residual or future bypass inert at zero CPU
 // cost, on every HTML page regardless of which route rendered it.
 //
-// Regression 2 (scoped re-review of the final fix wave): the original
+// The original
 // policy had no img-src override, so it fell back to default-src 'self'
 // — but the sanitizer deliberately preserves external <img src="https://...">
 // (see test/markdown.test.ts's "keeps every ordinary markdown construct

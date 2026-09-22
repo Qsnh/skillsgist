@@ -42,7 +42,7 @@ function buildCapturingWarnings(rows: IndexSource[]) {
   }
 }
 
-// Final-review Fix 5 (spec gap): spec §9 requires logging a warning when
+// Spec §9 requires logging a warning when
 // buildIndex drops a row that fails its own name/description/digest
 // self-check, so an operator has some signal if that branch is ever
 // reached. It's defense-in-depth — normalizeUpload already rejects a bad

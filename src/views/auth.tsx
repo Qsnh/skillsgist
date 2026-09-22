@@ -98,8 +98,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
         </thead>
         <tbody>
           {props.users.map((u) => {
-            // Regression 1 (scoped re-review of the final fix wave): the
-            // server refuses self-targeted role changes and deletes
+            // The server refuses self-targeted role changes and deletes
             // outright (see routes/users.tsx), but a UI that still renders
             // a control the server will always reject is a bad guard —
             // hide the role-toggle and delete controls on the viewer's own
