@@ -31,10 +31,7 @@ export function crc32(data: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/**
- * Run `data` through a (de)compression transform and collect the result.
- * Shared by the deflate/inflate paths here and by tar.ts's gunzip.
- */
+/** Shared by the deflate/inflate paths here and by tar.ts's gunzip. */
 export async function pipeBytes(
   data: Uint8Array,
   transform: CompressionStream | DecompressionStream,

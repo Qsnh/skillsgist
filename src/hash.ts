@@ -1,4 +1,4 @@
-/** Bytes → lowercase hex. The one place that spelling lives. */
+/** The one place the bytes-to-hex spelling lives. */
 export function toHex(bytes: Uint8Array): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

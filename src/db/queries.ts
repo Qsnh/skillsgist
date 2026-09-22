@@ -37,7 +37,6 @@ export interface VersionRow {
 /** Just the version rows a version list renders — see `listVersions`. */
 export type VersionSummary = Pick<VersionRow, "version" | "created_at">;
 
-/** Everything a download route needs, and nothing it doesn't. */
 export interface ArtifactRef {
   r2_key: string;
   visibility: "public" | "private";

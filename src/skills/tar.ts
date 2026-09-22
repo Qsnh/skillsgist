@@ -1,6 +1,6 @@
 import { ArchiveError, pipeBytes } from "./zip";
 
-/** The gzip magic bytes. The only place this archive format is recognised. */
+/** The only place the gzip format is recognised. */
 export function isGzip(b: Uint8Array): boolean {
   return b.length > 1 && b[0] === 0x1f && b[1] === 0x8b;
 }

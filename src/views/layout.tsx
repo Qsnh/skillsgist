@@ -75,7 +75,7 @@ export function Alert(props: { message?: string }) {
   return <p class="mb-4 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{props.message}</p>;
 }
 
-/** A dark, scrollable code block — install commands, generated tokens. */
+/** For install commands and generated tokens. */
 export function CodeBlock(props: { children?: unknown }) {
   return (
     <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">{props.children}</pre>

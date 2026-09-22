@@ -124,7 +124,7 @@ describe("gzipRetryLengths", () => {
   });
 
   it("stays bounded no matter how much trailing padding there is", () => {
-    const hugePadding = new Uint8Array(10_000); // all zero except byte 0
+    const hugePadding = new Uint8Array(10_000);
     hugePadding[0] = 1;
     const lengths = gzipRetryLengths(hugePadding);
     expect(lengths.length).toBeLessThanOrEqual(9); // GZIP_TRAILER_LEN (8) + 1

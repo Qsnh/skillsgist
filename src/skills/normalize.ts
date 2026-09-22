@@ -73,7 +73,6 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
     if (err instanceof ArchiveError) throw new UploadError(err.message);
     throw err;
   }
-  // 既不是 gzip 也不是 zip，按单个 SKILL.md 文本处理。
   // 解码再编码一次是为了把非法 UTF-8 字节规范成替换字符，保证 digest 稳定。
   const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes);
   return new Map([["SKILL.md", new TextEncoder().encode(text)]]);
