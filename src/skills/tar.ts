@@ -106,9 +106,9 @@ export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Arr
 
     offset += 512;
 
-    // '1' = 硬链接，'2' = 软链接
+    // '1' = hard link, '2' = symlink
     if (typeFlag === 0x31 || typeFlag === 0x32) throw new ArchiveError("Link entries in archives are not supported");
-    // '\0' 与 '0' = 普通文件；其余（目录 '5'、pax 头 'x'/'g' 等）跳过
+    // '\0' and '0' = regular file; everything else (directory '5', pax headers 'x'/'g', ...) is skipped
     if (typeFlag === 0 || typeFlag === 0x30) {
       files.set(path, tar.slice(offset, offset + size));
     }

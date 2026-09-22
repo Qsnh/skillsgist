@@ -20,8 +20,9 @@ export interface IndexSource {
 }
 
 /**
- * baseUrl 形如 https://host 或 https://host/i/<key>，产物地址直接拼在它后面。
- * 不满足 CLI 校验规则的条目会被丢弃 —— 宁可少一条，也不要让 CLI 拿到半个坏 index。
+ * baseUrl is https://host or https://host/i/<key>; artifact addresses are
+ * appended to it directly. Entries that fail the CLI's validation rules are
+ * dropped — better one entry short than handing the CLI half a broken index.
  */
 export function buildIndex(
   rows: IndexSource[],

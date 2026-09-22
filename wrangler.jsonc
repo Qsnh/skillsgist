@@ -3,7 +3,7 @@
   "name": "skillsgist",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
-  // nodejs_compat 是 @cloudflare/vitest-pool-workers 的硬性要求
+  // nodejs_compat is a hard requirement of @cloudflare/vitest-pool-workers
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./public", "binding": "ASSETS" },
   "d1_databases": [

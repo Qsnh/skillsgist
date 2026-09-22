@@ -44,10 +44,10 @@ function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
   return pipeBytes(data, new CompressionStream("deflate-raw"));
 }
 
-// 1980-01-01，zip 规范里最小的合法日期。固定它让同样的内容产出同样的字节。
+// 1980-01-01, the earliest date the zip spec allows. Pinning it makes identical content produce identical bytes.
 const DOS_DATE = 0x21;
 const DOS_TIME = 0;
-// 0o100644 << 16：普通文件权限。CLI 会检查这个字段排除软链接，必须是普通文件位。
+// 0o100644 << 16: regular file permissions. The CLI reads this field to exclude symlinks, so the regular-file bit is required.
 const EXTERNAL_ATTRS = 0x81a40000;
 
 export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
@@ -70,7 +70,7 @@ export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
     const lv = new DataView(local.buffer);
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(4, 20, true);
-    lv.setUint16(6, 0x0800, true); // 文件名按 UTF-8 解释
+    lv.setUint16(6, 0x0800, true); // interpret file names as UTF-8
     lv.setUint16(8, method, true);
     lv.setUint16(10, DOS_TIME, true);
     lv.setUint16(12, DOS_DATE, true);

@@ -2,7 +2,7 @@
 
 @source "./**/*.tsx";
 
-/* 渲染后的 SKILL.md 正文。不引 @tailwindcss/typography，手写这几条够用了。 */
+/* Rendered SKILL.md body. @tailwindcss/typography is not pulled in; these few rules are enough. */
 .skill-doc h1 { @apply mt-6 mb-2 text-lg font-semibold; }
 .skill-doc h2 { @apply mt-5 mb-2 text-base font-semibold; }
 .skill-doc h3 { @apply mt-4 mb-1 text-sm font-semibold; }

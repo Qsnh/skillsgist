@@ -134,11 +134,13 @@ export async function publishBytes(
 }
 
 /**
- * 一次「只改文本」的编辑该发布的字节：上一版的压缩包，SKILL.md 换成 `skillMd`。
+ * The bytes a text-only edit should publish: the previous version's archive
+ * with SKILL.md swapped for `skillMd`.
  *
- * 一个 skill 不只有 SKILL.md——`references/`、`scripts/` 里的文件都在包里，
- * 而编辑框只装得下其中一个。直接把文本框内容当整包发出去会连一句提示都没有
- * 地删掉其余文件，所以在这里把它们带过去。
+ * A skill is more than SKILL.md — files under `references/` and `scripts/` are
+ * in the archive too, and the edit box holds only one of them. Publishing the
+ * text box as the whole archive would delete the rest without so much as a
+ * warning, so they are carried over here.
  */
 export async function repackWithSkillMd(
   env: Env,
@@ -147,11 +149,11 @@ export async function repackWithSkillMd(
 ): Promise<Uint8Array> {
   const bytes = new TextEncoder().encode(skillMd);
   const files = JSON.parse(latest.files) as Array<{ path: string }>;
-  // 本来就只有 SKILL.md：省掉一次 R2 读，也让下面那个报错不会挡住一个根本
-  // 不需要旧包的编辑。
+  // Already nothing but SKILL.md: skip an R2 read, and keep the error below
+  // from blocking an edit that never needed the old archive.
   if (!files.some((f) => f.path !== "SKILL.md")) return bytes;
 
-  // 读不到就挡住，而不是退回「只发 SKILL.md」——那正是这个函数要消灭的静默丢失。
+  // Refuse rather than fall back to "publish SKILL.md alone" — that silent loss is what this function exists to prevent.
   const object = await env.BUCKET.get(latest.r2_key);
   if (!object) {
     throw new UploadError(

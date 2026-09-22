@@ -32,7 +32,7 @@ function publishFailure(err: unknown): (UploadError | ForbiddenError) | null {
   return err instanceof UploadError || err instanceof ForbiddenError ? err : null;
 }
 
-/** 一次「只改文本」的编辑会原样带走的路径——SKILL.md 之外的全部。 */
+/** The paths a text-only edit carries over untouched — everything but SKILL.md. */
 function siblingPaths(latest: VersionRow): string[] {
   return (JSON.parse(latest.files) as Array<{ path: string }>)
     .map((f) => f.path)
@@ -94,7 +94,7 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
   try {
     if (!markdown.trim()) throw new UploadError("SKILL.md cannot be empty");
-    // 这一页只改得动 SKILL.md，其余文件从上一版的包里带过来。
+    // This page can only change SKILL.md; the other files come from the previous version's archive.
     const bytes = await repackWithSkillMd(c.env, latest, `${markdown.trim()}\n`);
     await publishBytes(c.env, user, bytes, { expectedSlug: slug });
     return c.redirect(`/s/${slug}`, 302);
@@ -115,8 +115,9 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   }
 });
 
-// 和编辑页并列的另一条路：整包替换。两个 handler 各自只读一个字段——编辑读
-// markdown，这里读 file——所以「两个都填了听谁的」这条规则不存在。
+// The other road, alongside the edit page: whole-archive replacement. Each
+// handler reads exactly one field — edit reads markdown, this one reads file —
+// so the question "both were filled in, which wins?" never arises.
 publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
   const slug = c.req.param("slug");
   const guard = await requireManagedSkill(c, slug, "update");

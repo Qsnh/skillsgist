@@ -39,26 +39,30 @@ async function serveArtifact(
   return zipAttachment(object, slug, visible === "public");
 }
 
-// 每条 index 路径去掉 `/index.json` 之后的前缀，用来注册嵌套通配路由。
+// Each index path minus its trailing `/index.json`, used to register the
+// nested wildcard routes.
 const INDEX_PREFIXES = INDEX_SUFFIXES.map((suffix) => suffix.slice(0, -"/index.json".length));
 
-// 照抄 CLI 认 skill 名用的形状（skills 1.5.18 的 WellKnownProvider），好让
-// /s/:slug 展示的地址在服务端和 CLI 眼里指的是同一个 skill。
+// Mirrors the shape the CLI uses to recognise a skill name (the
+// WellKnownProvider in skills 1.5.18), so the address shown on /s/:slug means
+// the same skill to the server and to the CLI.
 const SKILL_IN_PATH = /\/\.well-known\/(?:agent-skills|skills)\/([^/]+)$/;
 
-/** 安装地址里的两个变量：install key（可选）与 skill 名（可选）。 */
+/** The two variables in an install address: install key (optional) and skill name (optional). */
 interface IndexRequest {
   key: string | null;
   only: string | null;
 }
 
 /**
- * 把一条 index 路径拆成 `IndexRequest`，不是 index 路径则返回 null。
+ * Parse an index path into an `IndexRequest`, or null if it is not one.
  *
- * CLI 把整条安装 URL 当作 basePath，再往后拼 `/.well-known/<ns>/index.json`，
- * 所以「这是哪一种 index 请求」全写在 basePath 里：`/i/<key>` 前缀决定可见范围，
- * `.well-known/<ns>/<slug>` 后缀决定只要哪一个 skill。两者都从同一次解析里取，
- * 匿名和带 key 两条路径就不可能再各自漂移。
+ * The CLI treats the whole install URL as a basePath and appends
+ * `/.well-known/<ns>/index.json` to it, so "which kind of index request is
+ * this" is entirely encoded in the basePath: an `/i/<key>` prefix decides
+ * visibility, a `.well-known/<ns>/<slug>` suffix decides which single skill is
+ * wanted. Both come out of the same parse, so the anonymous and keyed paths
+ * cannot drift apart.
  */
 function indexRequest(path: string): IndexRequest | null {
   const suffix = INDEX_SUFFIXES.find((s) => path.endsWith(s));
@@ -71,12 +75,14 @@ function indexRequest(path: string): IndexRequest | null {
 }
 
 /**
- * 发现 index。
+ * Discovery index.
  *
- * `only` 非空时只返回那一个 skill —— 这是 per-skill 安装地址能成立的全部原因：
- * `skills add` 走 fetchAllSkills()，它返回 index 里的全部条目、从不看路径里的
- * slug，只有当 index 恰好只剩一条时才会自动选中它。不收窄的话，一个「装这一个」
- * 的地址会把全部 skill 都装上。
+ * A non-empty `only` returns that one skill and nothing else — this is the
+ * entire reason a per-skill install address works. `skills add` goes through
+ * fetchAllSkills(), which returns every entry in the index and never looks at
+ * the slug in the path; it auto-selects a skill only when the index happens to
+ * hold exactly one. Without this narrowing, an "install just this one" address
+ * installs every skill.
  */
 async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   const origin = new URL(c.req.url).origin;
@@ -108,9 +114,11 @@ registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
   return serveArtifact(c.env, c.req.param("slug"), c.req.param("file"), "any");
 });
 
-// 接住 `indexRequest` 说的那层嵌套：每种安装地址后面都要有一条通配。三条共用字面
-// 同一个 handler —— 匿名与带 key 曾是两段各写各的代码，结果只有带 key 那段补了
-// 兜底，匿名那条展示出来却没人接。
+// Catches the nesting `indexRequest` describes: every install address needs a
+// wildcard behind it. All three share literally the same handler — anonymous
+// and keyed were once two separate pieces of code, and only the keyed one grew
+// a fallback, so the anonymous address was shown to users with nothing serving
+// it.
 for (const prefix of INDEX_PREFIXES) {
   registryRoutes.get(`${prefix}/*`, indexRoute);
 }
