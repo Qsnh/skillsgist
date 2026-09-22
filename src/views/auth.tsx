@@ -1,0 +1,118 @@
+import { Alert, Button, Field, Layout } from "./layout";
+import type { UserRow } from "../db/queries";
+
+export function SetupPage(props: { error?: string }) {
+  return (
+    <Layout title="初始化" user={null}>
+      <h1 class="mb-4 text-xl font-semibold">创建管理员</h1>
+      {props.error ? <Alert>{props.error}</Alert> : null}
+      <form method="post" action="/setup" class="max-w-sm space-y-4">
+        <Field label="用户名" name="username" hint="小写字母、数字与连字符，2-32 位" />
+        <Field label="密码" name="password" type="password" hint="至少 12 个字符" />
+        <Button>创建</Button>
+      </form>
+    </Layout>
+  );
+}
+
+export function LoginPage(props: { error?: string }) {
+  return (
+    <Layout title="登录" user={null}>
+      <h1 class="mb-4 text-xl font-semibold">登录</h1>
+      {props.error ? <Alert>{props.error}</Alert> : null}
+      <form method="post" action="/login" class="max-w-sm space-y-4">
+        <Field label="用户名" name="username" />
+        <Field label="密码" name="password" type="password" />
+        <Button>登录</Button>
+      </form>
+    </Layout>
+  );
+}
+
+export function MePage(props: { user: UserRow; origin: string; newToken?: string; error?: string }) {
+  const installUrl = `${props.origin}/i/${props.user.install_key}`;
+  return (
+    <Layout title="我的账号" user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">我的账号</h1>
+      {props.error ? <Alert>{props.error}</Alert> : null}
+
+      <section class="mb-8">
+        <h2 class="mb-2 font-medium">安装全部 skill</h2>
+        <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">npx skills add {installUrl}</pre>
+        <p class="mt-2 text-xs text-slate-500">
+          这串 key 只有安装权限，不能登录、发布或删除。怀疑泄漏时点下面的按钮重置。
+        </p>
+        <form method="post" action="/me/install-key" class="mt-2">
+          <Button>重置 install key</Button>
+        </form>
+      </section>
+
+      <section class="mb-8">
+        <h2 class="mb-2 font-medium">API token（用于 curl 发布）</h2>
+        {props.newToken ? (
+          <pre class="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-sm text-slate-100">{props.newToken}</pre>
+        ) : null}
+        {props.newToken ? (
+          <p class="mt-2 text-xs text-amber-700">这串 token 只显示这一次，请立刻保存。</p>
+        ) : (
+          <p class="mt-2 text-xs text-slate-500">
+            当前状态：{props.user.api_token_hash ? "已启用" : "未生成"}
+          </p>
+        )}
+        <div class="mt-2 flex gap-2">
+          <form method="post" action="/me/api-token"><Button>生成新 token</Button></form>
+          {props.user.api_token_hash ? (
+            <form method="post" action="/me/api-token/revoke"><Button>吊销</Button></form>
+          ) : null}
+        </div>
+      </section>
+
+      <section>
+        <h2 class="mb-2 font-medium">修改密码</h2>
+        <form method="post" action="/me/password" class="max-w-sm space-y-4">
+          <Field label="当前密码" name="current" type="password" />
+          <Field label="新密码" name="next" type="password" hint="至少 12 个字符" />
+          <Button>保存</Button>
+        </form>
+      </section>
+    </Layout>
+  );
+}
+
+export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: string }) {
+  return (
+    <Layout title="用户管理" user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">用户管理</h1>
+      {props.error ? <Alert>{props.error}</Alert> : null}
+      <table class="mb-8 w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 text-left text-slate-500">
+            <th class="py-2">用户名</th><th>角色</th><th>最近登录</th>
+          </tr>
+        </thead>
+        <tbody>
+          {props.users.map((u) => (
+            <tr class="border-b border-slate-100">
+              <td class="py-2">{u.username}</td>
+              <td>{u.role}</td>
+              <td>{u.last_login_at ? new Date(u.last_login_at).toISOString().slice(0, 10) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h2 class="mb-2 font-medium">新增用户</h2>
+      <form method="post" action="/admin/users" class="max-w-sm space-y-4">
+        <Field label="用户名" name="username" />
+        <Field label="初始密码" name="password" type="password" hint="至少 12 个字符" />
+        <label class="block">
+          <span class="block text-sm font-medium text-slate-700">角色</span>
+          <select name="role" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+            <option value="member">member</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+        <Button>创建</Button>
+      </form>
+    </Layout>
+  );
+}
