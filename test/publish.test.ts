@@ -277,9 +277,11 @@ describe("POST /s/:slug/edit", () => {
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
   });
 
-  // 只改文本时，旧版本里 references/ 和 scripts/ 下的文件必须原样带到新版本。
-  // 此前它们会被静默丢掉：文本框内容被当成整个上传体，normalizeUpload 把一段
-  // 裸 markdown 理解成「只含 SKILL.md 的 skill」，而页面返回的是 302 成功。
+  // On a text-only edit, files under references/ and scripts/ in the old
+  // version must carry over untouched. They used to be dropped silently: the
+  // text box content was treated as the whole upload body, normalizeUpload read
+  // bare markdown as "a skill containing only SKILL.md", and the page still
+  // answered 302 success.
   it("carries SKILL.md's sibling files into the new version on a text-only edit", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, {
@@ -301,7 +303,7 @@ describe("POST /s/:slug/edit", () => {
     ]);
   });
 
-  // D1 里的 files 列对了不等于 R2 里的包对了——装 skill 的人拿到的是 R2 那份。
+  // The files column in D1 being right does not mean the archive in R2 is — whoever installs the skill gets the R2 copy.
   it("writes the carried files into the stored artifact too", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, {
@@ -323,7 +325,7 @@ describe("POST /s/:slug/edit", () => {
     expect(new TextDecoder().decode(unpacked.get("SKILL.md")!)).toContain("edited");
   });
 
-  // 上一版的包读不出来时，宁可挡住也不要发一个悄悄少了文件的新版本。
+  // When the previous archive cannot be read, refuse rather than publish a new version quietly missing files.
   it("refuses a text-only edit when the current archive is missing from storage", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, {
@@ -420,9 +422,11 @@ describe("POST /s/:slug/upload", () => {
   });
 });
 
-// 编辑和上传是两条独立的路，各自只有一种输入。这两条钉住的是页面形状本身：
-// 一旦有人把文件框搬回编辑页，「两个都填了听谁的」那条规则就会跟着回来。
-describe("编辑与上传各自只有一种输入", () => {
+// Edit and upload are two separate roads, each with exactly one kind of input.
+// These two pin the shape of the pages themselves: the moment someone moves the
+// file input back onto the edit page, the "both were filled in, which wins?"
+// rule comes back with it.
+describe("edit and upload each take exactly one kind of input", () => {
   beforeEach(resetDb);
 
   it("keeps the edit page free of a file input", async () => {

@@ -33,14 +33,14 @@ describe("isValidSkillName", () => {
   });
 
   it.each([
-    ["", "空字符串"],
-    ["x".repeat(65), "超过 64 字符"],
-    ["Demo", "含大写"],
-    ["my_skill", "含下划线"],
-    ["my skill", "含空格"],
-    ["-demo", "以连字符开头"],
-    ["demo-", "以连字符结尾"],
-    ["my--skill", "含连续连字符"],
+    ["", "empty string"],
+    ["x".repeat(65), "longer than 64 characters"],
+    ["Demo", "contains uppercase"],
+    ["my_skill", "contains an underscore"],
+    ["my skill", "contains a space"],
+    ["-demo", "starts with a hyphen"],
+    ["demo-", "ends with a hyphen"],
+    ["my--skill", "contains consecutive hyphens"],
   ])("rejects %s (%s)", (name) => {
     expect(isValidSkillName(name)).toBe(false);
   });
