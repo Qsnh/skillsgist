@@ -191,7 +191,12 @@ describe("renderMarkdown", () => {
   });
 
   // A blocked tag other than script/iframe, to confirm el.remove() taking
-  // children with it isn't special-cased to just those two tags.
+  // children with it isn't special-cased to just those two tags. `form` is
+  // not on the Fix 4b allowlist, so it's still removed; the nested `input`
+  // is now individually allowed (GFM task lists emit one), but it never
+  // gets a chance to survive on its own because removing `form` drops its
+  // entire subtree regardless of what any nested element's own handler
+  // would have decided.
   it("strips form/input and their content together", async () => {
     const html = await renderMarkdown("before<form><input value=\"stolen\"></form>after");
     expect(html).not.toContain("<form");
@@ -199,5 +204,96 @@ describe("renderMarkdown", () => {
     expect(html).not.toContain("stolen");
     expect(html).toContain("before");
     expect(html).toContain("after");
+  });
+
+  // Final-review Fix 4b: the tag layer was a blocklist (13 named tags,
+  // anything unlisted passed through) where spec §10 requires an
+  // allowlist, matching what the attribute layer already does. These pin
+  // that ordinary markdown constructs still render correctly under the
+  // new allowlist, and that elements never enumerated in the old blocklist
+  // are now removed by default instead of passing through.
+  describe("tag allowlist (final-review Fix 4b)", () => {
+    it("keeps every ordinary markdown construct intact", async () => {
+      const md = [
+        "# H1",
+        "",
+        "## H2",
+        "",
+        "A paragraph with **bold**, *em*, and `inline code`.",
+        "",
+        "```js",
+        "const a = 1;",
+        "```",
+        "",
+        "[a link](https://example.com/x)",
+        "",
+        "![alt text](https://example.com/img.png)",
+        "",
+        "> a blockquote",
+        "",
+        "- one",
+        "- two",
+        "",
+        "1. first",
+        "2. second",
+        "",
+        "| A | B |",
+        "| --- | --- |",
+        "| 1 | 2 |",
+        "",
+        "- [ ] todo item",
+        "- [x] done item",
+        "",
+      ].join("\n");
+      const html = await renderMarkdown(md);
+
+      expect(html).toContain("<h1>H1</h1>");
+      expect(html).toContain("<h2>H2</h2>");
+      expect(html).toContain("<strong>bold</strong>");
+      expect(html).toContain("<em>em</em>");
+      expect(html).toContain("<code>inline code</code>");
+      expect(html).toContain("<pre>");
+      expect(html).toContain("const a = 1;");
+      expect(html).toContain('href="https://example.com/x"');
+      expect(html).toContain('<img src="https://example.com/img.png" alt="alt text">');
+      expect(html).toContain("<blockquote>");
+      expect(html).toContain("<p>a blockquote</p>");
+      expect(html).toContain("<ul>");
+      expect(html).toContain("<li>one</li>");
+      expect(html).toContain("<ol>");
+      expect(html).toContain("<li>first</li>");
+      expect(html).toContain("<table>");
+      expect(html).toContain("<thead>");
+      expect(html).toContain("<tbody>");
+      expect(html).toContain("<th>A</th>");
+      expect(html).toContain("<td>1</td>");
+      expect(html).toContain('type="checkbox"');
+      expect(html).toContain("todo item");
+      expect(html).toContain("done item");
+    });
+
+    it("removes an unlisted element (marquee) and its children", async () => {
+      const html = await renderMarkdown("before<marquee>scrolling <b>text</b></marquee>after");
+      expect(html).not.toContain("<marquee");
+      expect(html).not.toContain("scrolling");
+      expect(html).toContain("before");
+      expect(html).toContain("after");
+    });
+
+    it("removes an unlisted element (object) and its children", async () => {
+      const html = await renderMarkdown('before<object data="https://evil.example/x.swf">fallback</object>after');
+      expect(html).not.toContain("<object");
+      expect(html).not.toContain("fallback");
+      expect(html).toContain("before");
+      expect(html).toContain("after");
+    });
+
+    it("removes an unlisted element (form) and its children", async () => {
+      const html = await renderMarkdown('before<form action="/steal"><b>gone</b></form>after');
+      expect(html).not.toContain("<form");
+      expect(html).not.toContain("gone");
+      expect(html).toContain("before");
+      expect(html).toContain("after");
+    });
   });
 });

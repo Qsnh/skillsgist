@@ -1,8 +1,19 @@
 import { marked } from "marked";
 
-const BLOCKED_TAGS = new Set([
-  "script", "style", "iframe", "object", "embed", "form", "input",
-  "button", "link", "meta", "base", "svg", "math",
+// Final-review Fix 4b: this used to be a blocklist (13 named tags,
+// anything unlisted passed through unexamined) — the same shape the
+// attribute layer moved away from below, after two review rounds found
+// live bypasses in its predecessor. An allowlist doesn't need to guess
+// every dangerous tag in advance, and because published HTML is sanitized
+// once and stored, a tag nobody thought to blocklist yet would otherwise
+// never be retroactively cleaned from what's already in the database.
+// `form` is deliberately absent, which is what makes the allowed `input`
+// (GFM task-list checkboxes) inert — see ALLOWED_TAGS below.
+const ALLOWED_TAGS = new Set([
+  "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "del", "s",
+  "code", "pre", "blockquote", "ul", "ol", "li", "a", "img", "table", "thead", "tbody", "tfoot",
+  "tr", "th", "td", "kbd", "sup", "sub", "details", "summary", "dl", "dt", "dd", "abbr", "figure",
+  "figcaption", "span", "div", "input",
 ]);
 
 // Attributes that can carry a URL. Most of their host elements are already
@@ -68,7 +79,7 @@ export async function renderMarkdown(md: string): Promise<string> {
   const rewritten = new HTMLRewriter()
     .on("*", {
       element(el) {
-        if (BLOCKED_TAGS.has(el.tagName)) {
+        if (!ALLOWED_TAGS.has(el.tagName)) {
           el.remove();
           return;
         }
