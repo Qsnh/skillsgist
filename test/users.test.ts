@@ -1,5 +1,6 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as auth from "../src/auth";
 import { countUsers, getUserByUsername } from "../src/db/queries";
 import { login, resetDb, seedUser } from "./helpers";
 
@@ -44,6 +45,22 @@ describe("/setup", () => {
     await seedUser();
     expect((await SELF.fetch("http://localhost/setup")).status).toBe(404);
   });
+
+  it("cannot bootstrap a second admin after the first succeeds", async () => {
+    const first = await SELF.fetch(
+      "http://localhost/setup",
+      form({ username: "root", password: "a-very-long-password" }),
+    );
+    expect(first.status).toBe(302);
+
+    const second = await SELF.fetch(
+      "http://localhost/setup",
+      form({ username: "intruder", password: "another-long-password" }),
+    );
+    expect(second.status).toBe(404);
+    expect(second.headers.get("Set-Cookie")).toBeNull();
+    expect(await countUsers(env.DB)).toBe(1);
+  });
 });
 
 describe("/login", () => {
@@ -64,6 +81,24 @@ describe("/login", () => {
     expect(missing.status).toBe(401);
     expect(await bad.text()).toContain("用户名或密码不正确");
     expect(await missing.text()).toContain("用户名或密码不正确");
+  });
+
+  it("still runs the password derivation when the username doesn't exist", async () => {
+    // Structural proxy for the timing-safety property: a missing user must
+    // not skip `verifyPassword`, or the two failure paths take measurably
+    // different CPU time and a username can be enumerated by timing. We
+    // don't assert on wall-clock timing (flaky); we assert the call happens.
+    const spy = vi.spyOn(auth, "verifyPassword");
+    try {
+      const res = await SELF.fetch(
+        "http://localhost/login",
+        form({ username: "nobody", password: "wrong-password-x" }),
+      );
+      expect(res.status).toBe(401);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

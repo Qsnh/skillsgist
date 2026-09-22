@@ -4,13 +4,22 @@ import {
   sha256Hex, startSession, verifyPassword,
 } from "../auth";
 import {
-  countUsers, createUser, getUserById, getUserByUsername, listUsers,
+  countUsers, createFirstAdmin, createUser, getUserById, getUserByUsername, listUsers,
   touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
 } from "../db/queries";
 import type { Env } from "../types";
 import { LoginPage, MePage, SetupPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
+
+// A well-formed but unusable password hash (`pbkdf2$10000$<salt>$<key>`),
+// generated once offline for a throwaway password no real account uses. When
+// `/login` is given a username that doesn't exist, we still run
+// `verifyPassword` against this constant so the response takes the same
+// PBKDF2-derivation time as a real wrong-password attempt. Without it, an
+// attacker can enumerate usernames by timing how fast `/login` answers.
+const DUMMY_PASSWORD_HASH =
+  "pbkdf2$10000$gjyRMe6k+HkicrCTiEY7zg==$ZV/Ne/ZKCLOQWmnxZmtXlwKrXq7/0Th3ydwHLStYv28=";
 
 export const usersRoutes = new Hono<{ Bindings: Env }>();
 
@@ -31,9 +40,15 @@ usersRoutes.post("/setup", async (c) => {
     return c.html(<SetupPage error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />, 400);
   }
   const id = randomHex(8);
-  await createUser(c.env.DB, {
-    id, username, passwordHash: await hashPassword(password), role: "admin", installKey: randomHex(16),
+  const inserted = await createFirstAdmin(c.env.DB, {
+    id, username, passwordHash: await hashPassword(password), installKey: randomHex(16),
   });
+  // The cheap `countUsers` check above is just the common-path short-circuit
+  // (skips hashing a password once bootstrapped). `createFirstAdmin` is the
+  // actual guard: it and the insert are one atomic statement, so a second
+  // request that raced past the check above still can't insert a second
+  // bootstrap admin.
+  if (!inserted) return c.notFound();
   await startSession(c, id);
   return c.redirect("/", 302);
 });
@@ -45,7 +60,10 @@ usersRoutes.post("/login", async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   const user = await getUserByUsername(c.env.DB, username);
-  const ok = user ? await verifyPassword(password, user.password_hash) : false;
+  // Always run the derivation, even when no such user exists, so the two
+  // failure paths take the same time and a username can't be enumerated by
+  // timing responses.
+  const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
   if (!user || !ok) return c.html(<LoginPage error="用户名或密码不正确" />, 401);
   await touchLogin(c.env.DB, user.id, Date.now());
   await startSession(c, user.id);

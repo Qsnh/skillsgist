@@ -64,6 +64,25 @@ export async function createUser(
     .run();
 }
 
+// Atomically creates the first admin. Guards the "no users exist yet" check
+// and the insert in a single statement so two concurrent `POST /setup`
+// requests can't both pass a separate `countUsers` check and both insert a
+// bootstrap admin. Returns whether this call actually inserted the row.
+export async function createFirstAdmin(
+  db: D1Database,
+  input: { id: string; username: string; passwordHash: string; installKey: string },
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO users (id, username, password_hash, role, install_key, created_at)
+       SELECT ?, ?, ?, 'admin', ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM users)`,
+    )
+    .bind(input.id, input.username, input.passwordHash, input.installKey, Date.now())
+    .run();
+  return result.meta.changes === 1;
+}
+
 export function getUserByUsername(db: D1Database, username: string): Promise<UserRow | null> {
   return db.prepare("SELECT * FROM users WHERE username = ?").bind(username).first<UserRow>();
 }
