@@ -78,6 +78,12 @@ npm run typecheck
 `npm run verify:cli` 自己起的那个 `wrangler dev` 不依赖 `.dev.vars`——它会给自己生成
 一个临时会话密钥并通过 `--var` 注入，所以在没有 `.dev.vars` 的干净检出上也能直接跑。
 
+## 用户管理
+
+`/admin/users` 支持建号、改角色（admin ↔ member）、重置密码、轮换 install key、吊销 api token、删号，全部限管理员操作，且不允许把最后一个管理员降级或删除。
+
+**删除用户会把这个用户拥有的 skill（`owner_id`）与已发布版本的作者记录（`author_id`）转给操作的管理员**，因为这两列都不允许为空、也不允许指向不存在的用户。这是真实的代价：原作者信息会丢。如果只是想收回权限（比如成员离职），优先用「降为 member」+「轮换 install key」——install key 立即失效，skill 与版本作者记录都保留不变；只有确实要把账号本身抹掉时才用删除。
+
 ## 两个需要知道的约束
 
 **install key 会出现在 URL 里。** `npx skills` 发请求时不带任何自定义 header，所以私有安装的凭据只能编码在路径中。这串 key 只有安装权限 —— 拿到它的人不能登录、不能发布、不能删除 —— 并且可以在 `/me` 页面一键重置。

@@ -3,10 +3,13 @@ import {
   clearSession, currentUser, hashPassword, MIN_PASSWORD_LENGTH, randomHex,
   sha256Hex, startSession, verifyPassword,
 } from "../auth";
+import type { Ctx } from "../auth";
 import {
-  countUsers, createFirstAdmin, createUser, getUserById, getUserByUsername, listUsers,
-  touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
+  countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
+  getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
+  updateUserRole,
 } from "../db/queries";
+import type { UserRow } from "../db/queries";
 import type { Env } from "../types";
 import { LoginPage, MePage, SetupPage, UsersPage } from "../views/auth";
 
@@ -143,5 +146,89 @@ usersRoutes.post("/admin/users", async (c) => {
   await createUser(c.env.DB, {
     id: randomHex(8), username, passwordHash: await hashPassword(password), role, installKey: randomHex(16),
   });
+  return c.redirect("/admin/users", 302);
+});
+
+// --- Final-review Fix 3: admin-only revocation levers -----------------
+// Spec §7.1 lists 建号、改角色、重置密码、删号 for GET/POST /admin/users;
+// only create existed. Every route below is admin-only and 404s for an
+// unknown target id, checked before any mutation.
+
+async function requireAdminAndTarget(
+  c: Ctx,
+): Promise<{ ok: true; admin: UserRow; target: UserRow } | { ok: false; response: Response }> {
+  const admin = await currentUser(c);
+  if (!admin) return { ok: false, response: c.redirect("/login", 302) };
+  if (admin.role !== "admin") return { ok: false, response: c.text("仅管理员可访问", 403) };
+  // `c` is the generic `Ctx` (no path pattern attached), so `param()`'s
+  // overloads fall back to `string | undefined` even though every route
+  // that calls this helper is registered with `:id` in its pattern — same
+  // situation as `routes/skills.tsx`'s `download()`.
+  const target = await getUserById(c.env.DB, c.req.param("id") as string);
+  if (!target) return { ok: false, response: await c.notFound() };
+  return { ok: true, admin, target };
+}
+
+usersRoutes.post("/admin/users/:id/role", async (c) => {
+  const guard = await requireAdminAndTarget(c);
+  if (!guard.ok) return guard.response;
+  const { admin, target } = guard;
+  const body = await c.req.parseBody();
+  const role = body.role === "admin" ? "admin" : "member";
+  if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
+    return c.html(
+      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能取消最后一个管理员的权限" />,
+      400,
+    );
+  }
+  await updateUserRole(c.env.DB, target.id, role);
+  return c.redirect("/admin/users", 302);
+});
+
+usersRoutes.post("/admin/users/:id/password", async (c) => {
+  const guard = await requireAdminAndTarget(c);
+  if (!guard.ok) return guard.response;
+  const { admin, target } = guard;
+  const body = await c.req.parseBody();
+  const password = String(body.password ?? "");
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return c.html(
+      <UsersPage user={admin} users={await listUsers(c.env.DB)} error={`密码至少 ${MIN_PASSWORD_LENGTH} 个字符`} />,
+      400,
+    );
+  }
+  await updatePassword(c.env.DB, target.id, await hashPassword(password));
+  return c.redirect("/admin/users", 302);
+});
+
+usersRoutes.post("/admin/users/:id/install-key", async (c) => {
+  const guard = await requireAdminAndTarget(c);
+  if (!guard.ok) return guard.response;
+  await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
+  return c.redirect("/admin/users", 302);
+});
+
+usersRoutes.post("/admin/users/:id/api-token/revoke", async (c) => {
+  const guard = await requireAdminAndTarget(c);
+  if (!guard.ok) return guard.response;
+  await updateApiTokenHash(c.env.DB, guard.target.id, null);
+  return c.redirect("/admin/users", 302);
+});
+
+usersRoutes.post("/admin/users/:id/delete", async (c) => {
+  const guard = await requireAdminAndTarget(c);
+  if (!guard.ok) return guard.response;
+  const { admin, target } = guard;
+  if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
+    return c.html(
+      <UsersPage user={admin} users={await listUsers(c.env.DB)} error="不能删除最后一个管理员" />,
+      400,
+    );
+  }
+  // Reassigns skills.owner_id and versions.author_id to the acting admin
+  // in the same db.batch() as the delete (see deleteUserReassigning) —
+  // both columns are NOT NULL REFERENCES users(id), so the delete would
+  // otherwise leave dangling references or simply fail.
+  await deleteUserReassigning(c.env.DB, target.id, admin.id);
   return c.redirect("/admin/users", 302);
 });

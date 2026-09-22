@@ -87,15 +87,50 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
       <table class="mb-8 w-full text-sm">
         <thead>
           <tr class="border-b border-slate-200 text-left text-slate-500">
-            <th class="py-2">用户名</th><th>角色</th><th>最近登录</th>
+            <th class="py-2">用户名</th><th>角色</th><th>最近登录</th><th>操作</th>
           </tr>
         </thead>
         <tbody>
           {props.users.map((u) => (
-            <tr class="border-b border-slate-100">
+            <tr class="border-b border-slate-100 align-top">
               <td class="py-2">{u.username}</td>
               <td>{u.role}</td>
               <td>{u.last_login_at ? new Date(u.last_login_at).toISOString().slice(0, 10) : "—"}</td>
+              <td class="space-y-2 py-2">
+                <form method="post" action={`/admin/users/${u.id}/role`} class="inline-block">
+                  <input type="hidden" name="role" value={u.role === "admin" ? "member" : "admin"} />
+                  <Button>{u.role === "admin" ? "降为 member" : "升为 admin"}</Button>
+                </form>{" "}
+                <form method="post" action={`/admin/users/${u.id}/install-key`} class="inline-block">
+                  <Button>轮换 install key</Button>
+                </form>{" "}
+                {u.api_token_hash ? (
+                  <form method="post" action={`/admin/users/${u.id}/api-token/revoke`} class="inline-block">
+                    <Button>吊销 api token</Button>
+                  </form>
+                ) : null}
+                <div class="mt-1 flex items-center gap-2">
+                  <form method="post" action={`/admin/users/${u.id}/password`} class="flex items-center gap-2">
+                    <input
+                      type="password"
+                      name="password"
+                      placeholder="新密码（至少 12 位）"
+                      class="rounded border border-slate-300 px-2 py-1 text-sm"
+                      required
+                    />
+                    <Button>重置密码</Button>
+                  </form>
+                </div>
+                <div class="mt-1">
+                  <form method="post" action={`/admin/users/${u.id}/delete`} class="inline-block">
+                    <Button>删除账号</Button>
+                  </form>
+                  <p class="mt-1 max-w-xs text-xs text-slate-500">
+                    删除会把这个用户拥有的 skill 与已发布版本的作者记录转给你。想保留作者记录的话，改用「降为
+                    member」加「轮换 install key」，不要删除。
+                  </p>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

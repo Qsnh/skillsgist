@@ -100,6 +100,40 @@ export async function listUsers(db: D1Database): Promise<UserRow[]> {
   return results;
 }
 
+export async function countAdmins(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'")
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function updateUserRole(
+  db: D1Database,
+  userId: string,
+  role: "admin" | "member",
+): Promise<void> {
+  await db.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, userId).run();
+}
+
+// Deletes a user while keeping the foreign keys that reference them intact:
+// `skills.owner_id` and `versions.author_id` both `REFERENCES users(id)`
+// with no ON DELETE clause, so an unqualified delete would fail (or, if it
+// somehow didn't, leave dangling references). Reassigning both to the
+// acting admin first, in the same batch as the delete, keeps every skill
+// the departed user owned or published downloadable and attributed to a
+// user that still exists.
+export async function deleteUserReassigning(
+  db: D1Database,
+  userId: string,
+  reassignTo: string,
+): Promise<void> {
+  await db.batch([
+    db.prepare("UPDATE skills SET owner_id = ? WHERE owner_id = ?").bind(reassignTo, userId),
+    db.prepare("UPDATE versions SET author_id = ? WHERE author_id = ?").bind(reassignTo, userId),
+    db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
+  ]);
+}
+
 export async function listSkills(
   db: D1Database,
   opts: { includePrivate: boolean; q?: string },
