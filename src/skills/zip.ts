@@ -3,6 +3,13 @@ export interface ArchiveEntry {
   data: Uint8Array;
 }
 
+export class ArchiveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArchiveError";
+  }
+}
+
 let CRC_TABLE: Uint32Array | null = null;
 
 function crcTable(): Uint32Array {
@@ -113,4 +120,65 @@ export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
     pos += part.length;
   }
   return out;
+}
+
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function findEocd(view: DataView, length: number): number {
+  const min = Math.max(0, length - 65535 - 22);
+  for (let offset = length - 22; offset >= min; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) return offset;
+  }
+  return -1;
+}
+
+export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+  if (bytes.length < 22) throw new ArchiveError("不是合法的 zip：文件过短");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const eocd = findEocd(view, bytes.length);
+  if (eocd < 0) throw new ArchiveError("不是合法的 zip：找不到中央目录结尾");
+
+  const count = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  const files = new Map<string, Uint8Array>();
+  const dec = new TextDecoder();
+
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("zip 中央目录损坏");
+    const flags = view.getUint16(offset + 8, true);
+    const method = view.getUint16(offset + 10, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const uncompressedSize = view.getUint32(offset + 24, true);
+    const nameLen = view.getUint16(offset + 28, true);
+    const extraLen = view.getUint16(offset + 30, true);
+    const commentLen = view.getUint16(offset + 32, true);
+    const externalAttrs = view.getUint32(offset + 38, true);
+    const localOffset = view.getUint32(offset + 42, true);
+    const name = dec.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+    offset = offset + 46 + nameLen + extraLen + commentLen;
+
+    if (name.endsWith("/")) continue;
+    if (flags & 1) throw new ArchiveError("不支持加密的 zip 条目");
+    const fileType = (externalAttrs >>> 16) & 0xf000;
+    if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("不支持压缩包中的链接条目");
+    if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("zip 局部头损坏");
+
+    const localNameLen = view.getUint16(localOffset + 26, true);
+    const localExtraLen = view.getUint16(localOffset + 28, true);
+    const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+    const raw = bytes.subarray(dataStart, dataStart + compressedSize);
+
+    let content: Uint8Array;
+    if (method === 0) content = raw;
+    else if (method === 8) content = await inflateRaw(raw);
+    else throw new ArchiveError(`不支持的 zip 压缩方法：${method}`);
+
+    if (content.byteLength !== uncompressedSize) throw new ArchiveError(`zip 条目大小不符：${name}`);
+    files.set(name, content);
+  }
+
+  return files;
 }
