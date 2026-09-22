@@ -109,6 +109,78 @@ describe("renderMarkdown", () => {
     });
   });
 
+  // Regression tests for task-7 review finding, round 2: the round-1 fix
+  // still extracted the scheme with a character-class regex, which failed
+  // to match — and so fell through to "no scheme, allow" — whenever an
+  // HTML character reference (named or numeric, semicolon or not) appeared
+  // in the scheme segment. Browsers decode character references in
+  // attribute values during tokenization, before any URL parsing, so these
+  // all reconstruct a live dangerous URL by the time a visitor's browser
+  // renders the stored HTML. Each must assert the attribute is gone, not
+  // merely that the literal scheme substring is absent.
+  describe("dangerous-scheme obfuscation via character references (task-7 review, round 2)", () => {
+    it("strips an href with a named entity encoding the colon", async () => {
+      const html = await renderMarkdown('<a href="javascript&colon;alert(1)">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("strips an href with a numeric entity encoding the colon", async () => {
+      const html = await renderMarkdown('<a href="javascript&#58;alert(1)">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("strips an href with a numeric entity missing its trailing semicolon", async () => {
+      const html = await renderMarkdown('<a href="javascript&#58alert(1)">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("strips an href with a hex numeric entity encoding the colon", async () => {
+      const html = await renderMarkdown('<a href="javascript&#x3a;alert(1)">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("strips a data: href with a named entity encoding the colon", async () => {
+      const html = await renderMarkdown('<a href="data&colon;text/html,evil">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("strips a srcset with a named entity encoding the colon", async () => {
+      const html = await renderMarkdown('<img srcset="javascript&colon;alert(1) 1x">');
+      expect(html).not.toContain("srcset=");
+    });
+
+    it("strips an href with a scheme letter (not the colon) entity-encoded", async () => {
+      const html = await renderMarkdown('<a href="&#106;avascript:alert(1)">click</a>');
+      expect(html).not.toContain("href=");
+      expect(html).toContain("click");
+    });
+
+    it("keeps a query-only relative href intact", async () => {
+      const html = await renderMarkdown('<a href="?a=1&b=2">q</a>');
+      expect(html).toContain('href="?a=1&b=2"');
+    });
+
+    it("keeps a fragment-only relative href intact", async () => {
+      const html = await renderMarkdown('<a href="#frag&x">f</a>');
+      expect(html).toContain('href="#frag&x"');
+    });
+
+    it("keeps a relative href with a query string intact", async () => {
+      const html = await renderMarkdown('<a href="page.html?a=1&b=2">p</a>');
+      expect(html).toContain('href="page.html?a=1&b=2"');
+    });
+
+    it("keeps an https href with a query string intact", async () => {
+      const html = await renderMarkdown('<a href="https://example.com/a?b=1&c=2">e</a>');
+      expect(html).toContain('href="https://example.com/a?b=1&c=2"');
+    });
+  });
+
   // Regression test for task-7 review finding 2: `style` was never
   // inspected, so `style="background:url(...)"` could beacon out to an
   // attacker-controlled host on every page view.

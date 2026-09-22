@@ -15,38 +15,51 @@ const URL_ATTRS = new Set([
 ]);
 
 // A blocklist against scheme obfuscation is a losing game (see the task-7
-// review: the previous regex was bypassed by control characters embedded in
-// the scheme, in both raw and HTML-entity form). Use an allowlist instead:
-// only these schemes may be *present*; a value with no scheme at all
-// (relative paths, "#fragment", "?query") is allowed through unchanged.
+// review, rounds 1 and 2: a regex requiring the scheme to be one intact
+// substring was bypassed first by raw control characters embedded in the
+// scheme, then by HTML character references — named or numeric, with or
+// without a trailing semicolon, encoding either the colon or a scheme
+// letter — which decode in a browser during attribute tokenization, before
+// any URL parsing, but reached this code completely undecoded. Enumerating
+// entity spellings is unwinnable, so this uses an allowlist that never
+// tries to decode a character reference at all: any "&" found where a
+// scheme would be is treated as disqualifying on its own.
 const SAFE_SCHEMES = new Set(["http", "https", "mailto"]);
-const SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
 
 // The WHATWG URL Standard strips ASCII tab/CR/LF from anywhere in a URL
 // before parsing its scheme, so "java\tscript:alert(1)" is "javascript:" to
-// a browser even though it isn't one contiguous substring. Match the same
-// control-character range (and its common HTML-entity spellings, which
-// reach this code undecoded) before extracting the scheme, so the decision
-// is made on what the browser will actually see.
+// a browser even though it isn't one contiguous substring in the source.
 const CONTROL_CHAR_RE = /[\x00-\x20]/g;
-const CONTROL_ENTITY_RE = /&(?:#x0*9|#0*9|tab|#x0*a|#0*10|newline|#x0*d|#0*13);?/gi;
 
-function normalizeForSchemeCheck(value: string): string {
-  return value.replace(CONTROL_ENTITY_RE, "").replace(CONTROL_CHAR_RE, "");
+// A URL's scheme, if any, always precedes its first "/", "?", or "#" — so
+// everything after that point (path, query, fragment) is irrelevant to
+// which scheme it is and is left uninspected.
+const HEAD_DELIMITER_RE = /[/?#]/;
+
+function isSafeUrlSegment(segment: string): boolean {
+  const normalized = segment.replace(CONTROL_CHAR_RE, "");
+  const delimiterIndex = normalized.search(HEAD_DELIMITER_RE);
+  const head = delimiterIndex === -1 ? normalized : normalized.slice(0, delimiterIndex);
+
+  // A legitimate URL never needs a character reference in its scheme
+  // segment. Rejecting on sight closes the whole obfuscation class at once
+  // — encoded colon, encoded scheme letter, semicolon-less numeric forms,
+  // and anything not yet seen — rather than trying to decode and recognize
+  // each spelling.
+  if (head.includes("&")) return false;
+
+  const colonIndex = head.indexOf(":");
+  if (colonIndex === -1) return true; // no scheme: relative path, #fragment, ?query
+  const scheme = head.slice(0, colonIndex).toLowerCase();
+  return SAFE_SCHEMES.has(scheme);
 }
 
-// Values like srcset carry a comma-separated list of URLs; splitting on ","
-// and checking every segment catches a dangerous scheme anywhere in the
-// list, not just one that happens to lead the string. For single-URL
-// attributes this is a harmless no-op (one segment, itself).
+// Values like srcset carry a comma-separated list of URLs; checking every
+// segment catches a dangerous scheme anywhere in the list, not just one
+// that happens to lead the string. For single-URL attributes this is a
+// harmless no-op (one segment, itself).
 function isSafeUrlValue(value: string): boolean {
-  const normalized = normalizeForSchemeCheck(value);
-  return normalized.split(",").every((segment) => {
-    const match = SCHEME_RE.exec(segment);
-    if (!match) return true;
-    const scheme = match[0].slice(0, -1).toLowerCase();
-    return SAFE_SCHEMES.has(scheme);
-  });
+  return value.split(",").every(isSafeUrlSegment);
 }
 
 export async function renderMarkdown(md: string): Promise<string> {
