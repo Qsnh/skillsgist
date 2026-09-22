@@ -48,4 +48,21 @@ describe("writeZip", () => {
     const files = unzipSync(bytes);
     expect(files["blob.bin"]).toEqual(random);
   });
+
+  it("uses deflate method for genuinely compressible content", async () => {
+    // A highly repetitive payload that compresses well.
+    const compressible = enc.encode("a".repeat(500));
+    const bytes = await writeZip([
+      { path: "SKILL.md", data: enc.encode("# Skill") },
+      { path: "data.txt", data: compressible },
+    ]);
+    const files = unzipSync(bytes);
+    // Verify round-trip through independent reader.
+    expect(files["data.txt"]).toEqual(compressible);
+    // Verify that the archive is smaller than the sum of uncompressed inputs,
+    // confirming the deflate path was actually taken.
+    const rawSize =
+      "# Skill".length + compressible.length;
+    expect(bytes.length).toBeLessThan(rawSize);
+  });
 });
