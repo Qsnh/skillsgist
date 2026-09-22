@@ -51,7 +51,7 @@ export function EditSkillPage(props: {
       <h1 class="mb-4 text-xl font-semibold">Edit {props.slug}</h1>
       <Alert message={props.error} />
       <p class="mb-4 text-sm text-slate-500">
-        Saving publishes a new version; the old ones stay. To replace the whole archive — because you changed files other than SKILL.md — use{" "}
+        Saving publishes a new version; the old ones stay. To replace the whole archive (say, because you changed files other than SKILL.md), use{" "}
         <a href={`/s/${props.slug}/upload`} class="underline">Upload an archive</a>.
       </p>
       <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
@@ -87,7 +87,7 @@ export function UploadVersionPage(props: { user: UserRow; slug: string; error?: 
           <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="block text-sm" />
           <p class="mt-1 text-xs text-slate-500">
             .zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one
-            wrapper directory, and its name field must still be {props.slug}. 2 MB maximum.
+            wrapper directory, and the name field in that SKILL.md must still be {props.slug}. 2 MB maximum.
           </p>
         </div>
         <Button>Publish as a new version</Button>

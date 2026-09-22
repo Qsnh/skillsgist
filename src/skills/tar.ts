@@ -81,7 +81,7 @@ function readString(buf: Uint8Array, offset: number, length: number): string {
 }
 
 export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
-  if (!isGzip(bytes)) throw new ArchiveError("Not valid gzip data");
+  if (!isGzip(bytes)) throw new ArchiveError("Not a valid gzip archive");
   let tar: Uint8Array;
   try {
     tar = await gunzip(bytes);
@@ -102,7 +102,7 @@ export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Arr
     const prefix = readString(header, 345, 155);
     const path = prefix ? `${prefix}/${name}` : name;
     const size = Number.parseInt(sizeText || "0", 8);
-    if (!Number.isFinite(size) || size < 0) throw new ArchiveError("Illegal tar entry size");
+    if (!Number.isFinite(size) || size < 0) throw new ArchiveError("Invalid tar entry size");
 
     offset += 512;
 

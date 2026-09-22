@@ -5,8 +5,8 @@ web, installed with one `npx skills` command.
 
 ## What it does
 
-- Upload / paste / edit skills from the web, supporting `.zip`, `.tar.gz` and a single `SKILL.md`
-- Private by default, with any individual skill made public as needed
+- Upload / paste / edit skills from the web, with support for `.zip`, `.tar.gz` and a single `SKILL.md`
+- Private by default; individual skills can be made public as needed.
 - Compatible with the [skills.sh](https://skills.sh) ecosystem's discovery protocol, so no custom CLI is
   needed — already verified end to end with the real `npx skills add` (see `npm run verify:cli`)
 

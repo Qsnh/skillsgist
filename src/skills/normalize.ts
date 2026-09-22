@@ -39,13 +39,13 @@ function isJunk(path: string): boolean {
 }
 
 function cleanPath(raw: string): string {
-  if (!raw || raw.includes("\0")) throw new UploadError(`Illegal path in archive: ${raw}`);
-  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(`Illegal path in archive (absolute): ${raw}`);
-  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(`Illegal path in archive (drive letter): ${raw}`);
-  if (raw.includes("\\")) throw new UploadError(`Illegal path in archive (backslash): ${raw}`);
+  if (!raw || raw.includes("\0")) throw new UploadError(`Invalid path in archive: ${raw}`);
+  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(`Invalid path in archive (absolute): ${raw}`);
+  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(`Invalid path in archive (drive letter): ${raw}`);
+  if (raw.includes("\\")) throw new UploadError(`Invalid path in archive (backslash): ${raw}`);
   const parts = raw.split("/").filter((p) => p !== "" && p !== ".");
-  if (parts.length === 0) throw new UploadError(`Illegal path in archive: ${raw}`);
-  if (parts.includes("..")) throw new UploadError(`Illegal path in archive (escapes the root): ${raw}`);
+  if (parts.length === 0) throw new UploadError(`Invalid path in archive: ${raw}`);
+  if (parts.includes("..")) throw new UploadError(`Invalid path in archive (escapes the root): ${raw}`);
   return parts.join("/");
 }
 
@@ -115,7 +115,7 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
   const { data } = parseFrontmatter(skillMd);
   if (!isValidSkillName(data.name)) {
     throw new UploadError(
-      "Invalid name in SKILL.md frontmatter: must match ^[a-z0-9-]+$, be 1-64 characters, and neither start nor end with a hyphen nor contain consecutive hyphens",
+      "Invalid name in SKILL.md frontmatter: must match ^[a-z0-9-]+$, be 1-64 characters, not start or end with a hyphen, and not contain consecutive hyphens",
     );
   }
   if (!isValidDescription(data.description)) {

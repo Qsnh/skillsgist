@@ -28,7 +28,7 @@ echo 'echo hi' > "$TMP/flat/scripts/run.sh"
 # AppleDouble (._*) files, not these, so xattr archiving must be turned off
 # explicitly.
 #
-# `tar czf` has bsdtar compress internally, which block-aligns the output (10240
+# `tar czf` makes bsdtar do the compression itself, which block-aligns the output (10240
 # bytes) and pads with zeros after the real gzip stream ends. workerd's native
 # DecompressionStream("gzip") has zero tolerance for those trailing bytes and
 # throws "Trailing bytes after end of compressed data" (Node's zlib and the gzip
@@ -38,7 +38,7 @@ echo 'echo hi' > "$TMP/flat/scripts/run.sh"
 TAR_NO_META=(--no-xattrs --no-mac-metadata --no-acls --no-fflags)
 ( cd "$TMP/flat" && COPYFILE_DISABLE=1 tar cf - "${TAR_NO_META[@]}" . | gzip -n ) > "$OUT/flat-dot.tar.gz"
 
-# bsdtar's real default: `tar czf` has tar compress internally, block-aligning
+# bsdtar's real default: `tar czf` makes bsdtar do the compression itself, block-aligning
 # the output (10240 bytes) and padding with zeros after the real gzip stream
 # ends. These are the bytes a macOS user gets from the most ordinary
 # `tar czf skill.tar.gz .`, and the reader has to tolerate that padding rather

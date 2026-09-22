@@ -153,7 +153,8 @@ export async function repackWithSkillMd(
   // from blocking an edit that never needed the old archive.
   if (!files.some((f) => f.path !== "SKILL.md")) return bytes;
 
-  // Refuse rather than fall back to "publish SKILL.md alone" — that silent loss is what this function exists to prevent.
+  // If the old archive cannot be read, refuse rather than fall back to "publish
+  // SKILL.md alone" — that silent loss is what this function exists to prevent.
   const object = await env.BUCKET.get(latest.r2_key);
   if (!object) {
     throw new UploadError(

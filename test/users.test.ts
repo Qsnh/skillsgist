@@ -174,11 +174,10 @@ describe("/admin/users", () => {
 });
 
 // Spec §7.1 specifies GET/POST /admin/users covering create, change role,
-// reset password and delete. These five routes
-// are the revocation levers a departed member's account needs: without them an
-// admin has no way to demote, rotate a leaked install_key, or remove the
-// account at all — only the member themselves could rotate their own key
-// from /me.
+// reset password and delete. These five routes are the revocation levers a
+// departed member's account needs: without them an admin has no way to demote,
+// rotate a leaked install_key, or remove the account at all — only the member
+// themselves could rotate their own key from /me.
 describe("/admin/users/:id/*", () => {
   beforeEach(resetDb);
 
