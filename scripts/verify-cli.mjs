@@ -4,7 +4,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const PORT = 8788;
@@ -48,6 +48,36 @@ async function installTo(url, extraArgs = []) {
     env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config") },
   });
   return home;
+}
+
+/** 装到这个 HOME 下的 skill 目录名（以 SKILL.md 所在目录为准）。 */
+function installedSkillNames(root) {
+  const found = new Set();
+  if (!existsSync(root)) return found;
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) stack.push(full);
+      else if (name === "SKILL.md") found.add(basename(dir));
+    }
+  }
+  return found;
+}
+
+/** 断言某次安装装上的 skill 恰好是 `expected`，不多不少。 */
+function expectInstalled(home, expected, label) {
+  const actual = [...installedSkillNames(home)].sort();
+  if (actual.length !== expected.length || actual.some((n, i) => n !== expected[i])) {
+    throw new Error(`${label}：期望只装 [${expected.join(", ")}]，实际装了 [${actual.join(", ")}]`);
+  }
 }
 
 function findFile(root, relative) {
@@ -147,8 +177,8 @@ try {
 
   // 3. 发布一个私有 skill（wrapped.zip：SKILL.md 包在 demo-skill/ 目录下，
   // 顺带验证去外层包装目录的路径）
-  const publishFixture = async (name, contentType) => {
-    const res = await fetch(`${ORIGIN}/api/skills/demo-skill`, {
+  const publishFixture = async (name, contentType, query = "") => {
+    const res = await fetch(`${ORIGIN}/api/skills/demo-skill${query}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
       body: readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url)),
@@ -160,8 +190,10 @@ try {
     return res.status;
   };
 
-  await publishFixture("wrapped.zip", "application/zip");
-  log("已发布 demo-skill");
+  // 显式带 ?visibility=private：第 7 步会把 demo-skill 改成 public，不在这里把它
+  // 改回去的话，脚本第二次跑就会从「demo-skill 还是 private」那条前置断言上炸掉。
+  await publishFixture("wrapped.zip", "application/zip", "?visibility=private");
+  log("已发布 demo-skill（private）");
 
   // 3b. 同一个 skill 再用一个 macOS `tar czf` 产出的、块对齐补零的 tar.gz 重新
   // 发布一次。内容和 wrapped.zip 解包后完全一样，所以大概率落在 unchanged
@@ -169,6 +201,28 @@ try {
   // 用来确认这条"容忍 bsdtar 尾部填充"的路径在真实部署形态下也是通的。
   const status = await publishFixture("bsdtar-padded.tar.gz", "application/gzip");
   log(`bsdtar-padded.tar.gz 发布通过（${status}）`);
+
+  // 3c. 再发布一个 skill，而且是 public 的。
+  //
+  // 下面每一处单装检查都必须在 index 里有多个 skill 时才有意义：CLI 对只含一条的
+  // index 会自动选中那一条，所以只发一个 skill 的话，「按 slug 收窄」整个坏掉也
+  // 照样全绿 —— per-skill 安装地址会把全部 skill 都装上的那个 bug，正是这么漏网的。
+  const publishMarkdown = async (name, description, visibility) => {
+    const form = new FormData();
+    form.set("_csrf", csrf);
+    form.set("markdown", `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`);
+    form.set("visibility", visibility);
+    const res = await fetch(`${ORIGIN}/new`, {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: ORIGIN },
+      body: form,
+      redirect: "manual",
+    });
+    if (res.status !== 302) throw new Error(`发布 ${name} 失败：${res.status} ${await res.text()}`);
+  };
+
+  await publishMarkdown("other-skill", "A second skill, so the index has more than one.", "public");
+  log("已发布 other-skill（public）");
 
   // 4. 校验 index 中的 digest 与产物字节一致
   const index = await (
@@ -197,14 +251,39 @@ try {
   if (!findFile(home, join("demo-skill", "scripts", "run.sh"))) {
     throw new Error("装上的 skill 缺少 scripts/run.sh，安装不完整");
   }
+  expectInstalled(home, ["demo-skill"], "-s demo-skill");
   log(`安装成功：${installed}`);
 
-  // 6. 单个 skill 的安装路径也要能用
+  // 6. 带 install key 的单 skill 安装地址。index 里此时有 demo-skill 与
+  // other-skill 两个，所以这条断言真的能证明「收窄到路径里那个 slug」生效。
   const home2 = await installTo(`${ORIGIN}/i/${installKey}/.well-known/agent-skills/demo-skill`);
-  if (!findFile(home2, join("demo-skill", "SKILL.md"))) {
-    throw new Error("单 skill 安装路径不生效");
+  expectInstalled(home2, ["demo-skill"], "带 key 的单 skill 安装地址");
+  log("带 key 的单 skill 安装路径通过");
+
+  // 7. 公开 skill 的匿名单装地址 —— 就是 /s/:slug 给未登录访客展示的那一条。
+  // 先确认 demo-skill 还是 private 时不会出现在匿名 index 里。
+  const anonIndex = async () =>
+    (await (await fetch(`${ORIGIN}/.well-known/agent-skills/index.json`)).json()).skills.map(
+      (entry) => entry.name,
+    );
+
+  const before = await anonIndex();
+  if (before.includes("demo-skill")) throw new Error("demo-skill 还是 private，匿名 index 不该包含它");
+  if (!before.includes("other-skill")) throw new Error("匿名 index 里应该有 other-skill");
+
+  // 同样的字节重发一次，只多带 ?visibility=public。内容没变会走 200 unchanged
+  // 分支，但可见性的写入在 digest 判断之前，所以依然生效（见 src/publish.ts 的
+  // Fix 1 注释）。
+  await publishFixture("wrapped.zip", "application/zip", "?visibility=public");
+  const after = await anonIndex();
+  if (!after.includes("demo-skill") || !after.includes("other-skill")) {
+    throw new Error(`改为 public 后匿名 index 应含两个 skill，实际：${after.join(", ")}`);
   }
-  log("单 skill 安装路径通过");
+  log(`demo-skill 已改为 public，匿名 index：${after.join(", ")}`);
+
+  const home3 = await installTo(`${ORIGIN}/.well-known/agent-skills/demo-skill`);
+  expectInstalled(home3, ["demo-skill"], "匿名单 skill 安装地址");
+  log("匿名单 skill 安装路径通过");
 
   log("全部契约检查通过");
   exitCode = 0;
