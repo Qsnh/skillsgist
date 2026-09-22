@@ -1,6 +1,7 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setVisibility } from "../src/db/queries";
+import { buildIndex } from "../src/registry";
 import { login, resetDb, seedUser } from "./helpers";
 
 // See test/db.test.ts for why `env` needs a local cast here.
@@ -41,6 +42,73 @@ async function publish(cookie: string, markdown: string, visibility: "public" | 
   });
   if (res.status !== 302) throw new Error(`publish failed: ${res.status}`);
 }
+
+// Final-review Fix 5 (spec gap): spec §9 requires logging a warning when
+// buildIndex drops a row that fails its own name/description/digest
+// self-check, so an operator has some signal if that branch is ever
+// reached. It's defense-in-depth — normalizeUpload already rejects a bad
+// name/description at publish time — but a bare `continue` gave zero
+// visibility if it were ever hit anyway.
+describe("buildIndex", () => {
+  it("does not warn for rows that pass every check", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = buildIndex(
+        [{ slug: "demo-skill", description: "fine", digest: `sha256:${"a".repeat(64)}` }],
+        "https://example.com",
+      );
+      expect(result.skills).toHaveLength(1);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns and drops a row with an invalid name", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = buildIndex(
+        [{ slug: "Bad_Name", description: "fine", digest: `sha256:${"a".repeat(64)}` }],
+        "https://example.com",
+      );
+      expect(result.skills).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(" ")).toContain("Bad_Name");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns and drops a row with an invalid description", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = buildIndex(
+        [{ slug: "demo-skill", description: "", digest: `sha256:${"a".repeat(64)}` }],
+        "https://example.com",
+      );
+      expect(result.skills).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(" ")).toContain("demo-skill");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns and drops a row with a malformed digest", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = buildIndex(
+        [{ slug: "demo-skill", description: "fine", digest: "not-a-digest" }],
+        "https://example.com",
+      );
+      expect(result.skills).toHaveLength(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(" ")).toContain("demo-skill");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
 
 describe("registry index", () => {
   beforeEach(resetDb);
