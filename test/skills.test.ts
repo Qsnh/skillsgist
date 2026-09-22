@@ -50,12 +50,52 @@ describe("GET /s/:slug", () => {
     expect(html).toContain(`/i/${user.install_key}`);
   });
 
-  it("shows the public install command to anonymous visitors", async () => {
+  // 从渲染结果里把 URL 抠出来，而不是自己拼一遍 —— 这两个用例要验证的恰恰是
+  // 「页面展示的那一条」能用；自己拼就等于把被测对象重新实现一次，view 改了也不会红。
+  // 整页 html 一并返回，好让「匿名页面不得出现 /i/」继续按整页断言。
+  const installCommandOn = async (path: string, cookie?: string) => {
+    const res = await SELF.fetch(`${ORIGIN}${path}`, cookie ? { headers: { Cookie: cookie } } : {});
+    const html = await res.text();
+    const url = /npx skills add ([^<\s]+)/.exec(html)?.[1];
+    if (!url) throw new Error(`${path} 没有渲染出安装命令（status ${res.status}）`);
+    return { url, html };
+  };
+
+  // 按 CLI 的真实动作走一遍展示出来的那条地址：往后拼一层 .well-known 取 index，
+  // 再下 entry.url。index 必须**只**含这一个 skill —— `skills add` 会把 index 里
+  // 的全部条目都装上，所以多一条就是多装一个 skill。
+  //
+  // 两个用例都发布两个 skill：只发一个的话，未收窄的 index 里也恰好只有一条，
+  // 断言照样绿。
+  it("shows an anonymous install command that resolves to just this skill", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
-    expect(html).toContain("npx skills add");
+    await publish(cookie, OTHER_MD, "public");
+
+    const { url, html } = await installCommandOn("/s/demo-skill");
+    expect(url).toBe(`${ORIGIN}/.well-known/agent-skills/demo-skill`);
     expect(html).not.toContain("/i/");
+
+    const res = await SELF.fetch(`${url}/.well-known/agent-skills/index.json`);
+    expect(res.status).toBe(200);
+    const body = await res.json<{ skills: Array<{ name: string; url: string }> }>();
+    expect(body.skills.map((s) => s.name)).toEqual(["demo-skill"]);
+    expect((await SELF.fetch(body.skills[0].url)).status).toBe(200);
+  });
+
+  it("shows a keyed install command that resolves to just this skill", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "private");
+    await publish(cookie, OTHER_MD, "private");
+
+    const { url } = await installCommandOn("/s/other-skill", cookie);
+    expect(url).toBe(`${ORIGIN}/i/${user.install_key}/.well-known/agent-skills/other-skill`);
+
+    const res = await SELF.fetch(`${url}/.well-known/agent-skills/index.json`);
+    expect(res.status).toBe(200);
+    const body = await res.json<{ skills: Array<{ name: string; url: string }> }>();
+    expect(body.skills.map((s) => s.name)).toEqual(["other-skill"]);
+    expect((await SELF.fetch(body.skills[0].url)).status).toBe(200);
   });
 
   it("hides a private skill from anonymous visitors", async () => {
