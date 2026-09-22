@@ -17,7 +17,7 @@ describe("/setup", () => {
   it("is reachable while no user exists", async () => {
     const res = await SELF.fetch(`${ORIGIN}/setup`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("创建管理员");
+    expect(await res.text()).toContain("Create the first admin");
   });
 
   it("creates the first admin and signs them in", async () => {

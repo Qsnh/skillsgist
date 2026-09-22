@@ -31,5 +31,5 @@ it("does not set a CSP header on a JSON response", async () => {
 // asserting one is enough to pin it.
 it("starts HTML pages with a doctype so browsers don't use quirks mode", async () => {
   const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
-  expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="zh-CN">/);
+  expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="en">/);
 });

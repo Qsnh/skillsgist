@@ -4,36 +4,36 @@ import type { UserRow } from "../db/queries";
 
 export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: string }) {
   return (
-    <Layout title="发布 skill" user={props.user}>
-      <h1 class="mb-4 text-xl font-semibold">发布 skill</h1>
+    <Layout title="Publish a skill" user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">Publish a skill</h1>
       <Alert message={props.error} />
       <Form action="/new" enctype="multipart/form-data" class="space-y-6">
         <div>
-          <span class="block text-sm font-medium text-slate-700">上传压缩包</span>
+          <span class="block text-sm font-medium text-slate-700">Upload an archive</span>
           <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="mt-1 block text-sm" />
           <p class="mt-1 text-xs text-slate-500">
-            支持 .zip 与 .tar.gz，压缩包内需包含 SKILL.md（多包一层目录也可以）。上限 2 MB。
+            .zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum.
           </p>
         </div>
         <div>
-          <span class="block text-sm font-medium text-slate-700">或直接粘贴 SKILL.md</span>
+          <span class="block text-sm font-medium text-slate-700">Or paste SKILL.md directly</span>
           <textarea
             name="markdown"
             rows={16}
             class="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm"
-            placeholder={"---\nname: my-skill\ndescription: 一句话说明这个 skill 做什么\n---\n\n# 正文"}
+            placeholder={"---\nname: my-skill\ndescription: One sentence on what this skill does\n---\n\n# Body"}
           >
             {props.markdown ?? ""}
           </textarea>
         </div>
         <label class="block max-w-xs">
-          <span class="block text-sm font-medium text-slate-700">可见性</span>
+          <span class="block text-sm font-medium text-slate-700">Visibility</span>
           <select name="visibility" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
-            <option value="private">private（仅登录用户可见）</option>
-            <option value="public">public（任何人可见和安装）</option>
+            <option value="private">private (visible to signed-in users only)</option>
+            <option value="public">public (anyone can see and install it)</option>
           </select>
         </label>
-        <Button>发布</Button>
+        <Button>Publish</Button>
       </Form>
     </Layout>
   );
@@ -47,12 +47,12 @@ export function EditSkillPage(props: {
   error?: string;
 }) {
   return (
-    <Layout title={`编辑 ${props.slug}`} user={props.user}>
-      <h1 class="mb-4 text-xl font-semibold">编辑 {props.slug}</h1>
+    <Layout title={`Edit ${props.slug}`} user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">Edit {props.slug}</h1>
       <Alert message={props.error} />
       <p class="mb-4 text-sm text-slate-500">
-        保存会发布一个新版本，旧版本保留。要整包替换（改了 SKILL.md 以外的文件）就去{" "}
-        <a href={`/s/${props.slug}/upload`} class="underline">上传压缩包</a>。
+        Saving publishes a new version; the old ones stay. To replace the whole archive — because you changed files other than SKILL.md — use{" "}
+        <a href={`/s/${props.slug}/upload`} class="underline">Upload an archive</a>.
       </p>
       <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="space-y-4">
         <textarea
@@ -64,10 +64,10 @@ export function EditSkillPage(props: {
         </textarea>
         {props.files.length > 0 ? (
           <p class="text-xs text-slate-500">
-            这些文件会原样带到新版本：{props.files.join("、")}
+            These files carry over to the new version unchanged: {props.files.join(", ")}
           </p>
         ) : null}
-        <Button>保存为新版本</Button>
+        <Button>Save as a new version</Button>
       </Form>
     </Layout>
   );
@@ -75,22 +75,22 @@ export function EditSkillPage(props: {
 
 export function UploadVersionPage(props: { user: UserRow; slug: string; error?: string }) {
   return (
-    <Layout title={`上传新版本 · ${props.slug}`} user={props.user}>
-      <h1 class="mb-4 text-xl font-semibold">上传新版本：{props.slug}</h1>
+    <Layout title={`Upload a new version · ${props.slug}`} user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">Upload a new version: {props.slug}</h1>
       <Alert message={props.error} />
       <p class="mb-4 text-sm text-slate-500">
-        整包替换：新版本就是这个压缩包里的全部内容，旧版本保留。只想改 SKILL.md 的话去{" "}
-        <a href={`/s/${props.slug}/edit`} class="underline">编辑</a>。
+        Whole-archive replacement: the new version is exactly what this archive contains; the old ones stay. To change only SKILL.md, use{" "}
+        <a href={`/s/${props.slug}/edit`} class="underline">Edit</a>.
       </p>
       <Form action={`/s/${props.slug}/upload`} enctype="multipart/form-data" class="space-y-6">
         <div>
           <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="block text-sm" />
           <p class="mt-1 text-xs text-slate-500">
-            支持 .zip 与 .tar.gz，包内需包含 SKILL.md（多包一层目录也可以），且 SKILL.md 的 name
-            必须仍然是 {props.slug}。上限 2 MB。
+            .zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one
+            wrapper directory, and its name field must still be {props.slug}. 2 MB maximum.
           </p>
         </div>
-        <Button>发布为新版本</Button>
+        <Button>Publish as a new version</Button>
       </Form>
     </Layout>
   );

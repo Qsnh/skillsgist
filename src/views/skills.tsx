@@ -9,9 +9,9 @@ function InstallBlock(props: { origin: string; slug: string; user: UserRow | nul
     <div>
       <CodeBlock>npx skills add {url}</CodeBlock>
       {props.user ? (
-        <p class="mt-1 text-xs text-slate-500">这条命令带着你的 install key，可以装私有 skill。</p>
+        <p class="mt-1 text-xs text-slate-500">This command carries your install key, so it can install private skills.</p>
       ) : props.isPublic ? (
-        <p class="mt-1 text-xs text-slate-500">这是公开地址，任何人都能用。</p>
+        <p class="mt-1 text-xs text-slate-500">This is the public address. Anyone can use it.</p>
       ) : null}
     </div>
   );
@@ -24,29 +24,29 @@ export function IndexPage(props: {
   origin: string;
 }) {
   return (
-    <Layout title="全部 skill" user={props.user}>
+    <Layout title="Skills" user={props.user}>
       {/* Plain <form>: a GET form must not carry the token — it would end up
           in the query string and from there in Referer headers. */}
       <form method="get" action="/" class="mb-6 flex gap-2">
         <input
           name="q"
           value={props.q}
-          placeholder="搜索名称、简介或正文"
+          placeholder="Search names, descriptions and body text"
           class="flex-1 rounded border border-slate-300 px-3 py-2"
         />
-        <button type="submit" class="rounded bg-slate-900 px-4 py-2 text-sm text-white">搜索</button>
+        <button type="submit" class="rounded bg-slate-900 px-4 py-2 text-sm text-white">Search</button>
       </form>
 
       {props.user ? (
         <div class="mb-6">
-          <h2 class="mb-1 text-sm font-medium text-slate-700">一次装上全部</h2>
+          <h2 class="mb-1 text-sm font-medium text-slate-700">Install everything at once</h2>
           <CodeBlock>npx skills add {props.origin}/i/{props.user.install_key}</CodeBlock>
         </div>
       ) : null}
 
       {props.skills.length === 0 ? (
         <p class="text-sm text-slate-500">
-          {props.q ? "没有匹配的 skill。" : "还没有任何 skill。"}
+          {props.q ? "No skills match." : "No skills yet."}
         </p>
       ) : (
         <ul class="divide-y divide-slate-200">
@@ -102,24 +102,24 @@ export function SkillPage(props: {
         />
         <div class="flex flex-wrap gap-2 text-sm">
           <a href={`/s/${props.skill.slug}/download`} class="rounded border border-slate-300 px-3 py-1.5">
-            下载 zip
+            Download zip
           </a>
           {props.canManage ? (
             <>
               <a href={`/s/${props.skill.slug}/edit`} class="rounded border border-slate-300 px-3 py-1.5">
-                编辑 SKILL.md
+                Edit SKILL.md
               </a>
               <a href={`/s/${props.skill.slug}/upload`} class="rounded border border-slate-300 px-3 py-1.5">
-                上传压缩包
+                Upload an archive
               </a>
               <Form action={`/s/${props.skill.slug}/visibility`}>
                 <button type="submit" class="rounded border border-slate-300 px-3 py-1.5">
-                  {props.skill.visibility === "public" ? "改为 private" : "改为 public"}
+                  {props.skill.visibility === "public" ? "Make private" : "Make public"}
                 </button>
               </Form>
               <Form action={`/s/${props.skill.slug}/delete`}>
                 <button type="submit" class="rounded border border-red-300 px-3 py-1.5 text-red-700">
-                  删除
+                  Delete
                 </button>
               </Form>
             </>
@@ -128,7 +128,7 @@ export function SkillPage(props: {
       </div>
 
       <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">文件</h2>
+        <h2 class="mb-2 text-sm font-medium text-slate-700">Files</h2>
         <ul class="text-sm text-slate-600">
           {files.map((f) => (
             <li class="flex justify-between border-b border-slate-100 py-1">
@@ -140,14 +140,14 @@ export function SkillPage(props: {
       </section>
 
       <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">版本</h2>
+        <h2 class="mb-2 text-sm font-medium text-slate-700">Versions</h2>
         <ul class="text-sm text-slate-600">
           {props.versions.map((v) => (
             <li class="flex items-center gap-3 border-b border-slate-100 py-1">
               <a href={`/s/${props.skill.slug}?v=${v.version}`} class="hover:underline">v{v.version}</a>
               <span class="text-slate-400">{new Date(v.created_at).toISOString().slice(0, 16).replace("T", " ")}</span>
               <span class="flex-1" />
-              <a href={`/s/${props.skill.slug}/v/${v.version}/download`} class="hover:underline">下载</a>
+              <a href={`/s/${props.skill.slug}/v/${v.version}/download`} class="hover:underline">Download</a>
             </li>
           ))}
         </ul>

@@ -10,7 +10,7 @@ export function Layout(props: { title: string; user: UserRow | null; children?: 
     // <html>.
     <>
       {raw("<!DOCTYPE html>")}
-      <html lang="zh-CN">
+      <html lang="en">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -24,17 +24,17 @@ export function Layout(props: { title: string; user: UserRow | null; children?: 
               <span class="flex-1" />
               {props.user ? (
                 <>
-                  <a href="/new" class="text-sm text-slate-600 hover:text-slate-900">发布</a>
+                  <a href="/new" class="text-sm text-slate-600 hover:text-slate-900">Publish</a>
                   {props.user.role === "admin" ? (
-                    <a href="/admin/users" class="text-sm text-slate-600 hover:text-slate-900">用户</a>
+                    <a href="/admin/users" class="text-sm text-slate-600 hover:text-slate-900">Users</a>
                   ) : null}
                   <a href="/me" class="text-sm text-slate-600 hover:text-slate-900">{props.user.username}</a>
                   <Form action="/logout">
-                    <button type="submit" class="text-sm text-slate-600 hover:text-slate-900">退出</button>
+                    <button type="submit" class="text-sm text-slate-600 hover:text-slate-900">Sign out</button>
                   </Form>
                 </>
               ) : (
-                <a href="/login" class="text-sm text-slate-600 hover:text-slate-900">登录</a>
+                <a href="/login" class="text-sm text-slate-600 hover:text-slate-900">Sign in</a>
               )}
             </nav>
           </header>

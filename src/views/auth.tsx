@@ -4,16 +4,16 @@ import type { UserRow } from "../db/queries";
 
 export function SetupPage(props: { error?: string }) {
   return (
-    <Layout title="初始化" user={null}>
-      <h1 class="mb-4 text-xl font-semibold">创建管理员</h1>
+    <Layout title="Setup" user={null}>
+      <h1 class="mb-4 text-xl font-semibold">Create the first admin</h1>
       <Alert message={props.error} />
       {/* Plain <form>, not <Form>: no session exists during bootstrap, so
           there is no session-bound token to render. Covered by the Origin /
           Sec-Fetch-Site layer only — see TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/setup" class="max-w-sm space-y-4">
-        <Field label="用户名" name="username" hint="小写字母、数字与连字符，2-32 位" />
-        <Field label="密码" name="password" type="password" hint="至少 12 个字符" />
-        <Button>创建</Button>
+        <Field label="Username" name="username" hint="Lowercase letters, digits and hyphens, 2-32 characters" />
+        <Field label="Password" name="password" type="password" hint="At least 12 characters" />
+        <Button>Create</Button>
       </form>
     </Layout>
   );
@@ -21,15 +21,15 @@ export function SetupPage(props: { error?: string }) {
 
 export function LoginPage(props: { error?: string }) {
   return (
-    <Layout title="登录" user={null}>
-      <h1 class="mb-4 text-xl font-semibold">登录</h1>
+    <Layout title="Sign in" user={null}>
+      <h1 class="mb-4 text-xl font-semibold">Sign in</h1>
       <Alert message={props.error} />
       {/* Plain <form>, not <Form>: same reason as SetupPage above — no session
           to bind a token to yet. See TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/login" class="max-w-sm space-y-4">
-        <Field label="用户名" name="username" />
-        <Field label="密码" name="password" type="password" />
-        <Button>登录</Button>
+        <Field label="Username" name="username" />
+        <Field label="Password" name="password" type="password" />
+        <Button>Sign in</Button>
       </form>
     </Layout>
   );
@@ -38,47 +38,47 @@ export function LoginPage(props: { error?: string }) {
 export function MePage(props: { user: UserRow; origin: string; newToken?: string; error?: string }) {
   const installUrl = `${props.origin}/i/${props.user.install_key}`;
   return (
-    <Layout title="我的账号" user={props.user}>
-      <h1 class="mb-4 text-xl font-semibold">我的账号</h1>
+    <Layout title="Account" user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">Account</h1>
       <Alert message={props.error} />
 
       <section class="mb-8">
-        <h2 class="mb-2 font-medium">安装全部 skill</h2>
+        <h2 class="mb-2 font-medium">Install every skill</h2>
         <CodeBlock>npx skills add {installUrl}</CodeBlock>
         <p class="mt-2 text-xs text-slate-500">
-          这串 key 只有安装权限，不能登录、发布或删除。怀疑泄漏时点下面的按钮重置。
+          This key can only install. It cannot sign in, publish or delete. Reset it below if you think it has leaked.
         </p>
         <Form action="/me/install-key" class="mt-2">
-          <Button>重置 install key</Button>
+          <Button>Reset install key</Button>
         </Form>
       </section>
 
       <section class="mb-8">
-        <h2 class="mb-2 font-medium">API token（用于 curl 发布）</h2>
+        <h2 class="mb-2 font-medium">API token (for publishing with curl)</h2>
         {props.newToken ? (
           <CodeBlock>{props.newToken}</CodeBlock>
         ) : null}
         {props.newToken ? (
-          <p class="mt-2 text-xs text-amber-700">这串 token 只显示这一次，请立刻保存。</p>
+          <p class="mt-2 text-xs text-amber-700">This token is shown once. Save it now.</p>
         ) : (
           <p class="mt-2 text-xs text-slate-500">
-            当前状态：{props.user.api_token_hash ? "已启用" : "未生成"}
+            Status: {props.user.api_token_hash ? "active" : "not generated"}
           </p>
         )}
         <div class="mt-2 flex gap-2">
-          <Form action="/me/api-token"><Button>生成新 token</Button></Form>
+          <Form action="/me/api-token"><Button>Generate a new token</Button></Form>
           {props.user.api_token_hash ? (
-            <Form action="/me/api-token/revoke"><Button>吊销</Button></Form>
+            <Form action="/me/api-token/revoke"><Button>Revoke</Button></Form>
           ) : null}
         </div>
       </section>
 
       <section>
-        <h2 class="mb-2 font-medium">修改密码</h2>
+        <h2 class="mb-2 font-medium">Change password</h2>
         <Form action="/me/password" class="max-w-sm space-y-4">
-          <Field label="当前密码" name="current" type="password" />
-          <Field label="新密码" name="next" type="password" hint="至少 12 个字符" />
-          <Button>保存</Button>
+          <Field label="Current password" name="current" type="password" />
+          <Field label="New password" name="next" type="password" hint="At least 12 characters" />
+          <Button>Save</Button>
         </Form>
       </section>
     </Layout>
@@ -87,13 +87,13 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
 
 export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: string }) {
   return (
-    <Layout title="用户管理" user={props.user}>
-      <h1 class="mb-4 text-xl font-semibold">用户管理</h1>
+    <Layout title="Users" user={props.user}>
+      <h1 class="mb-4 text-xl font-semibold">Users</h1>
       <Alert message={props.error} />
       <table class="mb-8 w-full text-sm">
         <thead>
           <tr class="border-b border-slate-200 text-left text-slate-500">
-            <th class="py-2">用户名</th><th>角色</th><th>最近登录</th><th>操作</th>
+            <th class="py-2">Username</th><th>Role</th><th>Last sign-in</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -112,36 +112,38 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                     <>
                       <Form action={`/admin/users/${u.id}/role`} class="inline-block">
                         <input type="hidden" name="role" value={u.role === "admin" ? "member" : "admin"} />
-                        <Button>{u.role === "admin" ? "降为 member" : "升为 admin"}</Button>
+                        <Button>{u.role === "admin" ? "Demote to member" : "Promote to admin"}</Button>
                       </Form>{" "}
                     </>
                   )}
                   <Form action={`/admin/users/${u.id}/install-key`} class="inline-block">
-                    <Button>轮换 install key</Button>
+                    <Button>Rotate install key</Button>
                   </Form>{" "}
                   {u.api_token_hash ? (
                     <Form action={`/admin/users/${u.id}/api-token/revoke`} class="inline-block">
-                      <Button>吊销 api token</Button>
+                      <Button>Revoke API token</Button>
                     </Form>
                   ) : null}
                   <Form action={`/admin/users/${u.id}/password`} class="mt-1 flex items-center gap-2">
                     <input
                       type="password"
                       name="password"
-                      placeholder="新密码（至少 12 位）"
+                      placeholder="New password (at least 12 characters)"
                       class="rounded border border-slate-300 px-2 py-1 text-sm"
                       required
                     />
-                    <Button>重置密码</Button>
+                    <Button>Reset password</Button>
                   </Form>
                   {isSelf ? null : (
                     <div class="mt-1">
                       <Form action={`/admin/users/${u.id}/delete`} class="inline-block">
-                        <Button>删除账号</Button>
+                        <Button>Delete account</Button>
                       </Form>
                       <p class="mt-1 max-w-xs text-xs text-slate-500">
-                        删除会把这个用户拥有的 skill 与已发布版本的作者记录转给你。想保留作者记录的话，改用「降为
-                        member」加「轮换 install key」，不要删除。
+                        Deleting reassigns this user's skills and their published
+                        versions' author records to you. To keep the author records,
+                        use "Demote to member" plus "Rotate install key" instead of
+                        deleting.
                       </p>
                     </div>
                   )}
@@ -151,18 +153,18 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
           })}
         </tbody>
       </table>
-      <h2 class="mb-2 font-medium">新增用户</h2>
+      <h2 class="mb-2 font-medium">Add a user</h2>
       <Form action="/admin/users" class="max-w-sm space-y-4">
-        <Field label="用户名" name="username" />
-        <Field label="初始密码" name="password" type="password" hint="至少 12 个字符" />
+        <Field label="Username" name="username" />
+        <Field label="Initial password" name="password" type="password" hint="At least 12 characters" />
         <label class="block">
-          <span class="block text-sm font-medium text-slate-700">角色</span>
+          <span class="block text-sm font-medium text-slate-700">Role</span>
           <select name="role" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
             <option value="member">member</option>
             <option value="admin">admin</option>
           </select>
         </label>
-        <Button>创建</Button>
+        <Button>Create</Button>
       </Form>
     </Layout>
   );
