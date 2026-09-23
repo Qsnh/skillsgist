@@ -45,3 +45,8 @@ it("keeps the nav and footer free of the Registry tag and the discovery link", a
   expect(html).not.toContain("Public discovery index");
   expect(html).toContain(`<a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>`);
 });
+
+it("loads the fold script from the same origin, deferred", async () => {
+  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+  expect(html).toContain(`<script src="/fold.js" defer=""></script>`);
+});

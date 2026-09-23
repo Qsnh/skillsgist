@@ -242,7 +242,12 @@ export function SkillPage(props: {
                 </span>
               )}
             </header>
-            <div class="skill-doc" dangerouslySetInnerHTML={{ __html: version.html }} />
+            <div id="skill-doc" class="skill-doc" data-fold dangerouslySetInnerHTML={{ __html: version.html }} />
+            <footer class="cf-doc-foot" hidden>
+              <button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="skill-doc" aria-expanded="false">
+                Show more
+              </button>
+            </footer>
           </article>
 
           <aside class="cf-skill-aside">

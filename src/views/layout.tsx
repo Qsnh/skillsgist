@@ -66,6 +66,7 @@ export function Layout(props: {
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
           <script src="/copy.js" defer />
+          <script src="/fold.js" defer />
         </head>
         <body class="cf-body">
           <a href="#main" class="cf-skip">Skip to content</a>

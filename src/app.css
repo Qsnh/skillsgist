@@ -1422,6 +1422,24 @@
     padding: 28px 40px 40px;
   }
 
+  .cf-doc {
+    --cf-fold: 720px;
+  }
+
+  .skill-doc[data-fold-state="folded"] {
+    max-height: var(--cf-fold);
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 120px), transparent);
+  }
+
+  .cf-doc-foot {
+    display: flex;
+    justify-content: center;
+    padding: 16px 24px;
+    border-top: 1px solid var(--color-cf-line);
+    background: var(--color-cf-paper-2);
+  }
+
   .cf-skill-aside {
     display: flex;
     flex-direction: column;
@@ -1820,6 +1838,10 @@
 
     .cf-doc .skill-doc {
       padding: 20px 18px 28px;
+    }
+
+    .cf-doc-foot {
+      padding: 14px 18px;
     }
 
     .cf-editor-input {
