@@ -60,7 +60,9 @@ usersRoutes.post("/login", async (c) => {
   const password = String(body.password ?? "");
   const user = await getUserByUsername(c.env.DB, username);
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error="Incorrect username or password" />, 401);
+  if (!user || !ok) {
+    return page(c, <LoginPage error="Incorrect username or password" username={username} />, 401);
+  }
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
   return c.redirect("/", 302);
 });

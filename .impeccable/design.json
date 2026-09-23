@@ -1,0 +1,542 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23T03:12:16Z",
+  "title": "Design System: skillsgist",
+  "extensions": {
+    "colorMeta": {
+      "catalogue": {
+        "role": "primary",
+        "displayName": "Catalogue Red",
+        "canonical": "#c8352b",
+        "purpose": "The instance's own mark and the only saturated ink: diamond, caret, focus ring, hover fills, the destructive legend, and the channel's focus wipe.",
+        "tonalRamp": [
+          "#1f0000",
+          "#4d0001",
+          "#810003",
+          "#b31c16",
+          "#db483c",
+          "#ff7364",
+          "#ffb3a8",
+          "#ffe9e5"
+        ]
+      },
+      "hazard": {
+        "role": "secondary",
+        "displayName": "Hazard Amber",
+        "canonical": "#e8a33d",
+        "purpose": "The class signal for private, and the ::selection highlight. Nothing else.",
+        "tonalRamp": [
+          "#130900",
+          "#352000",
+          "#5b3a00",
+          "#855600",
+          "#b07400",
+          "#d9952b",
+          "#ffba5a",
+          "#ffebd3"
+        ]
+      },
+      "dispense": {
+        "role": "tertiary",
+        "displayName": "Dispense Black",
+        "canonical": "#1b1d1f",
+        "purpose": "The inverted channel that carries a command you copy, and every <pre> in a rendered document.",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232527",
+          "#404244",
+          "#5f6164",
+          "#808385",
+          "#a3a5a8",
+          "#c7c9cc",
+          "#eceff2"
+        ]
+      },
+      "dispense-lift": {
+        "role": "tertiary",
+        "displayName": "Dispense Lift",
+        "canonical": "#26292e",
+        "purpose": "The dispense channel under the cursor; one step lighter, no movement.",
+        "tonalRamp": [
+          "#090b10",
+          "#22252a",
+          "#3f4248",
+          "#5e6167",
+          "#7f8289",
+          "#a1a5ac",
+          "#c5c9d0",
+          "#ebeff5"
+        ]
+      },
+      "dispense-ink": {
+        "role": "tertiary",
+        "displayName": "Dispense Ink",
+        "canonical": "#e9e5dc",
+        "purpose": "The warm off-white the dispense channel prints in.",
+        "tonalRamp": [
+          "#0d0b06",
+          "#28251e",
+          "#45423a",
+          "#646159",
+          "#86827a",
+          "#a8a59c",
+          "#cdc9c0",
+          "#f2eee5"
+        ]
+      },
+      "bench": {
+        "role": "neutral",
+        "displayName": "Bench Grey",
+        "canonical": "#eceae3",
+        "purpose": "The bench the sheet lies on. Never a content surface.",
+        "tonalRamp": [
+          "#0c0b07",
+          "#272520",
+          "#44423c",
+          "#63615b",
+          "#84827c",
+          "#a7a59e",
+          "#cbc9c2",
+          "#f0eee7"
+        ]
+      },
+      "stock": {
+        "role": "neutral",
+        "displayName": "Label Stock",
+        "canonical": "#fbfbf9",
+        "purpose": "The sheet, and every band, entry, control strip and empty state on it.",
+        "tonalRamp": [
+          "#0b0b0a",
+          "#252524",
+          "#424240",
+          "#616160",
+          "#828281",
+          "#a5a5a3",
+          "#c9c9c7",
+          "#eeeeec"
+        ]
+      },
+      "sunk": {
+        "role": "neutral",
+        "displayName": "Sunk Stock",
+        "canonical": "#f2f0e9",
+        "purpose": "The recessed fill that means you can operate this: every channel, and inline code in a document.",
+        "tonalRamp": [
+          "#0c0b07",
+          "#272520",
+          "#44423c",
+          "#63615b",
+          "#84827c",
+          "#a7a59e",
+          "#cbc9c2",
+          "#f0eee7"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Catalogue Ink",
+        "canonical": "#14171a",
+        "purpose": "Body ink, solid cells, and the two rules that close the instrument.",
+        "tonalRamp": [
+          "#090b0e",
+          "#222529",
+          "#3f4246",
+          "#5e6265",
+          "#7f8387",
+          "#a1a5aa",
+          "#c5cace",
+          "#ebeff3"
+        ]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Specification Ink",
+        "canonical": "#4a5057",
+        "purpose": "Running description text, document body, ledger values and measured values.",
+        "tonalRamp": [
+          "#070c11",
+          "#20262c",
+          "#3d4349",
+          "#5c6269",
+          "#7c838b",
+          "#9fa6ae",
+          "#c3cad2",
+          "#e8eff8"
+        ]
+      },
+      "legend": {
+        "role": "neutral",
+        "displayName": "Legend Grey",
+        "canonical": "#6f6860",
+        "purpose": "Field legends, placeholders and hints.",
+        "tonalRamp": [
+          "#0f0a05",
+          "#2a241d",
+          "#474139",
+          "#676058",
+          "#888179",
+          "#aba49b",
+          "#d0c8bf",
+          "#f5ede4"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline Rule",
+        "canonical": "#d8d4cc",
+        "purpose": "The divider inside an instrument.",
+        "tonalRamp": [
+          "#0d0b06",
+          "#28251f",
+          "#45423b",
+          "#64615a",
+          "#86827b",
+          "#a8a59d",
+          "#cdc9c1",
+          "#f2eee6"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Channel Rule",
+        "canonical": "#b3ada2",
+        "purpose": "The edge of something you can operate, including a boxed channel's four sides. Also the scrollbar thumb.",
+        "tonalRamp": [
+          "#0f0b04",
+          "#29241c",
+          "#464138",
+          "#666157",
+          "#878277",
+          "#aaa499",
+          "#cfc8bd",
+          "#f4eee2"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "mark": {
+        "displayName": "Mark",
+        "purpose": "The skillsgist wordmark in the masthead. Lowercase, always, beside its red diamond."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "The page-name role and the largest type in the system: a route's own subject, announced once. The skill page's slug."
+      },
+      "lead-compact": {
+        "displayName": "Lead (compact)",
+        "purpose": "The Lead below the 40rem breakpoint."
+      },
+      "account-name": {
+        "displayName": "Account name",
+        "purpose": "The Name role for an identifier rather than a title — an account's username on the admin register. Mono, because a username is a value."
+      },
+      "account-name-compact": {
+        "displayName": "Account name (compact)",
+        "purpose": "The account name below the 40rem breakpoint."
+      },
+      "name": {
+        "displayName": "Name",
+        "purpose": "A catalogue entry's name in the index and the headline of an empty state."
+      },
+      "body": {
+        "displayName": "Specification",
+        "purpose": "Author-supplied description text and empty-state prose. Capped at 66ch above the breakpoint."
+      },
+      "legend": {
+        "displayName": "Legend",
+        "purpose": "Every field legend, control-cell label, choice label and definition term. The most-used role in the system; it must name the field it sits on."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Text the visitor types into a single-line channel."
+      },
+      "measure": {
+        "displayName": "Measure",
+        "purpose": "Mono with tabular numerals. Anything counted, versioned, addressed or dated."
+      },
+      "dispense": {
+        "displayName": "Dispense",
+        "purpose": "Mono at the channel step: the install command on dark stock, the SKILL.md textarea, ledger rows, band notes and document code."
+      },
+      "document": {
+        "displayName": "Document",
+        "purpose": "The rendered SKILL.md body — the only type the system did not author, set on the system's own tokens at a 72ch measure."
+      },
+      "document-h1": {
+        "displayName": "Document H1",
+        "purpose": "The document's first heading step. Author markdown supplies it, so a skill page legitimately carries two h1 elements."
+      },
+      "document-h2": {
+        "displayName": "Document H2",
+        "purpose": "The document's section step."
+      },
+      "document-h3": {
+        "displayName": "Document H3",
+        "purpose": "The document's sub-section step, at the Body size but in ink at weight 600."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "wipe",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The only authored easing in the system (--wipe). Exponential ease-out, used by the channel's focus rule and its band's live legend."
+      },
+      {
+        "name": "wipe-duration",
+        "value": "420ms",
+        "purpose": "The channel's focus rule scaling from scaleX(0) to scaleX(1), left origin. The one authored moment — it belongs to the channel, so it fires on the index search, every stacked field, the SKILL.md textarea and the admin password reset, but only one input can hold focus at a time."
+      },
+      {
+        "name": "legend-step",
+        "value": "240ms",
+        "purpose": "A band's live legend stepping from Legend Grey to Catalogue Red while its channel is focused, on the same curve."
+      },
+      {
+        "name": "state",
+        "value": "120ms linear",
+        "purpose": "Control-state crossfades only: a control cell inverting, a choice cell inverting when checked, the ink button stepping to red, the dispense channel lifting. Not motion; deliberately left running under reduced motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce) { transition: none }",
+        "purpose": "Removes the wipe and the legend step so the focus rule simply appears. Applied to .channel::after and .band__legend--live."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sheet",
+        "value": "40rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Ruled Field Cell",
+      "kind": "nav",
+      "refersTo": "field-cell",
+      "description": "The masthead's function cells. Links and form buttons are visually identical; hover and keyboard focus invert the cell to ink.",
+      "html": "<nav class=\"ds-masthead-fields\"><a href=\"#\" class=\"ds-field-cell\"><span class=\"ds-field-cell__legend\">Publish</span></a><a href=\"#\" class=\"ds-field-cell\"><span class=\"ds-field-cell__legend\">Users</span></a><a href=\"#\" class=\"ds-field-cell\"><span class=\"ds-field-cell__user\">verifier</span></a><button type=\"submit\" class=\"ds-field-cell\"><span class=\"ds-field-cell__legend\">Sign out</span></button></nav>",
+      "css": ".ds-masthead-fields { display: flex; align-items: stretch; min-height: 3rem; background-color: var(--color-stock, #fbfbf9); border-bottom: 1px solid var(--color-ink, #14171a); } .ds-field-cell { display: flex; align-items: center; padding: 0 0.9375rem; border: none; border-left: 1px solid var(--color-rule, #d8d4cc); border-radius: 0; background: none; text-decoration: none; cursor: pointer; transition: background-color 120ms linear, color 120ms linear; } .ds-field-cell:hover, .ds-field-cell:focus-visible { background-color: var(--color-ink, #14171a); } .ds-field-cell:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-field-cell:hover .ds-field-cell__legend, .ds-field-cell:focus-visible .ds-field-cell__legend, .ds-field-cell:hover .ds-field-cell__user, .ds-field-cell:focus-visible .ds-field-cell__user { color: var(--color-stock, #fbfbf9); } .ds-field-cell__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-field-cell__user { font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.75rem; font-weight: 500; color: var(--color-ink-soft, #4a5057); }"
+    },
+    {
+      "name": "Control Cell Strip",
+      "kind": "nav",
+      "refersTo": "field-cell-page",
+      "description": "The page's action row: the masthead's cell grammar moved inside the sheet, full-bleed and closed by a hairline. The first cell pads to the gutter; the destructive cell carries a catalogue-red legend that inverts to a red fill.",
+      "html": "<div class=\"ds-cells\"><a href=\"#\" class=\"ds-cell\"><span class=\"ds-cell__legend\">Download zip</span></a><a href=\"#\" class=\"ds-cell\"><span class=\"ds-cell__legend\">Edit SKILL.md</span></a><a href=\"#\" class=\"ds-cell\"><span class=\"ds-cell__legend\">Upload an archive</span></a><form class=\"ds-cells__form\"><button type=\"submit\" class=\"ds-cell\"><span class=\"ds-cell__legend\">Make private</span></button></form><form class=\"ds-cells__form\"><button type=\"submit\" class=\"ds-cell ds-cell--danger\"><span class=\"ds-cell__legend\">Delete</span></button></form></div>",
+      "css": ".ds-cells { display: flex; flex-wrap: wrap; align-items: stretch; background-color: var(--color-stock, #fbfbf9); border-bottom: 1px solid var(--color-rule, #d8d4cc); } .ds-cells__form { display: flex; margin: 0; } .ds-cell { display: flex; align-items: center; padding: 0.75rem 0.9375rem; border: none; border-left: 1px solid var(--color-rule, #d8d4cc); border-radius: 0; background: none; text-decoration: none; cursor: pointer; transition: background-color 120ms linear, color 120ms linear; } .ds-cells > .ds-cell:first-child, .ds-cells > .ds-cells__form:first-child .ds-cell { border-left: none; padding-left: 1.25rem; } .ds-cell:hover, .ds-cell:focus-visible { background-color: var(--color-ink, #14171a); } .ds-cell:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-cell:hover .ds-cell__legend, .ds-cell:focus-visible .ds-cell__legend { color: var(--color-stock, #fbfbf9); } .ds-cell__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-cell--danger .ds-cell__legend { color: var(--color-catalogue, #c8352b); } .ds-cell--danger:hover, .ds-cell--danger:focus-visible { background-color: var(--color-catalogue, #c8352b); }"
+    },
+    {
+      "name": "Channel",
+      "kind": "input",
+      "refersTo": "channel-input",
+      "description": "The system's one input surface and the home of its one authored motion moment. Ruled above and below when it runs the measure; boxed on all four sides when it sits inside a stacked form. On focus a 2px catalogue-red rule wipes left to right across its bottom edge and the band's live legend steps to catalogue red; both are removed under reduced motion.",
+      "html": "<div class=\"ds-channel-demo\"><form class=\"ds-channel-band\"><label for=\"ds-q\" class=\"ds-channel__legend ds-channel__legend--live\">Search · name / description / body</label><div class=\"ds-channel\"><input id=\"ds-q\" name=\"q\" class=\"ds-channel__input\" placeholder=\"Search this catalogue\" /><button type=\"submit\" class=\"ds-channel__submit\"><span class=\"ds-channel__submit-legend\">Search</span></button></div></form><form class=\"ds-channel-form\"><label class=\"ds-field\"><span class=\"ds-channel__legend\">Username</span><span class=\"ds-channel ds-channel--boxed\"><input class=\"ds-channel__input\" type=\"text\" /></span><span class=\"ds-field__hint\">Lowercase letters, digits and hyphens, 2-32 characters</span></label></form></div>",
+      "css": ".ds-channel-demo { background-color: var(--color-stock, #fbfbf9); } .ds-channel-band { display: block; padding-block: 1rem 0; border-bottom: 1px solid var(--color-rule, #d8d4cc); } .ds-channel__legend { display: block; font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-channel-band .ds-channel__legend { padding-inline: 1.25rem; margin-bottom: 0.5rem; } .ds-channel__legend--live { transition: color 240ms var(--wipe, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-channel-band:has(.ds-channel:focus-within) .ds-channel__legend--live { color: var(--color-catalogue, #c8352b); } .ds-channel { position: relative; display: flex; align-items: stretch; border-block: 1px solid var(--color-rule-strong, #b3ada2); background-color: var(--color-sunk, #f2f0e9); } .ds-channel--boxed { border: 1px solid var(--color-rule-strong, #b3ada2); } .ds-channel::after { content: ''; position: absolute; inset-inline: 0; bottom: -1px; height: 2px; background-color: var(--color-catalogue, #c8352b); transform: scaleX(0); transform-origin: left; transition: transform 420ms var(--wipe, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-channel:focus-within::after { transform: scaleX(1); } .ds-channel__input { flex: 1; min-width: 0; padding: 0.6875rem 1.25rem; border: none; border-radius: 0; background: none; color: var(--color-ink, #14171a); caret-color: var(--color-catalogue, #c8352b); font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.9375rem; } .ds-channel__input::placeholder { color: var(--color-legend, #6f6860); } .ds-channel__input:focus { outline: none; } .ds-channel__input::selection { background-color: var(--color-hazard, #e8a33d); color: var(--color-ink, #14171a); } .ds-channel__submit { padding-inline: 1.25rem; border: none; border-left: 1px solid var(--color-rule-strong, #b3ada2); border-radius: 0; background-color: var(--color-ink, #14171a); color: var(--color-stock, #fbfbf9); cursor: pointer; } .ds-channel__submit:hover { background-color: var(--color-catalogue, #c8352b); } .ds-channel__submit:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-channel__submit-legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: inherit; } .ds-channel-form { max-width: 26rem; padding: 1rem 1.25rem 1.125rem; } .ds-field { display: block; width: 100%; } .ds-field .ds-channel { margin-top: 0.4375rem; } .ds-field__hint { display: block; margin-top: 0.375rem; font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.75rem; color: var(--color-legend, #6f6860); } @media (prefers-reduced-motion: reduce) { .ds-channel::after, .ds-channel__legend--live { transition: none; } }"
+    },
+    {
+      "name": "Source Channel",
+      "kind": "input",
+      "refersTo": "channel-area",
+      "description": "The same channel carrying source rather than a phrase: a mono SKILL.md textarea with vertical-only resize, and a native file input whose ::file-selector-button is themed as an ink cell. Both take the focus wipe.",
+      "html": "<div class=\"ds-source\"><div class=\"ds-source__head\"><span class=\"ds-source__legend\">Archive · .zip, .tar.gz or a bare SKILL.md</span></div><div class=\"ds-src\"><input type=\"file\" class=\"ds-src__file\" /></div><div class=\"ds-source__head\"><span class=\"ds-source__legend\">Or · SKILL.md text</span></div><div class=\"ds-src ds-src--area\"><textarea class=\"ds-src__area\" rows=\"6\" placeholder=\"---&#10;name: my-skill&#10;description: One sentence on what this skill does&#10;---&#10;&#10;# Body\"></textarea></div></div>",
+      "css": ".ds-source { background-color: var(--color-stock, #fbfbf9); } .ds-source__head { padding: 1rem 1.25rem 0.5rem; } .ds-source__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-src { position: relative; display: flex; align-items: stretch; border-block: 1px solid var(--color-rule-strong, #b3ada2); background-color: var(--color-sunk, #f2f0e9); } .ds-src--area { display: block; } .ds-src::after { content: ''; position: absolute; inset-inline: 0; bottom: -1px; height: 2px; background-color: var(--color-catalogue, #c8352b); transform: scaleX(0); transform-origin: left; transition: transform 420ms var(--wipe, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-src:focus-within::after { transform: scaleX(1); } .ds-src__area { display: block; width: 100%; padding: 0.6875rem 1.25rem; background: none; border: none; border-radius: 0; resize: vertical; color: var(--color-ink, #14171a); caret-color: var(--color-catalogue, #c8352b); font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8125rem; line-height: 1.6; tab-size: 2; } .ds-src__area:focus { outline: none; } .ds-src__area::placeholder { color: var(--color-legend, #6f6860); } .ds-src__file { display: block; width: 100%; padding: 0.6875rem 1.25rem; font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8125rem; color: var(--color-ink-soft, #4a5057); } .ds-src__file::file-selector-button { margin-right: 0.9375rem; padding: 0.4375rem 0.9375rem; border: 1px solid var(--color-ink, #14171a); border-radius: 0; background-color: var(--color-ink, #14171a); color: var(--color-stock, #fbfbf9); cursor: pointer; font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; } .ds-src__file::file-selector-button:hover { background-color: var(--color-catalogue, #c8352b); border-color: var(--color-catalogue, #c8352b); } @media (prefers-reduced-motion: reduce) { .ds-src::after { transition: none; } }"
+    },
+    {
+      "name": "Choice Group",
+      "kind": "chip",
+      "refersTo": "choice",
+      "description": "A native radio group drawn as a row of ruled cells; the checked cell inverts to ink through :has(), taking its legend, note and class-diamond stroke to label stock. Full-bleed with the class diamond for visibility, boxed and bare for role. There is no <select> in the system.",
+      "html": "<div class=\"ds-choice-demo\"><div class=\"ds-choices\"><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-vis\" value=\"private\" class=\"ds-choice__input\" checked /><span class=\"ds-mark ds-mark--private\"><svg class=\"ds-mark__glyph\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 1.6 22.4 12 12 22.4 1.6 12Z\" stroke-width=\"1.6\" stroke-linejoin=\"round\" /></svg><span class=\"ds-choice__legend\">private</span></span><span class=\"ds-choice__note\">Visible to signed-in users only</span></label><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-vis\" value=\"public\" class=\"ds-choice__input\" /><span class=\"ds-mark ds-mark--public\"><svg class=\"ds-mark__glyph\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 1.6 22.4 12 12 22.4 1.6 12Z\" stroke-width=\"1.6\" stroke-linejoin=\"round\" /></svg><span class=\"ds-choice__legend\">public</span></span><span class=\"ds-choice__note\">Anyone can see and install it</span></label></div><div class=\"ds-choices ds-choices--boxed\"><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-role\" value=\"member\" class=\"ds-choice__input\" checked /><span class=\"ds-choice__legend\">member</span></label><label class=\"ds-choice\"><input type=\"radio\" name=\"ds-role\" value=\"admin\" class=\"ds-choice__input\" /><span class=\"ds-choice__legend\">admin</span></label></div></div>",
+      "css": ".ds-choice-demo { background-color: var(--color-stock, #fbfbf9); } .ds-choices { display: flex; flex-wrap: wrap; align-items: stretch; border-block: 1px solid var(--color-rule, #d8d4cc); } .ds-choices--boxed { margin: 1.125rem 1.25rem 0; border: 1px solid var(--color-rule-strong, #b3ada2); } .ds-choices--boxed .ds-choice:first-child { padding-left: 0.9375rem; } .ds-choice { display: flex; align-items: center; gap: 0.5625rem; padding: 0.75rem 0.9375rem; border-left: 1px solid var(--color-rule, #d8d4cc); cursor: pointer; transition: background-color 120ms linear, color 120ms linear; } .ds-choices > .ds-choice:first-child { border-left: none; padding-left: 1.25rem; } .ds-choice__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; } .ds-choice__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-ink, #14171a); } .ds-choices--boxed .ds-choice__legend { color: var(--color-legend, #6f6860); } .ds-choice__note { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.8125rem; color: var(--color-legend, #6f6860); } .ds-choice:has(.ds-choice__input:checked) { background-color: var(--color-ink, #14171a); } .ds-choice:has(.ds-choice__input:checked) .ds-choice__legend, .ds-choice:has(.ds-choice__input:checked) .ds-choice__note { color: var(--color-stock, #fbfbf9); } .ds-choice:has(.ds-choice__input:checked) .ds-mark__glyph { stroke: var(--color-stock, #fbfbf9); } .ds-choice:has(.ds-choice__input:focus-visible) { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: -2px; } .ds-mark { display: inline-flex; align-items: center; gap: 0.5625rem; } .ds-mark__glyph { display: block; flex: none; } .ds-mark--private .ds-mark__glyph { fill: var(--color-hazard, #e8a33d); stroke: var(--color-ink, #14171a); } .ds-mark--public .ds-mark__glyph { fill: none; stroke: var(--color-ink, #14171a); }"
+    },
+    {
+      "name": "Ink Button",
+      "kind": "button",
+      "refersTo": "label-button",
+      "description": "The system's only filled button. Ink fill with an ink border so the silhouette holds; hover steps fill and border to catalogue red. Its legend inherits the button's color rather than carrying legend grey, which is what keeps the label legible on ink. No lift, no shadow.",
+      "html": "<button type=\"submit\" class=\"ds-label-button\"><span class=\"ds-label-button__legend\">Publish</span></button>",
+      "css": ".ds-label-button { padding: 0.5625rem 1.25rem; border: 1px solid var(--color-ink, #14171a); border-radius: 0; background-color: var(--color-ink, #14171a); color: var(--color-stock, #fbfbf9); cursor: pointer; transition: background-color 120ms linear, border-color 120ms linear; } .ds-label-button:hover { background-color: var(--color-catalogue, #c8352b); border-color: var(--color-catalogue, #c8352b); } .ds-label-button:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-label-button__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: inherit; }"
+    },
+    {
+      "name": "Dispense Channel",
+      "kind": "custom",
+      "refersTo": "dispense",
+      "description": "The dark full-bleed band carrying a command. One click selects the whole line; there is no copy button because there is no JavaScript.",
+      "html": "<section class=\"ds-dispense-band\"><div class=\"ds-dispense__head\"><span class=\"ds-dispense__legend\">Order · entire catalogue, with your install key</span><span class=\"ds-dispense__legend\">Selects as one line</span></div><code class=\"ds-dispense\" tabindex=\"0\">npx skills add https://skills.example.com/i/edf9f8110274d235e63cdf289cc5480b</code></section>",
+      "css": ".ds-dispense-band { display: block; background-color: var(--color-stock, #fbfbf9); padding-block: 1rem 1.125rem; border-bottom: 1px solid var(--color-rule, #d8d4cc); } .ds-dispense__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.375rem 1rem; padding-inline: 1.25rem; margin-bottom: 0.5rem; } .ds-dispense__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-dispense { display: block; overflow-x: auto; padding: 0.6875rem 1.25rem; border-radius: 0; background-color: var(--color-dispense, #1b1d1f); color: var(--color-dispense-ink, #e9e5dc); font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8125rem; line-height: 1.45; white-space: pre; user-select: all; -webkit-user-select: all; cursor: pointer; transition: background-color 120ms linear; } .ds-dispense:hover { background-color: var(--color-dispense-lift, #26292e); } .ds-dispense:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-dispense::selection { background-color: var(--color-hazard, #e8a33d); color: var(--color-ink, #14171a); }"
+    },
+    {
+      "name": "Class Mark",
+      "kind": "chip",
+      "refersTo": "class-mark-private",
+      "description": "The GHS-style class signal. The same diamond filled hazard amber means private; drawn open it means public.",
+      "html": "<span class=\"ds-class-mark ds-class-mark--private\"><svg class=\"ds-class-mark__glyph\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 1.6 22.4 12 12 22.4 1.6 12Z\" stroke-width=\"1.6\" stroke-linejoin=\"round\" /></svg><span class=\"ds-class-mark__legend\">private</span></span><span class=\"ds-class-mark ds-class-mark--public\"><svg class=\"ds-class-mark__glyph\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 1.6 22.4 12 12 22.4 1.6 12Z\" stroke-width=\"1.6\" stroke-linejoin=\"round\" /></svg><span class=\"ds-class-mark__legend\">public</span></span>",
+      "css": ".ds-class-mark { display: inline-flex; align-items: center; gap: 0.5625rem; } .ds-class-mark__glyph { display: block; flex: none; } .ds-class-mark--private .ds-class-mark__glyph { fill: var(--color-hazard, #e8a33d); stroke: var(--color-ink, #14171a); } .ds-class-mark--public .ds-class-mark__glyph { fill: none; stroke: var(--color-ink, #14171a); } .ds-class-mark__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-ink, #14171a); } .ds-class-mark + .ds-class-mark { margin-left: 1.25rem; }"
+    },
+    {
+      "name": "Entry Block",
+      "kind": "card",
+      "refersTo": "entry",
+      "description": "A catalogue entry: name and specification in the content column, class mark and measured values in a fixed rail opened by a hairline. A private entry recolors its rail rule to hazard amber.",
+      "html": "<ul class=\"ds-entries\"><li class=\"ds-entry ds-entry--private\"><h2 class=\"ds-entry__heading\"><a href=\"#\" class=\"ds-entry__name\">browser-skill</a></h2><p class=\"ds-entry__spec\">Use when the user asks to automate their logged-in Chromium browser: visit and read pages, fill forms, scrape data, click through flows.</p><div class=\"ds-entry__rail\"><span class=\"ds-class-mark ds-class-mark--private\"><svg class=\"ds-class-mark__glyph\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 1.6 22.4 12 12 22.4 1.6 12Z\" stroke-width=\"1.6\" stroke-linejoin=\"round\" /></svg><span class=\"ds-class-mark__legend\">private</span></span><dl class=\"ds-entry__fields\"><dt class=\"ds-entry__legend\">Version</dt><dd>v1</dd><dt class=\"ds-entry__legend\">Author</dt><dd>verifier</dd><dt class=\"ds-entry__legend\">Updated</dt><dd>2025-09-22</dd></dl></div></li></ul>",
+      "css": ".ds-entries { display: flow-root; margin: 0; padding: 0; list-style: none; background-color: var(--color-stock, #fbfbf9); } .ds-entry { display: grid; grid-template-columns: minmax(0, 1fr) 12.5rem; column-gap: 1.25rem; padding: 1.375rem 1.25rem; border-bottom: 1px solid var(--color-rule, #d8d4cc); } .ds-entry:last-child { border-bottom: none; } .ds-entry__heading { grid-column: 1; margin: 0; } .ds-entry__name { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 1.1875rem; font-stretch: 96%; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--color-ink, #14171a); text-decoration: none; } .ds-entry__name:hover { color: var(--color-catalogue, #c8352b); text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 1px; } .ds-entry__name:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-entry__spec { grid-column: 1; max-width: 66ch; margin: 0.4375rem 0 0; font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.875rem; line-height: 1.65; color: var(--color-ink-soft, #4a5057); } .ds-entry__rail { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-start; gap: 0.8125rem; padding-top: 0.25rem; padding-left: 1.25rem; border-left: 1px solid var(--color-rule, #d8d4cc); } .ds-entry--private .ds-entry__rail { border-left-color: var(--color-hazard, #e8a33d); } .ds-entry__fields { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.75rem; row-gap: 0.375rem; align-items: baseline; margin: 0; width: 100%; } .ds-entry__fields dd { margin: 0; font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 0.75rem; line-height: 1; color: var(--color-ink-soft, #4a5057); overflow-wrap: anywhere; } .ds-entry__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-legend, #6f6860); } .ds-class-mark { display: inline-flex; align-items: center; gap: 0.5625rem; } .ds-class-mark__glyph { display: block; flex: none; } .ds-class-mark--private .ds-class-mark__glyph { fill: var(--color-hazard, #e8a33d); stroke: var(--color-ink, #14171a); } .ds-class-mark--public .ds-class-mark__glyph { fill: none; stroke: var(--color-ink, #14171a); } .ds-class-mark__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-ink, #14171a); }"
+    },
+    {
+      "name": "Ledger",
+      "kind": "custom",
+      "refersTo": "ledger-cell",
+      "description": "The system's data table: mono with tabular numerals, each row opened by a hairline, columns separated by gutter padding rather than rules. Numeric columns are right-aligned and never wrap; the current row is promoted to catalogue ink rather than bolded. Both shipped ledgers are headerless — the band head above names the columns.",
+      "html": "<table class=\"ds-ledger\"><tr class=\"ds-ledger__current\"><td>v3</td><td>2026-09-22</td><td class=\"ds-ledger__num\">12480 B</td></tr><tr><td><a href=\"#\">v2</a></td><td>2026-09-14</td><td class=\"ds-ledger__num\">11902 B</td></tr><tr><td><a href=\"#\">v1</a></td><td>2026-09-02</td><td class=\"ds-ledger__num\">9132 B</td></tr></table>",
+      "css": ".ds-ledger { width: 100%; border-collapse: collapse; font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 0.8125rem; color: var(--color-ink-soft, #4a5057); background-color: var(--color-stock, #fbfbf9); } .ds-ledger th { padding: 0 0 0.5rem; text-align: left; vertical-align: baseline; } .ds-ledger td { padding: 0.5rem 0; border-top: 1px solid var(--color-rule, #d8d4cc); vertical-align: baseline; overflow-wrap: anywhere; } .ds-ledger th + th, .ds-ledger td + td { padding-left: 1.25rem; } .ds-ledger__num { text-align: right; white-space: nowrap; } .ds-ledger a { color: var(--color-ink-soft, #4a5057); text-decoration-line: underline; text-underline-offset: 0.2em; text-decoration-thickness: 1px; } .ds-ledger a:hover { color: var(--color-catalogue, #c8352b); } .ds-ledger a:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; } .ds-ledger__current td { color: var(--color-ink, #14171a); } @media (max-width: 40rem) { .ds-ledger th + th, .ds-ledger td + td { padding-left: 0.75rem; } }"
+    },
+    {
+      "name": "Document",
+      "kind": "custom",
+      "refersTo": "document",
+      "description": "The rendered SKILL.md, the body of every skill page and the only place the system typesets content it did not author. Its own three-step heading ramp on the system's tokens: square list markers, inline code on sunk stock, <pre> on the dispense channel's dark stock, ruled tables, a 72ch measure. Author markdown can carry its own h1, so the page legitimately holds two.",
+      "html": "<article class=\"ds-doc\"><h1>openbee-worker</h1><p>Runtime skill injected by the openbee system for Worker agents. It establishes the operating mode, the notification contract, and the alternatives for tools that are unavailable in a background process.</p><h2>Operation mode</h2><ul><li><strong>AskUserQuestion</strong> → send a message, then end the current task.</li><li><strong>EnterPlanMode</strong> → think internally and execute directly.</li></ul><h3>Notifying</h3><p>All communication goes through one command. Use <code>message_id</code> as the target for every send.</p><pre><code>openbee ctl message send --message-id &lt;id&gt; --stdin</code></pre><table><tr><th>When you need</th><th>Read</th></tr><tr><td>Full CLI syntax</td><td><code>references/cli-reference.md</code></td></tr></table></article>",
+      "css": ".ds-doc { max-width: 72ch; background-color: var(--color-stock, #fbfbf9); font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.875rem; line-height: 1.7; color: var(--color-ink-soft, #4a5057); } .ds-doc > :first-child { margin-top: 0; } .ds-doc h1, .ds-doc h2, .ds-doc h3 { color: var(--color-ink, #14171a); font-stretch: 96%; font-weight: 600; letter-spacing: -0.015em; line-height: 1.25; } .ds-doc h1 { margin: 1.75rem 0 0.5rem; font-size: 1.1875rem; } .ds-doc h2 { margin: 1.5rem 0 0.5rem; font-size: 1rem; } .ds-doc h3 { margin: 1.25rem 0 0.375rem; font-size: 0.875rem; } .ds-doc p { margin: 0.75rem 0; } .ds-doc ul, .ds-doc ol { margin: 0.75rem 0; padding-left: 1.25rem; } .ds-doc ul { list-style: square; } .ds-doc ol { list-style: decimal; } .ds-doc li { margin: 0.25rem 0; } .ds-doc a { color: var(--color-catalogue, #c8352b); text-decoration-line: underline; text-underline-offset: 0.2em; text-decoration-thickness: 1px; } .ds-doc code { padding: 0.0625rem 0.25rem; background-color: var(--color-sunk, #f2f0e9); font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8125rem; } .ds-doc pre { margin: 1rem 0; overflow-x: auto; padding: 0.6875rem 1.25rem; border-radius: 0; background-color: var(--color-dispense, #1b1d1f); color: var(--color-dispense-ink, #e9e5dc); font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8125rem; line-height: 1.55; } .ds-doc pre code { padding: 0; background: none; color: inherit; font-size: inherit; } .ds-doc blockquote { margin: 1rem 0; padding-left: 1.25rem; border-left: 1px solid var(--color-rule, #d8d4cc); } .ds-doc table { margin: 1rem 0; width: 100%; border-collapse: collapse; font-size: 0.8125rem; } .ds-doc th, .ds-doc td { padding: 0.4375rem 0.75rem 0.4375rem 0; border-bottom: 1px solid var(--color-rule, #d8d4cc); text-align: left; vertical-align: baseline; } .ds-doc th { color: var(--color-ink, #14171a); font-weight: 600; } .ds-doc hr { margin: 1.75rem 0; border: none; border-top: 1px solid var(--color-rule, #d8d4cc); } .ds-doc img { max-width: 100%; height: auto; } .ds-doc ::selection { background-color: var(--color-hazard, #e8a33d); color: var(--color-ink, #14171a); }"
+    },
+    {
+      "name": "Alert & Notice",
+      "kind": "custom",
+      "refersTo": "label-alert",
+      "description": "The system's two red-legended rows and no others. The alert is the form-level failure: a four-sided catalogue-red border on label stock, rendering nothing without a message. The notice is a full-measure state row closed by a hairline, stating what you are looking at rather than answering something you did.",
+      "html": "<div class=\"ds-msgs\"><p class=\"ds-alert\">That name is already published on this instance.</p><p class=\"ds-notice\"><span class=\"ds-notice__legend\">Superseded version</span> <a href=\"#\">v3 is the current version</a></p></div>",
+      "css": ".ds-msgs { background-color: var(--color-stock, #fbfbf9); } .ds-alert { margin: 1rem 1.25rem; padding: 0.625rem 0.875rem; border: 1px solid var(--color-catalogue, #c8352b); border-radius: 0; background-color: var(--color-stock, #fbfbf9); color: var(--color-catalogue, #c8352b); font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.875rem; } .ds-notice { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.375rem 0.75rem; margin: 0; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--color-rule, #d8d4cc); font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.8125rem; color: var(--color-ink-soft, #4a5057); } .ds-notice__legend { font-family: Archivo, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; font-size: 0.65rem; font-stretch: 88%; font-weight: 600; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; color: var(--color-catalogue, #c8352b); } .ds-notice a { color: var(--color-catalogue, #c8352b); text-decoration-line: underline; text-underline-offset: 0.2em; text-decoration-thickness: 1px; } .ds-notice a:focus-visible { outline: 2px solid var(--color-catalogue, #c8352b); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Reagent Catalogue",
+    "overview": "skillsgist is drawn as a sheet of laboratory reagent labeling — Swiss pharmaceutical bottle stock, Merck catalogue pages, GHS class marks. Every skill in the registry is a substance on a shelf: it carries a catalogue name, a hazard class, a lot number, and the single line that dispenses it. The interface is the label, not a page about the label. Nothing is a card. Nothing floats. Nothing casts a shadow. The whole instrument is one sheet of stock, ruled into fields by hairlines, with the values printed where a technician expects to find them.\n\nThe personality is precise, unhurried and unsalesy. Density is high but never crowded: information sits in ruled compartments with generous internal padding and a single consistent gutter, so the eye moves along rules instead of hunting across whitespace. The palette is almost entirely warm neutral paper and near-black ink, spent deliberately so that the three saturated signals — catalogue red, hazard amber, and the dark dispense channel — land with the force of a printed stamp. The type is one variable superfamily working its width axis for condensed legends, plus one variable mono that is reserved strictly for measured values. The system refuses the registry index this category always ships: white card, rounded search field, pill badge, dark code block with a copy button.\n\nTwo product truths are load-bearing here. First, skillsgist serves server-rendered HTML with **no client-side JavaScript, permanently**; its Content-Security-Policy is `default-src 'self'; script-src 'self'`. Every effect in this system is therefore CSS, every interaction is a form or a link, and both typefaces are self-hosted as woff2 variable subsets under `public/fonts/`. That is a durable rule of the visual system, not a temporary condition. Second, the name is `skillsgist`, lowercase, and it is the only confirmed brand commitment — there is no logo and no other brand asset, so the wordmark plus its red diamond is the whole identity.\n\n**Provenance.** This world was chosen by the user from an Impeccable direction round: seed key `704dfcce`, scope `direction`, mode `operate`. The roll assigned **FRONT PANEL** (a mil-spec instrument faceplate). The dealt challengers were **HyperCard Stack** (scored competitive), **Seven-Segment Panel**, **Festival Lineup Sheet**, **Miura Deployable Sheet** and **Vertical Video Feed** — all declined — with the category-standard registry index offered as the standing exit and refused. The user took **REAGENT LABEL**, which was the IMPECCABLE'S PICK card. The round's own log (`.impeccable/questions/0438e5b8.log`) is empty, so this paragraph is the only durable record that the hand was dealt and what was turned down.",
+    "keyCharacteristics": [
+      "One ruled sheet of label stock, never a deck of cards.",
+      "One density everywhere: every route is flush, bands run edge to edge, hairlines do the separating.",
+      "Zero `border-radius` and zero `box-shadow` anywhere in the stylesheet.",
+      "A two-value rule grammar: ink closes an instrument, hairline divides it.",
+      "Exactly three signal colors, each with exactly one meaning.",
+      "One variable superfamily worked through its width axis; one variable mono for measured values only.",
+      "One authored motion moment: the channel's focus rule wiping left to right.",
+      "Author-supplied markdown is rendered on the system's own tokens, never on a second ramp.",
+      "Browser chrome — selection, caret, focus ring, scrollbar, the file-picker button — is themed as part of the system.",
+      "All motion and all interaction are CSS, forms and links; no client-side JavaScript, ever."
+    ],
+    "rules": [
+      {
+        "name": "The Single Saturated Ink Rule",
+        "body": "Catalogue red is the instance's own mark and the only saturated ink in the system. It appears as a mark, a rule, a caret, a ring, a legend or a hover state — never as a fill behind a block of content, and never on more than a few percent of any screen. Its rarity is what makes it read as a stamp.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hazard-Means-Private Rule",
+        "body": "Hazard amber means `private` and nothing else. It is never a warning color, never a highlight for emphasis, never a second accent. If a new state needs a color, it takes a rule weight or a tonal fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dispense Rule",
+        "body": "Dark stock means \"this is the line you copy.\" Dispense Black is the only inverted surface in the system, and everything on it is literal, mono and selectable. Nothing decorative is ever placed on dark stock.",
+        "section": "colors"
+      },
+      {
+        "name": "The Destructive-Is-Not-a-Fourth-Meaning Rule",
+        "body": "A destructive control is the ordinary control cell with its legend in catalogue red, inverting to a red fill on hover — rule-and-ink, the same grammar as every other cell. Destruction does not earn a color of its own; it earns the loudest use of the color the system already has.",
+        "section": "colors"
+      },
+      {
+        "name": "The Width-Before-Weight Rule",
+        "body": "Condensation comes from Archivo's width axis (`font-stretch`, `62%`–`125%`), never from a second condensed family, a `scaleX` transform, or a narrow lookalike. Likewise `font-synthesis-weight: none` is set on `body`: a weight the font does not carry is not drawn. If a role needs to be tighter, move the width axis; if it needs to be heavier, use a real weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Measured-Value Rule",
+        "body": "Mono is reserved for measurements. A version, an author handle, a date, a URL, a file size, an install command, a username, a SKILL.md source — mono with tabular figures. Prose is never mono; a measurement is never sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Legend-Names-a-Field Rule",
+        "body": "The uppercase legend is a field label on an instrument, not a decorative eyebrow. Every legend names the field, cell or value directly beneath or beside it. Never stack a legend above a headline purely for texture.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Sheet Rule",
+        "body": "Content lives on the sheet. Bench Grey is the surround and is never used as a content surface, a section background, or a way to separate two regions — that is what a rule is for.",
+        "section": "layout"
+      },
+      {
+        "name": "The Constant Gutter Rule",
+        "body": "Text starts at the `1.25rem` gutter, everywhere, on every route. Only a channel — something the visitor copies, types into or chooses from — is permitted to run full-bleed past it.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Density Rule",
+        "body": "There is no roomy variant. A new route composes bands, control strips and channels edge to edge exactly like the ones that exist; if it feels cramped, the answer is fewer bands, not more padding.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Rule",
+        "body": "No `box-shadow`, ever — not on hover, not on focus, not on a modal, not as a hairline substitute. A surface that needs to separate from its neighbor takes a rule or a tonal fill.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two-Rule Grammar Rule",
+        "body": "Ink closes an instrument; hairline divides it. Do not introduce a third divider weight, a dashed rule, or a colored rule. The only colored rules in the system are the catalogue-red focus wipe and the hazard-amber rail on a private entry, and both are signals, not structure.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Sunk Channel Rule",
+        "body": "Sunk Stock plus a Channel Rule edge means \"you can operate this.\" Never apply that pair to something that is not an input, and never give an input a different treatment.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Zero Radius Rule",
+        "body": "No corner is ever rounded. A rounded input, a pill badge, or a rounded button is out of the system, full stop.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Diamond Rule",
+        "body": "The rotated square is reserved for identity and class. It marks the instance (red, beside the wordmark) and it marks an entry's class (amber filled for private, open for public), including where that class is being chosen. Do not use it as a bullet, a decoration, or a third meaning.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Self-Closing Channel Rule",
+        "body": "A channel that runs rule-to-rule is bounded above and below only. A channel that does not reach the rules closes itself on all four sides in Channel Rule. Nothing else in the system gets a four-sided border except the alert.",
+        "section": "shapes"
+      },
+      {
+        "name": "The One Moment Rule",
+        "body": "This is the only authored motion in the product, and it belongs to the channel, not to a page — it fires on the index search, on every stacked field, on the SKILL.md textarea and on the admin password reset. It stays one authored moment because only one input can hold focus at a time. Nothing else moves: no entrance animations, no row transitions, no hover lift, no skeleton shimmer, no parallax. The `120ms linear` crossfades on a control cell, a choice and the dispense channel are control-state feedback, not motion, and they are intentionally left running under reduced-motion. If a new surface wants an animation, the answer is no.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** draw structure with rules. Ink (`#14171a`) closes an instrument, Hairline (`#d8d4cc`) divides it, Channel Rule (`#b3ada2`) declares something you operate.",
+      "**Do** keep every corner square (`border-radius: 0`) and every surface flat.",
+      "**Do** compose new routes flush — bands, control strips and channels edge to edge, separated by hairlines, at one density.",
+      "**Do** start text at the `1.25rem` gutter on every route, and let only a channel run full-bleed.",
+      "**Do** set every measured value — version, author, date, size, URL, command, username, SKILL.md source — in Spline Sans Mono with tabular numerals.",
+      "**Do** reach for Archivo's width axis (`62%`–`125%`) when a role needs to be narrower, and keep `font-synthesis-weight: none` so no weight is faked.",
+      "**Do** theme the browser's own surfaces as part of the system: Hazard Amber `::selection`, Catalogue Red `caret-color`, a 2px Catalogue Red `:focus-visible` ring at 2px offset, `accent-color` on form controls, a themed `::file-selector-button`, and a thin Channel-Rule scrollbar.",
+      "**Do** typeset author-supplied markdown on this system's tokens, at the Document steps.",
+      "**Do** self-host any new typeface as a woff2 subset under `public/fonts/`. The CSP allows `'self'` only.",
+      "**Do** write every effect in CSS. Motion, state and interaction must survive with JavaScript disabled, because there is none.",
+      "**Do** give an empty state its own lot of silence — `3.5rem` of vertical padding, a Name-role headline, and one Body-role line that offers the way out."
+    ],
+    "donts": [
+      "**Don't** add a `box-shadow` or a `border-radius` anywhere, for any reason, including hover and focus.",
+      "**Don't** introduce a fourth color meaning. Catalogue Red is the instance's mark, Hazard Amber is `private`, dark stock is what you copy; a new state — including a destructive one — takes a rule weight, an inversion or a tonal fill.",
+      "**Don't** put Hazard Amber on anything that is not `private`, and don't use it as a general warning or highlight color.",
+      "**Don't** build a card: no four-sided outline around content, no elevated panel, no rounded container, no pill badge. A four-sided border is only ever self-closure for a channel, a choice group or the alert.",
+      "**Don't** add a roomier or denser route variant, or pad `main`. There is one density.",
+      "**Don't** use Bench Grey as a content background or as a way to separate two regions on the sheet.",
+      "**Don't** set prose in mono or a measurement in sans.",
+      "**Don't** let rendered markdown bring its own type ramp, its own link color, its own code block or a utility framework's defaults into the sheet.",
+      "**Don't** stack an uppercase legend above a headline as decoration; a legend must name the field it sits on.",
+      "**Don't** put more than one Lead on a page.",
+      "**Don't** animate anything beyond the channel's focus wipe, and don't add a hover lift, an entrance animation or a transition longer than `120ms` to an ordinary control.",
+      "**Don't** add a copy button, a tooltip, a dropdown, a `<select>`, a modal or anything else that needs a script. If it cannot be a form, a link or a CSS state, it is not in this system.",
+      "**Don't** load a font, script, style or image from a third-party origin."
+    ]
+  }
+}

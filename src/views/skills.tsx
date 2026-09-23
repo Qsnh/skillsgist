@@ -1,21 +1,8 @@
 import { Form } from "../csrf";
-import { CodeBlock, Layout } from "./layout";
+import { ClassMark, CodeBlock, Layout } from "./layout";
 import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
 
-function InstallBlock(props: { origin: string; slug: string; user: UserRow | null; isPublic: boolean }) {
-  const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
-  const url = `${base}/.well-known/agent-skills/${props.slug}`;
-  return (
-    <div>
-      <CodeBlock>npx skills add {url}</CodeBlock>
-      {props.user ? (
-        <p class="mt-1 text-xs text-slate-500">This command carries your install key, so it can install private skills.</p>
-      ) : props.isPublic ? (
-        <p class="mt-1 text-xs text-slate-500">This is the public address. Anyone can use it.</p>
-      ) : null}
-    </div>
-  );
-}
+const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export function IndexPage(props: {
   user: UserRow | null;
@@ -23,47 +10,87 @@ export function IndexPage(props: {
   q: string;
   origin: string;
 }) {
+  const count = props.skills.length;
+  const extent = `${count} ${count === 1 ? "entry" : "entries"}`;
   return (
     <Layout title="Skills" user={props.user}>
-      <form method="get" action="/" class="mb-6 flex gap-2">
-        <input
-          name="q"
-          value={props.q}
-          placeholder="Search names, descriptions and body text"
-          class="flex-1 rounded border border-slate-300 px-3 py-2"
-        />
-        <button type="submit" class="rounded bg-slate-900 px-4 py-2 text-sm text-white">Search</button>
-      </form>
-
-      {props.user ? (
-        <div class="mb-6">
-          <h2 class="mb-1 text-sm font-medium text-slate-700">Install everything at once</h2>
-          <CodeBlock>npx skills add {props.origin}/i/{props.user.install_key}</CodeBlock>
+      <section class="band band--bleed">
+        <div class="band__head">
+          <span class="legend">
+            Order · {props.user ? "entire catalogue, with your install key" : "public catalogue, no key needed"}
+          </span>
+          <span class="legend">Selects as one line</span>
         </div>
-      ) : null}
+        <CodeBlock>
+          npx skills add {props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin}
+        </CodeBlock>
+      </section>
 
-      {props.skills.length === 0 ? (
-        <p class="text-sm text-slate-500">
-          {props.q ? "No skills match." : "No skills yet."}
-        </p>
+      <section class="band band--bleed">
+        <form method="get" action="/">
+          <div class="band__head">
+            <label for="q" class="legend band__legend--live">Search · name / description / body</label>
+          </div>
+          <div class="channel">
+            <input
+              id="q"
+              name="q"
+              value={props.q}
+              placeholder="Search this catalogue"
+              class="channel__input"
+            />
+            <button type="submit" class="channel__submit"><span class="legend">Search</span></button>
+          </div>
+        </form>
+      </section>
+
+      <div class="band band--head">
+        <div class="band__head band__head--flush">
+          <h1 class="legend">{props.q ? `Matching “${props.q}”` : "Catalogue"}</h1>
+          <span class="legend">{extent}</span>
+        </div>
+      </div>
+
+      {count === 0 ? (
+        <div class="void">
+          <p class="void__name">{props.q ? "No entry matches" : "This catalogue is empty"}</p>
+          <p class="void__line">
+            {props.q ? (
+              <>
+                Nothing here is named, described, or written like “{props.q}”.{" "}
+                <a href="/">Clear the search</a> to see the whole catalogue.
+              </>
+            ) : props.user ? (
+              <>
+                Nothing has been published to this instance yet.{" "}
+                <a href="/new">Publish the first skill</a>.
+              </>
+            ) : (
+              <>
+                No skill here is public. <a href="/login">Sign in</a> to see private entries.
+              </>
+            )}
+          </p>
+        </div>
       ) : (
-        <ul class="divide-y divide-slate-200">
+        <ul class="entries">
           {props.skills.map((s) => (
-            <li class="py-3">
-              <div class="flex items-baseline gap-2">
-                <a href={`/s/${s.slug}`} class="font-medium text-slate-900 hover:underline">{s.slug}</a>
-                <span
-                  class={`rounded px-1.5 py-0.5 text-xs ${
-                    s.visibility === "private"
-                      ? "bg-slate-200 text-slate-600"
-                      : "bg-emerald-100 text-emerald-700"
-                  }`}
-                >
-                  {s.visibility}
-                </span>
-                <span class="text-xs text-slate-400">v{s.latest_version} · {s.author}</span>
+            <li class={`entry entry--${s.visibility}`}>
+              <h2 class="entry__heading">
+                <a href={`/s/${s.slug}`} class="entry__name">{s.slug}</a>
+              </h2>
+              <p class="entry__spec">{s.description}</p>
+              <div class="entry__rail">
+                <ClassMark visibility={s.visibility} />
+                <dl class="entry__fields">
+                  <dt class="legend">Version</dt>
+                  <dd>v{s.latest_version}</dd>
+                  <dt class="legend">Author</dt>
+                  <dd>{s.author}</dd>
+                  <dt class="legend">Updated</dt>
+                  <dd>{new Date(s.updated_at).toISOString().slice(0, 10)}</dd>
+                </dl>
               </div>
-              <p class="mt-1 text-sm text-slate-600">{s.description}</p>
             </li>
           ))}
         </ul>
@@ -81,77 +108,139 @@ export function SkillPage(props: {
   canManage: boolean;
 }) {
   const files = JSON.parse(props.version.files) as Array<{ path: string; size: number }>;
+  const slug = props.skill.slug;
+  const superseded = props.version.version !== props.skill.latest_version;
+  const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
+  const dispenseUrl = `${base}/.well-known/agent-skills/${slug}`;
   return (
-    <Layout title={props.skill.slug} user={props.user}>
-      <div class="mb-2 flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold">{props.skill.slug}</h1>
-        <span class="text-xs text-slate-400">
-          v{props.version.version} · {props.skill.author} · {props.skill.visibility}
-        </span>
-      </div>
-      <p class="mb-6 text-sm text-slate-600">{props.version.description}</p>
-
-      <div class="mb-6 space-y-2">
-        <InstallBlock
-          origin={props.origin}
-          slug={props.skill.slug}
-          user={props.user}
-          isPublic={props.skill.visibility === "public"}
-        />
-        <div class="flex flex-wrap gap-2 text-sm">
-          <a href={`/s/${props.skill.slug}/download`} class="rounded border border-slate-300 px-3 py-1.5">
-            Download zip
-          </a>
-          {props.canManage ? (
-            <>
-              <a href={`/s/${props.skill.slug}/edit`} class="rounded border border-slate-300 px-3 py-1.5">
-                Edit SKILL.md
-              </a>
-              <a href={`/s/${props.skill.slug}/upload`} class="rounded border border-slate-300 px-3 py-1.5">
-                Upload an archive
-              </a>
-              <Form action={`/s/${props.skill.slug}/visibility`}>
-                <button type="submit" class="rounded border border-slate-300 px-3 py-1.5">
-                  {props.skill.visibility === "public" ? "Make private" : "Make public"}
-                </button>
-              </Form>
-              <Form action={`/s/${props.skill.slug}/delete`}>
-                <button type="submit" class="rounded border border-red-300 px-3 py-1.5 text-red-700">
-                  Delete
-                </button>
-              </Form>
-            </>
-          ) : null}
+    <Layout title={slug} user={props.user}>
+      <div class="band band--entry">
+        <div class={`entry entry--${props.skill.visibility}`}>
+          <h1 class="entry__heading lead">{slug}</h1>
+          <p class="entry__spec">{props.version.description}</p>
+          <div class="entry__rail">
+            <ClassMark visibility={props.skill.visibility} />
+            <dl class="entry__fields">
+              <dt class="legend">Version</dt>
+              <dd>v{props.version.version}</dd>
+              <dt class="legend">Author</dt>
+              <dd>{props.skill.author}</dd>
+              <dt class="legend">Published</dt>
+              <dd>{day(props.version.created_at)}</dd>
+            </dl>
+          </div>
         </div>
       </div>
 
-      <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">Files</h2>
-        <ul class="text-sm text-slate-600">
-          {files.map((f) => (
-            <li class="flex justify-between border-b border-slate-100 py-1">
-              <span class="font-mono">{f.path}</span>
-              <span class="text-slate-400">{f.size} B</span>
-            </li>
-          ))}
-        </ul>
+      {superseded ? (
+        <p class="notice">
+          <span class="legend">Superseded version</span>{" "}
+          <a href={`/s/${slug}`}>v{props.skill.latest_version} is the current version</a>
+        </p>
+      ) : null}
+
+      <section class="band band--bleed">
+        <div class="band__head">
+          <span class="legend">
+            Order · this entry{props.user ? ", with your install key" : ""}
+          </span>
+          <span class="legend">Selects as one line</span>
+        </div>
+        <CodeBlock>npx skills add {dispenseUrl}</CodeBlock>
+        <p class="band__note">
+          {superseded
+            ? `This address always installs the current version, v${props.skill.latest_version}, not the one shown here. `
+            : ""}
+          {props.user
+            ? "This command carries your install key, so it can install private skills."
+            : props.skill.visibility === "public"
+              ? "This is the public address. Anyone can use it."
+              : ""}
+        </p>
       </section>
 
-      <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">Versions</h2>
-        <ul class="text-sm text-slate-600">
+      <div class="cells">
+        <a
+          href={superseded ? `/s/${slug}/v/${props.version.version}/download` : `/s/${slug}/download`}
+          class="field-cell"
+        >
+          <span class="legend">Download zip{superseded ? ` · v${props.version.version}` : ""}</span>
+        </a>
+        {props.canManage ? (
+          <>
+            {superseded ? null : (
+              <>
+                <a href={`/s/${slug}/edit`} class="field-cell"><span class="legend">Edit SKILL.md</span></a>
+                <a href={`/s/${slug}/upload`} class="field-cell"><span class="legend">Upload an archive</span></a>
+              </>
+            )}
+            <Form action={`/s/${slug}/visibility`}>
+              <button type="submit" class="field-cell">
+                <span class="legend">
+                  {props.skill.visibility === "public" ? "Make private" : "Make public"}
+                </span>
+              </button>
+            </Form>
+            <Form action={`/s/${slug}/delete`}>
+              <button type="submit" class="field-cell field-cell--danger">
+                <span class="legend">Delete</span>
+              </button>
+            </Form>
+          </>
+        ) : null}
+      </div>
+
+      <section class="band">
+        <div class="band__head">
+          <h2 class="legend">Manifest</h2>
+          <span class="legend">{files.length} {files.length === 1 ? "file" : "files"}</span>
+        </div>
+        {files.length === 0 ? (
+          <p class="band__note">This version carries no files beyond its SKILL.md.</p>
+        ) : (
+          <table class="ledger">
+            {files.map((f) => (
+              <tr>
+                <td>{f.path}</td>
+                <td class="ledger__num">{f.size} B</td>
+              </tr>
+            ))}
+          </table>
+        )}
+      </section>
+
+      <section class="band">
+        <div class="band__head">
+          <h2 class="legend">Versions</h2>
+          <span class="legend">
+            {props.versions.length} {props.versions.length === 1 ? "version" : "versions"}
+          </span>
+        </div>
+        <table class="ledger">
           {props.versions.map((v) => (
-            <li class="flex items-center gap-3 border-b border-slate-100 py-1">
-              <a href={`/s/${props.skill.slug}?v=${v.version}`} class="hover:underline">v{v.version}</a>
-              <span class="text-slate-400">{new Date(v.created_at).toISOString().slice(0, 16).replace("T", " ")}</span>
-              <span class="flex-1" />
-              <a href={`/s/${props.skill.slug}/v/${v.version}/download`} class="hover:underline">Download</a>
-            </li>
+              <tr class={v.version === props.version.version ? "ledger__current" : undefined}>
+                <td>
+                  {v.version === props.version.version ? (
+                    `v${v.version}`
+                  ) : (
+                    <a href={`/s/${slug}?v=${v.version}`}>v{v.version}</a>
+                  )}
+                </td>
+                <td>{day(v.created_at)}</td>
+                <td class="ledger__num">
+                  <a href={`/s/${slug}/v/${v.version}/download`}>Download</a>
+                </td>
+            </tr>
           ))}
-        </ul>
+        </table>
       </section>
 
-      <article class="skill-doc" dangerouslySetInnerHTML={{ __html: props.version.html }} />
+      <section class="band">
+        <div class="band__head">
+          <h2 class="legend">Document · SKILL.md</h2>
+        </div>
+        <article class="skill-doc" dangerouslySetInnerHTML={{ __html: props.version.html }} />
+      </section>
     </Layout>
   );
 }
