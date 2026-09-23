@@ -1428,7 +1428,7 @@
 
   .skill-doc[data-fold-state="folded"] {
     max-height: var(--cf-fold);
-    overflow: hidden;
+    overflow: clip;
     mask-image: linear-gradient(to bottom, #000 calc(100% - 120px), transparent);
   }
 

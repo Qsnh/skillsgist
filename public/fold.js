@@ -33,5 +33,10 @@ document.addEventListener("click", (event) => {
   if (folding && frame.getBoundingClientRect().top < 0) frame.scrollIntoView();
 });
 
+document.addEventListener("focusin", (event) => {
+  const doc = event.target.closest('[data-fold-state="folded"]');
+  if (doc) setFolded(doc, false);
+});
+
 docs.forEach(fold);
 window.addEventListener("load", () => docs.forEach(fold));
