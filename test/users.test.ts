@@ -165,16 +165,36 @@ describe("/admin/users", () => {
     expect(res.status).toBe(403);
   });
 
-  it("lets an admin create a member", async () => {
+  it("lets an admin create a member and returns to the list", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin/users");
+    const carol = await getUserByUsername(env.DB, "carol");
+    expect(carol?.role).toBe("member");
+  });
+
+  it("links to the add-user page instead of embedding the form", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+    expect(html).toContain('href="/admin/users/new"');
+    expect(html).not.toContain('action="/admin/users/new"');
+    expect(html).not.toContain('name="username"');
+  });
+
+  it("no longer creates accounts from the list URL", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const res = await postForm("/admin/users", cookie, {
       username: "carol",
       password: "carols-long-password",
       role: "member",
     });
-    expect(res.status).toBe(302);
-    const carol = await getUserByUsername(env.DB, "carol");
-    expect(carol?.role).toBe("member");
+    expect(res.status).toBe(404);
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
   });
 
   // The UI side of adminTarget's self-targeting refusal: the role-toggle and
@@ -193,6 +213,79 @@ describe("/admin/users", () => {
     const carol = await getUserByUsername(env.DB, "carol");
     expect(html).toContain(`/admin/users/${carol!.id}/role`);
     expect(html).toContain(`/admin/users/${carol!.id}/delete`);
+  });
+});
+
+describe("/admin/users/new", () => {
+  beforeEach(resetDb);
+
+  it("is forbidden for members", async () => {
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const get = await SELF.fetch(`${ORIGIN}/admin/users/new`, { headers: { Cookie: cookie } });
+    expect(get.status).toBe(403);
+    const post = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(post.status).toBe(403);
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
+  });
+
+  it("renders a form that posts to itself with a Cancel back to the list", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await SELF.fetch(`${ORIGIN}/admin/users/new`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).toContain('name="username"');
+    expect(html).toContain('<a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>');
+    expect(html).not.toContain('<option value="admin" selected="">');
+  });
+
+  it("re-renders itself with the error and the typed values on a short password", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "short",
+      role: "admin",
+    });
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain("Password must be at least 12 characters");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="carol"');
+    expect(html).toContain('<option value="admin" selected="">admin</option>');
+    expect(html).not.toContain('value="short"');
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
+  });
+
+  it("rejects a malformed username", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "Carol!",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Username must be 2-32 lowercase letters, digits or hyphens");
+    expect(await getUserByUsername(env.DB, "Carol!")).toBeNull();
+  });
+
+  it("rejects a taken username without touching the existing account", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: carol } = await seedUser({ username: "carol", role: "member" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "another-long-password",
+      role: "admin",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("That username is taken");
+    const after = await getUserByUsername(env.DB, "carol");
+    expect(after?.role).toBe("member");
+    expect(after?.password_hash).toBe(carol.password_hash);
   });
 });
 

@@ -126,7 +126,16 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
 export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: string }) {
   return (
     <Layout title="Users" user={props.user}>
-      <PageHead title="Users" compact aside={<span class="cf-count">{props.users.length}</span>} />
+      <PageHead
+        title="Users"
+        compact
+        aside={
+          <>
+            <span class="cf-count">{props.users.length}</span>
+            <a href="/admin/users/new" class="cf-btn cf-btn-outline cf-head-action">Add a user</a>
+          </>
+        }
+      />
       <Alert message={props.error} />
       <div class="cf-frame cf-table-frame">
         <table class="cf-table">
@@ -208,27 +217,49 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
           </tbody>
         </table>
       </div>
+    </Layout>
+  );
+}
 
-      <div class="cf-narrow cf-after-table">
-        <Panel title="Add a user">
-          <Form action="/admin/users" class="cf-stack cf-stack-form">
-            <Field label="Username" name="username" autocomplete="off" />
-            <Field
-              label="Initial password"
-              name="password"
-              type="password"
-              autocomplete="new-password"
-              hint="At least 12 characters"
-            />
-            <Select label="Role" name="role">
-              <option value="member">member</option>
-              <option value="admin">admin</option>
-            </Select>
-            <div>
-              <Button>Create</Button>
+export function NewUserPage(props: {
+  user: UserRow;
+  error?: string;
+  username?: string;
+  role?: UserRow["role"];
+}) {
+  return (
+    <Layout title="Add a user" user={props.user}>
+      <div class="cf-narrow">
+        <PageHead title="Add a user" />
+        <Alert message={props.error} />
+        <Form action="/admin/users/new" class="cf-frame cf-form">
+          <div class="cf-form-section">
+            <div class="cf-stack cf-stack-form">
+              <Field
+                label="Username"
+                name="username"
+                value={props.username}
+                autocomplete="off"
+                hint="Lowercase letters, digits and hyphens, 2-32 characters"
+              />
+              <Field
+                label="Initial password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                hint="At least 12 characters"
+              />
+              <Select label="Role" name="role">
+                <option value="member">member</option>
+                <option value="admin" selected={props.role === "admin"}>admin</option>
+              </Select>
             </div>
-          </Form>
-        </Panel>
+          </div>
+          <div class="cf-form-foot">
+            <Button>Create</Button>
+            <a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>
+          </div>
+        </Form>
       </div>
     </Layout>
   );

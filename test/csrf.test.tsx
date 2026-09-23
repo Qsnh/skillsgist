@@ -41,7 +41,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
-  "POST /admin/users": () => "/admin/users",
+  "POST /admin/users/new": () => "/admin/users/new",
   "POST /admin/users/:id/role": ({ userId }) => `/admin/users/${userId}/role`,
   "POST /admin/users/:id/password": ({ userId }) => `/admin/users/${userId}/password`,
   "POST /admin/users/:id/install-key": ({ userId }) => `/admin/users/${userId}/install-key`,
@@ -74,6 +74,7 @@ const READ_ONLY_GETS = new Set([
   "GET /login",
   "GET /me",
   "GET /admin/users",
+  "GET /admin/users/new",
   "GET /new",
   "GET /s/:slug/edit",
   "GET /s/:slug/upload",
@@ -358,7 +359,8 @@ describe("rendered forms", () => {
     await publishMarkdown(cookie, GOOD_MD, "private");
 
     for (const path of [
-      "/", "/s/demo-skill", "/me", "/admin/users", "/new", "/s/demo-skill/edit", "/s/demo-skill/upload",
+      "/", "/s/demo-skill", "/me", "/admin/users", "/admin/users/new", "/new", "/s/demo-skill/edit",
+      "/s/demo-skill/upload",
     ]) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
       const forms = postFormsIn(html);
