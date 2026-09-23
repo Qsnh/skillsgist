@@ -384,7 +384,7 @@
     font-size: 16px;
     line-height: 26px;
     overflow-wrap: anywhere;
-    cursor: text;
+    cursor: pointer;
     user-select: all;
     -webkit-user-select: all;
   }
@@ -400,12 +400,45 @@
     animation: cf-blink 1.1s steps(1) infinite;
   }
 
-  .cf-command-hint {
-    display: none;
+  .cf-command-copy {
+    display: inline-flex;
+    flex-shrink: 0;
     align-self: center;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding-inline: 10px 12px;
+    border: 1px solid var(--color-cf-line-strong);
+    border-radius: 999px;
+    background: #fff;
     font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
     white-space: nowrap;
     color: var(--color-cf-muted);
+    cursor: pointer;
+    transition:
+      border-color 0.2s var(--ease-cf),
+      color 0.2s var(--ease-cf);
+  }
+
+  .cf-command-copy:hover {
+    border-color: var(--color-cf-ink);
+    color: var(--color-cf-ink);
+  }
+
+  .cf-command[data-copy-state="copied"] .cf-command-copy {
+    border-color: var(--color-cf-orange-ink);
+    color: var(--color-cf-orange-ink);
+  }
+
+  .cf-command[data-copy-state="manual"] .cf-command-copy {
+    border-color: var(--color-cf-ink);
+    color: var(--color-cf-ink);
+  }
+
+  .cf-hero .cf-command-copy:focus-visible {
+    outline-color: var(--color-cf-orange);
   }
 
   .cf-search {
@@ -1486,10 +1519,6 @@
     line-height: 22px;
   }
 
-  .cf-command-flat .cf-command-hint {
-    display: none;
-  }
-
   .skill-doc {
     font-size: 15.5px;
     line-height: 1.7;
@@ -1812,10 +1841,6 @@
     .cf-search {
       max-width: 960px;
     }
-
-    .cf-command-hint {
-      display: inline-flex;
-    }
   }
 
   @media (max-width: 767.98px) {
@@ -1895,6 +1920,7 @@
     .cf-link,
     .cf-search,
     .cf-search-submit,
+    .cf-command-copy,
     .cf-menu > summary .cf-icon {
       transition: none;
     }
