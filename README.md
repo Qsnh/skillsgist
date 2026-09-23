@@ -103,7 +103,7 @@ runs fine on a clean checkout with no `.dev.vars` present.
 
 ## User management
 
-`/admin/users` supports creating accounts, changing roles (admin ↔ member), resetting passwords, rotating install keys, revoking API tokens and deleting accounts, all restricted to admins, and it never allows demoting or deleting the last remaining admin.
+`/admin/users` lists accounts and supports changing roles (admin ↔ member), resetting passwords, rotating install keys, revoking API tokens and deleting accounts, all restricted to admins, and it never allows demoting or deleting the last remaining admin. Accounts are created at `/admin/users/new`, linked from the list.
 
 **Deleting a user reassigns the skills they own (`owner_id`) and the author
 records on their published versions (`author_id`) to the admin doing the

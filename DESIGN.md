@@ -539,7 +539,7 @@ skillsgist borrows the look of cloudflare.com and developers.cloudflare.com, but
 
 The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards and a file input. There are two exceptions. A small script copies the command block to the clipboard on one click, and without JavaScript the same click selects the whole command. A second script folds a long SKILL.md to 720px behind a Show more button, and without JavaScript the whole document shows. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
 
-Every page lives in this world. The skill page keeps its own orange panel, compact and left-aligned, because it also hands over an install command. The working pages (publish, edit, upload, account, users, sign-in and setup) have no orange field. They sit on the paper ground between the dashed gutters and are built from the same parts: a page head, square frames with registration marks, a Paper Shade header strip on every titled frame, 8px fields and pill buttons. Sign-in and setup center one frame on a softly masked dot field.
+Every page lives in this world. The skill page keeps its own orange panel, compact and left-aligned, because it also hands over an install command. The working pages (publish, edit, upload, account, users, add a user, sign-in and setup) have no orange field. They sit on the paper ground between the dashed gutters and are built from the same parts: a page head, square frames with registration marks, a Paper Shade header strip on every titled frame, 8px fields and pill buttons. Sign-in and setup center one frame on a softly masked dot field.
 
 **Key Characteristics:**
 - At most one drenched orange panel per page, with a dot-matrix texture and a warm glow at its foot, and only where an install command is handed over.
@@ -608,13 +608,13 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 ### Hierarchy
 - **Display** (500, clamp(36px, 5.4vw, 56px), 1.02, -0.035em): the one headline inside the index panel. It is white, centered, capped at 19ch and uses `text-wrap: balance`.
 - **Display Skill** (500, clamp(32px, 4.4vw, 48px), 1.02, -0.035em): the skill slug on the compact skill panel. It is white and left-aligned, has no measure cap and breaks anywhere.
-- **Page Title** (500, 40px, 1.1, -0.03em; 30px below 640px): the title of a page head on Publish, Edit, Upload and Account. It uses `text-wrap: balance` and breaks anywhere.
+- **Page Title** (500, 40px, 1.1, -0.03em; 30px below 640px): the title of a page head on Publish, Edit, Upload, Account and Add a user. It uses `text-wrap: balance` and breaks anywhere.
 - **Headline** (500, 32px, 1.15, -0.03em; 26px below 640px): the section heading above a framed grid, such as "Skills" or "Results for …", and the compact page title on Users.
 - **Auth Title** (500, 28px, 1.15, -0.025em): the title inside the sign-in and setup frame, 24px above the form.
 - **Title Large** (500, 22px, -0.02em): the title of an empty state inside a frame.
 - **Title** (500, 19px, 1.3, -0.02em): the slug of a skill cell, which acts as the link.
 - **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav. The footer mark uses the same form at 15px.
-- **Panel Title** (500, 17px, -0.02em): the title in a header strip, such as Files, Versions, Install every skill or Add a user.
+- **Panel Title** (500, 17px, -0.02em): the title in a header strip, such as Files, Versions or Install every skill.
 - **Lede** (400, 18px, 1.5; 16px below 640px): the supporting line on the panel. It is set in Ember and uses `text-wrap: pretty`. It is capped at 54ch on the index and 64ch on the skill page.
 - **Page Lede** (400, 16px, 1.6): the explanation under a page title, in Body Gray, capped at 68ch, with inline Orange Ink links.
 - **SKILL.md type** (500 headings at 1.25 and -0.02em in Ink, balanced): H1 30px at -0.03em, H2 23px, H3 18px, H4 16px. The body is 400 at 15.5px and 1.7 in Body Gray. Paragraphs, lists, quotes and headings keep a 72ch measure; tables and code blocks take the full frame width. Code blocks are Red Hat Mono at 13px and 1.6, and inline code is 0.86em.
@@ -644,7 +644,7 @@ The registry section is padded 56px above and 112px below (48px and 72px on mobi
 
 The skill page uses a compact panel padded 56px 24px 72px (40px 16px 56px on mobile). Its content is left-aligned on the full 1280px column, so the slug lines up with the toolbar and frames below. The command box shrinks to fit its command, up to the full width. Below the panel the body is padded 32px above and 112px below. A toolbar of outline pills sits 32px above the content, with 8px gaps, and from 768px up the danger button is pushed to its far end. The content is one column, and from 1024px up it splits into the SKILL.md frame and a 340px aside, 32px apart. The aside stacks the Files and Versions panels 32px apart.
 
-The working pages share one body: padded 56px above and 112px below (36px and 72px on mobile), between the dashed gutters. Publish, Upload and Account center a 760px column; Edit widens it to 960px for the editor. The Users page uses the full column for its table and then places a 560px Add a user panel 48px below it, aligned left. A page head sits 32px above its content (24px for the compact head, which is inset 20px, or 18px on mobile, to line up with the table's cell padding). Panels on Account stack 32px apart. Inside a panel the body is padded 20px with a 14px gap. Stacked forms use 18px between fields and cap their width at 420px. Form sections are padded 24px (18px on mobile), and the footer bar 16px 24px (14px 18px on mobile). Sign-in and setup center a 420px frame, with 40px of extra space above it and 24px below it.
+The working pages share one body: padded 56px above and 112px below (36px and 72px on mobile), between the dashed gutters. Publish, Upload, Account and Add a user center a 760px column; Edit widens it to 960px for the editor. The Users page uses the full column for its table. A page head sits 32px above its content (24px for the compact head, which is inset 20px, or 18px on mobile, to line up with the table's cell padding). Panels on Account stack 32px apart. Inside a panel the body is padded 20px with a 14px gap. Stacked forms use 18px between fields and cap their width at 420px. Form sections are padded 24px (18px on mobile), and the footer bar 16px 24px (14px 18px on mobile). Sign-in and setup center a 420px frame, with 40px of extra space above it and 24px below it.
 
 The spacing rhythm is set by the scale in the frontmatter. Groups are tight (6–12px), and the space between a group and what follows it is generous (24–36px). The block step (32px) separates stacked blocks on the working pages: page head to content, panel to panel, toolbar to grid. Space between sections is large (56–112px). Some components use 10, 14, 18, 20 and 22px as optical half-steps. Those are fine inside a component but do not become section spacing.
 
@@ -713,7 +713,7 @@ There are no cards. Every container is a square hairline frame.
 ### Page Head
 The top of every working page.
 - **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps). An optional Page Lede follows 12px below. It sits 32px above the content.
-- **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users.
+- **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it and an optional outline pill pushed to the far end of the row, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users, where the pill is Add a user.
 
 ### Inputs / Fields
 - **Field:** a 14px weight-500 Ink label, the control 6px below it, and an optional Caption hint in Warm Muted 6px below that.
