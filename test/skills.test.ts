@@ -45,10 +45,31 @@ describe("GET /", () => {
     expect(html).toContain(`<span class="cf-command-status sr-only" role="status"></span>`);
     expect(html).not.toContain("Click to select");
   });
+
+  it("shows only the author in a cell's meta row", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
+    const meta = /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    expect(meta).toContain("alice");
+    expect(meta).not.toContain("v1");
+    expect(meta).not.toContain("<time");
+  });
 });
 
 describe("GET /s/:slug", () => {
   beforeEach(resetDb);
+
+  it("shows the author and visibility but no version or date in the panel meta", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
+    const meta = /<p class="cf-hero-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    expect(meta).toContain("alice");
+    expect(meta).toContain("Public");
+    expect(meta).not.toContain("v1");
+    expect(meta).not.toContain("<time");
+  });
 
   it("re-renders html stored by an older renderer and saves it", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
@@ -111,6 +132,17 @@ describe("GET /s/:slug", () => {
 
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
     expect(html).toContain("stored-sentinel");
+  });
+
+  it("renders SKILL.md with a fold hook and a hidden Show more toggle", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
+    expect(html).toContain(`<div id="skill-doc" class="skill-doc" data-fold="true">`);
+    expect(html).toContain(`<footer class="cf-doc-foot" hidden="">`);
+    expect(html).toContain(
+      `<button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="skill-doc" aria-expanded="false">Show more</button>`,
+    );
   });
 
   it("renders the stored html and the install command", async () => {

@@ -252,12 +252,6 @@ components:
     textColor: "{colors.cf-ink}"
     padding: "0 24px"
     height: "64px"
-  nav-tag:
-    textColor: "{colors.cf-ink-2}"
-    typography: "{typography.mono-tag}"
-    rounded: "{rounded.tag}"
-    padding: "0 6px"
-    height: "20px"
   count-pill:
     backgroundColor: "{colors.white}"
     textColor: "{colors.cf-ink-2}"
@@ -543,7 +537,7 @@ components:
 
 skillsgist borrows the look of cloudflare.com and developers.cloudflare.com, but none of the brand. The ground is warm white paper, the text is true-gray ink, and the hairlines lean slightly toward terracotta. At the top of the index page sits one drenched orange panel with a dot-matrix texture and a slow glow at its foot. The system exists to hand over one line of shell, the install command, and then get out of the way. Below the panel the registry is a square, hairline-framed grid with corner registration marks, dashed column gutters and monospace metadata. It reads more like a technical drawing than a gallery of cards. No Cloudflare logo, cloud mark or trademarked asset appears anywhere. Schibsted Grotesk and Red Hat Mono are self-hosted under the OFL as open stand-ins for Cloudflare's proprietary FT Kunst Grotesk and Apercu Mono.
 
-The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards and a file input. The one exception is the command block. A small script copies it to the clipboard on one click, and without JavaScript the same click selects the whole command. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
+The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards and a file input. There are two exceptions. A small script copies the command block to the clipboard on one click, and without JavaScript the same click selects the whole command. A second script folds a long SKILL.md to 720px behind a Show more button, and without JavaScript the whole document shows. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
 
 Every page lives in this world. The skill page keeps its own orange panel, compact and left-aligned, because it also hands over an install command. The working pages (publish, edit, upload, account, users, sign-in and setup) have no orange field. They sit on the paper ground between the dashed gutters and are built from the same parts: a page head, square frames with registration marks, a Paper Shade header strip on every titled frame, 8px fields and pill buttons. Sign-in and setup center one frame on a softly masked dot field.
 
@@ -556,7 +550,7 @@ Every page lives in this world. The skill page keeps its own orange panel, compa
 - Schibsted Grotesk at weight 500 for headings, and Red Hat Mono for commands and data.
 - Ember-tinted shadows, used in exactly two places: the raised command box and the account menu.
 - Danger is a line and a text color, never a fill.
-- Client JavaScript only as enhancement: native `<details>` menus and forms, plus one script that copies a command on click and falls back to select-all without it.
+- Client JavaScript only as enhancement: native `<details>` menus and forms, plus two scripts: one copies a command on click and falls back to select-all, one folds a long SKILL.md and falls back to showing all of it.
 
 ## Colors
 
@@ -633,9 +627,9 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
 - **Mono Meta Large** (400, 13px, tabular numerals): the skill-page meta line and the version links in the Versions list.
 - **Mono Path** (400, 12.5px): file paths in the Files list and dates in the users table.
-- **Mono Meta** (400, 12px, tabular numerals): version, author handle and date in a cell, row sizes and timestamps, the count pill, chips and the status pill.
+- **Mono Meta** (400, 12px, tabular numerals): the author handle in a cell, row sizes and timestamps, the count pill, chips and the status pill.
 - **Mono Label** (500, 11px, 0.1em, uppercase): the Public, Private, admin and member labels and the users table column headers.
-- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the Registry and You tags. The stacked table labels below 768px use the same size and tracking at weight 400.
+- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the You tag. The stacked table labels below 768px use the same size and tracking at weight 400.
 
 ### Named Rules
 **The Medium Voice Rule.** Headings are set at weight 500. They get their presence from size and tight tracking, between -0.02em and -0.035em, never from bold. Weight 600 belongs only to the wordmark and to bold text inside a rendered SKILL.md.
@@ -696,8 +690,8 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 - **Wide:** the full width of its form and 42px tall. It is used only for the single submit on sign-in and setup.
 
 ### Chips
-- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The Registry tag borrows the shape of Cloudflare's DOCS tag and sits beside the wordmark to name the product area; it is hidden below 640px. The You tag sits beside your own username in the users table. A tag always sits beside the thing it names, never above a heading.
-- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames and usernames: the SKILL.md label in a header strip, the files carried over on Edit, and the username beside the Account title. Chips wrap in a row with 6px gaps.
+- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The You tag sits beside your own username in the users table. A tag always sits beside the thing it names, never above a heading.
+- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames: the SKILL.md label in a header strip, and the files carried over on Edit. Chips wrap in a row with 6px gaps.
 - **Count pill:** 24px tall, a white fill with a Hairline Strong outline, holding Mono Meta numerals in Graphite. It sits right after a section headline, a compact page title or a panel title. The number it shows is always the real length of the list.
 - **Status pill:** the same 24px white pill after a 14px Body Gray "Status:" line, holding Mono Meta text. When idle it reads in Warm Muted ("not generated"). When on it reads in Ink and leads with a 6px Signal Orange dot ("active").
 - **Visibility label:** Mono Label text in uppercase with a 13px icon, placed at the top-right of a cell. Public uses a globe in Orange Ink. Private uses a padlock in Warm Muted. It has no fill and no border. On the skill panel it sits in the meta line in Ember.
@@ -718,7 +712,7 @@ There are no cards. Every container is a square hairline frame.
 
 ### Page Head
 The top of every working page.
-- **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps), such as the username chip and role label on Account. An optional Page Lede follows 12px below. It sits 32px above the content.
+- **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps). An optional Page Lede follows 12px below. It sits 32px above the content.
 - **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users.
 
 ### Inputs / Fields
@@ -739,19 +733,19 @@ The top of every working page.
 - **Notice:** the same shape in orange, with a Notice Line border, a Peach Tint fill and Orange Ink text. It is for information the user must act on now, such as "This token is shown once. Save it now."
 
 ### Navigation
-- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, the Registry tag, a flexible spacer and the actions. The nav has no link group.
+- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, a flexible spacer and the actions. The nav has no link group.
 - **Signed in:** a primary Publish pill, then the account menu. The menu is a `<details>` whose summary is an outline pill showing the username (truncated at 14ch) and a Warm Muted chevron. The chevron rotates 180° when the menu is open, and the summary border turns Ink.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Users (admins only) and Sign out, which is a form button.
-- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark and tag.
+- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
 - **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
-- **Mobile:** gutters drop to 16px and the tag is hidden. The actions keep their full size.
+- **Mobile:** gutters drop to 16px. The actions keep their full size.
 
 ### Command Panel (signature)
 The hero of the system: an orange field that hands over one line of shell.
 - **Field:** Signal Orange with 16px corners, inset 8px from the viewport. It carries the dot-matrix texture and the breathing glow at its foot (opacity 0.85 to 1, scale from 1 × 0.92 to 1.06 × 1.08, 7s ease-in-out, alternating).
 - **Index stack:** centered. A white Display headline, then the Lede in Ember, then the command box 36px below it (28px on mobile), then the search field 14px below that.
-- **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (version, author, Visibility label, date, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
+- **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (author and Visibility label, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
 - **Command box:** a white box with 12px corners, lifted by the Command Lift shadow. It holds an Orange Ink `$` prompt that cannot be selected, and the command in Mono Command text. The command wraps anywhere. One click anywhere in the box copies it, and without JavaScript the same click selects it entirely (`user-select: all`). A Signal Orange caret block, 0.55em × 1.15em, blinks after it (1.1s, steps(1)). A copy button sits at the right end at every width.
 - **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it carries the same copy button. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret, select-all and copy button.
 - **Copy button:** a 30px white pill at the right end of every command box and flat code block, with a 1px Hairline Strong border and a 16px copy icon beside a 13px weight-500 label. The label reads "Copy" in Warm Muted and turns Ink on hover. After a successful copy it reads "Copied" in Orange Ink for two seconds. If the browser refuses the copy, it reads "Press ⌘C" or "Press Ctrl+C" in Ink, and the command is left selected. It is hidden until the script runs, so a page without JavaScript shows none.
@@ -759,6 +753,7 @@ The hero of the system: an orange field that hands over one line of shell.
 ### SKILL.md Document
 - **Frame:** a square frame with registration marks. Its header strip holds the SKILL.md chip on the left and Caption panel meta on the right: "v3, the latest version", or "Viewing v2." with an Orange Ink link to the latest version.
 - **Body:** padded 28px 40px 40px (20px 18px 28px on mobile), set in the SKILL.md type from Typography. Links are Orange Ink with a 1px underline at a 3px offset that thickens to 2px on hover. List markers are Warm Muted. Inline code is Ink mono on Paper Shade with a Hairline border, 5px corners and 1px 5px padding. Code blocks are square Paper Shade boxes with a Hairline border, padded 16px 18px, that scroll sideways. Quotes are Paper Shade blocks padded 12px 18px in Graphite, with no side stripe. Tables scroll sideways, with Hairline cell borders, 8px 12px cell padding and a Paper Shade header row. Horizontal rules are dashed Hairline Strong. Task-list checkboxes use the Signal Orange accent.
+- **Fold:** when the body would hide at least 200px, it is clipped to 720px and fades out over its last 120px, and the frame closes with a Paper Shade footer bar padded 16px 24px (14px 18px on mobile) holding a small centered outline pill, "Show more". Opened, the pill reads "Show less", and folding again scrolls the frame back into view. The folded body clips rather than scrolls, and tabbing into its hidden part opens it. The bar is hidden until the script runs, so a page without JavaScript shows the whole document.
 
 ### Users Table
 - **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. The username is weight 500, with the You tag beside your own. The role is a role label, and the last sign-in date is Mono Path in Body Gray.
@@ -784,13 +779,13 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** give text fields and selects 40px of height, 8px corners and a Hairline Strong border that turns #c9b8ae on hover and Ink on focus.
 - **Do** set destructive actions as danger pills: white, with a #f4c7c3 border and #b42318 text, placed at the end of a toolbar or below a dashed rule with a hint.
 - **Do** put errors in an Alert above the form, and one-time information the user must act on in an orange Notice.
-- **Do** use a data chip for filenames and usernames that keep their case, and an uppercase mono label only for short fixed labels.
+- **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
 - **Do** stack tables into label/value rows below 768px instead of scrolling them sideways.
 - **Do** tint every shadow and scrim with Ember (`rgb(60 12 0 / a)`), with a real offset and blur.
 - **Do** theme the browser surfaces from the palette: Selection Peach (#ffd6c2) for selections, a 2px Signal Orange focus ring at a 2px offset (white inside the orange panel), an orange caret and accent color, and a Hairline Strong scrollbar on Paper.
 - **Do** limit motion to the breathing glow, the caret blink and 200–250ms state tints on `cubic-bezier(0.16, 1, 0.3, 1)`, and turn off the glow, the caret and anything that moves under `prefers-reduced-motion`.
-- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The one script, `public/copy.js`, only enhances: every page works without it.
+- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The two scripts, `public/copy.js` and `public/fold.js`, only enhance: every page works without them.
 - **Do** draw icons as inline 16px SVG with a 1.5 stroke, round caps and joins, and `currentColor`.
 - **Do** self-host every face under `default-src 'self'`, as woff2 split by unicode-range with the display face preloaded.
 

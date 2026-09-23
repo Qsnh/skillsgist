@@ -38,3 +38,15 @@ it("loads the copy script from the same origin, deferred", async () => {
   const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
   expect(html).toContain(`<script src="/copy.js" defer=""></script>`);
 });
+
+it("keeps the nav and footer free of the Registry tag and the discovery link", async () => {
+  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+  expect(html).not.toContain(`<span class="cf-tag cf-nav-tag">`);
+  expect(html).not.toContain("Public discovery index");
+  expect(html).toContain(`<a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>`);
+});
+
+it("loads the fold script from the same origin, deferred", async () => {
+  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+  expect(html).toContain(`<script src="/fold.js" defer=""></script>`);
+});

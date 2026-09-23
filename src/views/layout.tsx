@@ -66,13 +66,13 @@ export function Layout(props: {
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
           <script src="/copy.js" defer />
+          <script src="/fold.js" defer />
         </head>
         <body class="cf-body">
           <a href="#main" class="cf-skip">Skip to content</a>
           <header class="cf-nav">
             <nav class="cf-nav-inner" aria-label="Main">
               <a href="/" class="cf-wordmark">skillsgist</a>
-              <span class="cf-tag cf-nav-tag">Registry</span>
               <span class="flex-1" />
               {props.user ? (
                 <>
@@ -98,7 +98,6 @@ export function Layout(props: {
                 <span>A private registry for Agent Skills, running on Cloudflare Workers.</span>
               </p>
               <nav class="cf-footer-links" aria-label="Footer">
-                <a href="/.well-known/agent-skills/index.json">Public discovery index</a>
                 <a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>
               </nav>
             </div>
