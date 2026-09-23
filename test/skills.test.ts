@@ -72,6 +72,27 @@ describe("GET /s/:slug", () => {
     expect(html).toContain("Demo Heading");
   });
 
+  it("still serves a healed page when saving the re-rendered html fails", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ?")
+      .bind("<h2>stale</h2>", "demo-skill")
+      .run();
+    await env.DB.prepare(
+      "CREATE TRIGGER reject_html_write BEFORE UPDATE OF html ON versions BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
+    ).run();
+
+    try {
+      const res = await SELF.fetch(`${ORIGIN}/s/demo-skill`);
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).not.toContain("stale");
+      expect(html).toContain("Demo Heading");
+    } finally {
+      await env.DB.prepare("DROP TRIGGER reject_html_write").run();
+    }
+  });
+
   it("serves current html from storage without re-rendering", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
