@@ -50,6 +50,14 @@ describe("PUT /api/skills/:slug", () => {
     expect(version?.html).toContain("<h1");
   });
 
+  it("leaves the frontmatter out of the stored html", async () => {
+    const { token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD);
+    const version = await getVersion(env.DB, "demo-skill", 1);
+    expect(version?.html).not.toContain("name: demo-skill");
+    expect(version?.html).not.toContain("<hr");
+  });
+
   it("does not create a new version when content is unchanged", async () => {
     const { token } = await seedAndToken({ username: "alice" });
     const put = () => putSkill(token, GOOD_MD);

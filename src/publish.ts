@@ -1,6 +1,6 @@
 import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { UserRow, VersionRow } from "./db/queries";
-import { renderMarkdown } from "./render/markdown";
+import { renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
 import type { Env } from "./types";
@@ -64,7 +64,7 @@ export async function publishBytes(
     }
   }
 
-  const html = await renderMarkdown(normalized.skillMd);
+  const html = await renderSkillMd(normalized.skillMd);
   const { version, r2Key } = await insertVersion(env.DB, {
     slug: normalized.name,
     digest: normalized.digest,
