@@ -41,7 +41,8 @@ describe("GET /", () => {
     const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
     expect(html).toContain(`<div class="cf-command" data-copy="true">`);
     expect(html).toContain(`<button type="button" class="cf-command-copy" hidden="">`);
-    expect(html).toContain(`<span class="cf-command-copy-label" aria-live="polite">Copy</span>`);
+    expect(html).toContain(`<span class="cf-command-copy-label">Copy</span>`);
+    expect(html).toContain(`<span class="cf-command-status sr-only" role="status"></span>`);
     expect(html).not.toContain("Click to select");
   });
 });

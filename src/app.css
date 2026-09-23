@@ -384,7 +384,7 @@
     font-size: 16px;
     line-height: 26px;
     overflow-wrap: anywhere;
-    cursor: pointer;
+    cursor: text;
     user-select: all;
     -webkit-user-select: all;
   }
@@ -407,6 +407,7 @@
     align-items: center;
     gap: 6px;
     height: 30px;
+    margin-block: -2px;
     padding-inline: 10px 12px;
     border: 1px solid var(--color-cf-line-strong);
     border-radius: 999px;
@@ -439,6 +440,11 @@
 
   .cf-hero .cf-command-copy:focus-visible {
     outline-color: var(--color-cf-orange);
+  }
+
+  .cf-command[data-copy="ready"],
+  .cf-command[data-copy="ready"] .cf-command-text {
+    cursor: pointer;
   }
 
   .cf-search {
@@ -1519,6 +1525,10 @@
     line-height: 22px;
   }
 
+  .cf-command-flat .cf-command-copy {
+    margin-block: -4px;
+  }
+
   .skill-doc {
     font-size: 15.5px;
     line-height: 1.7;
@@ -1755,6 +1765,10 @@
     .cf-command-text {
       font-size: 14px;
       line-height: 22px;
+    }
+
+    .cf-command-copy {
+      margin-block: -4px;
     }
 
     .cf-search {

@@ -209,8 +209,9 @@ export function CodeBlock(props: { prompt?: boolean; raised?: boolean; children?
           <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
           <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
         </Icon>
-        <span class="cf-command-copy-label" aria-live="polite">Copy</span>
+        <span class="cf-command-copy-label">Copy</span>
       </button>
+      <span class="cf-command-status sr-only" role="status" />
     </div>
   );
 }

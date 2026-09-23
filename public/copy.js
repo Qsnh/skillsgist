@@ -30,13 +30,16 @@ async function copyFrom(node) {
 function show(block, state) {
   clearTimeout(timers.get(block));
   const label = block.querySelector(".cf-command-copy-label");
+  const status = block.querySelector(".cf-command-status");
   if (state) {
     block.dataset.copyState = state;
     label.textContent = LABELS[state];
+    status.textContent = LABELS[state];
     timers.set(block, setTimeout(() => show(block, null), RESET_MS));
   } else {
     delete block.dataset.copyState;
     label.textContent = "Copy";
+    status.textContent = "";
   }
 }
 
@@ -47,6 +50,7 @@ document.addEventListener("click", async (event) => {
   show(block, copied ? "copied" : "manual");
 });
 
-for (const button of document.querySelectorAll(".cf-command[data-copy] .cf-command-copy")) {
-  button.hidden = false;
+for (const block of document.querySelectorAll(".cf-command[data-copy]")) {
+  block.dataset.copy = "ready";
+  block.querySelector(".cf-command-copy").hidden = false;
 }
