@@ -1,6 +1,6 @@
 import { Form } from "../csrf";
 import { ClassMark, CodeBlock, Layout } from "./layout";
-import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
+import type { SkillRow, UserRow, VersionRow } from "../db/queries";
 
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -100,11 +100,9 @@ export function SkillPage(props: {
   user: UserRow | null;
   skill: SkillRow & { author: string };
   version: VersionRow;
-  versions: VersionSummary[];
   origin: string;
   canManage: boolean;
 }) {
-  const files = JSON.parse(props.version.files) as Array<{ path: string; size: number }>;
   const slug = props.skill.slug;
   const superseded = props.version.version !== props.skill.latest_version;
   const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
@@ -176,52 +174,7 @@ export function SkillPage(props: {
 
       <section class="band">
         <div class="band__head">
-          <h2 class="legend">Manifest</h2>
-          <span class="legend">{files.length} {files.length === 1 ? "file" : "files"}</span>
-        </div>
-        {files.length === 0 ? (
-          <p class="band__note">This version carries no files beyond its SKILL.md.</p>
-        ) : (
-          <table class="ledger">
-            {files.map((f) => (
-              <tr>
-                <td>{f.path}</td>
-                <td class="ledger__num">{f.size} B</td>
-              </tr>
-            ))}
-          </table>
-        )}
-      </section>
-
-      <section class="band">
-        <div class="band__head">
-          <h2 class="legend">Versions</h2>
-          <span class="legend">
-            {props.versions.length} {props.versions.length === 1 ? "version" : "versions"}
-          </span>
-        </div>
-        <table class="ledger">
-          {props.versions.map((v) => (
-              <tr class={v.version === props.version.version ? "ledger__current" : undefined}>
-                <td>
-                  {v.version === props.version.version ? (
-                    `v${v.version}`
-                  ) : (
-                    <a href={`/s/${slug}?v=${v.version}`}>v{v.version}</a>
-                  )}
-                </td>
-                <td>{day(v.created_at)}</td>
-                <td class="ledger__num">
-                  <a href={`/s/${slug}/v/${v.version}/download`}>Download</a>
-                </td>
-            </tr>
-          ))}
-        </table>
-      </section>
-
-      <section class="band">
-        <div class="band__head">
-          <h2 class="legend">Document · SKILL.md</h2>
+          <h2 class="legend">SKILL.md</h2>
         </div>
         <article class="skill-doc" dangerouslySetInnerHTML={{ __html: props.version.html }} />
       </section>

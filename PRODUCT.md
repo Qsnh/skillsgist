@@ -43,7 +43,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 **Confirmed functionality**
 
 - Upload formats: `.zip`, `.tar.gz`, or a bare `SKILL.md`. A single wrapper directory is stripped; junk files are dropped.
-- Versions are immutable and numbered by a monotonic integer per skill. Every version keeps its own `SKILL.md`, rendered HTML, file manifest, digest, and R2 object. Older versions stay viewable and downloadable.
+- Versions are immutable and numbered by a monotonic integer per skill. Every version keeps its own `SKILL.md`, rendered HTML, file manifest, digest, and R2 object. Older versions stay viewable at `/s/:slug?v=:n` and downloadable at `/s/:slug/v/:n/download`, but the skill page does not list them — those addresses are entered by hand.
 - Artifacts are content-addressed by digest; the discovery index hands the CLI a digest it can verify.
 - Visibility is per skill, `private` by default, flippable to `public` by whoever can manage it.
 - Search covers names, descriptions, and body text. Anonymous visitors see only public skills.

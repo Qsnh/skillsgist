@@ -4,8 +4,7 @@ import { canManage, canView, currentUser, requireManagedSkill, requireUser } fro
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
-  deleteSkill, getArtifactByVersion, getSkillWithAuthor, getVersion, listSkills, listVersions,
-  setVisibility,
+  deleteSkill, getArtifactByVersion, getSkillWithAuthor, getVersion, listSkills, setVisibility,
 } from "../db/queries";
 import { IndexPage, SkillPage } from "../views/skills";
 
@@ -26,10 +25,11 @@ skillsRoutes.get("/s/:slug", async (c) => {
   if (!canView(user, skill)) return c.notFound();
 
   const requested = Number(c.req.query("v") ?? skill.latest_version);
-  const [version, versions] = await Promise.all([
-    getVersion(c.env.DB, slug, Number.isInteger(requested) ? requested : skill.latest_version),
-    listVersions(c.env.DB, slug),
-  ]);
+  const version = await getVersion(
+    c.env.DB,
+    slug,
+    Number.isInteger(requested) ? requested : skill.latest_version,
+  );
   if (!version) return c.notFound();
 
   return page(
@@ -38,7 +38,6 @@ skillsRoutes.get("/s/:slug", async (c) => {
       user={user}
       skill={skill}
       version={version}
-      versions={versions}
       origin={new URL(c.req.url).origin}
       canManage={user ? canManage(user, skill) : false}
     />,

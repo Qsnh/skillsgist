@@ -597,51 +597,6 @@
   }
 }
 
-.ledger {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--font-measure);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.8125rem;
-  color: var(--color-ink-soft);
-}
-
-.ledger th {
-  padding: 0 0 0.5rem;
-  text-align: left;
-  vertical-align: baseline;
-}
-
-.ledger td {
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--color-rule);
-  vertical-align: baseline;
-  overflow-wrap: anywhere;
-}
-
-.ledger th + th,
-.ledger td + td {
-  padding-left: 1.25rem;
-}
-
-.ledger__num {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.ledger a {
-  color: var(--color-ink-soft);
-  text-decoration-line: underline;
-}
-
-.ledger a:hover {
-  color: var(--color-catalogue);
-}
-
-.ledger__current td {
-  color: var(--color-ink);
-}
-
 .account .entry {
   border-bottom: none;
   padding-bottom: 0.9375rem;
@@ -917,11 +872,6 @@
 
   .form {
     max-width: none;
-  }
-
-  .ledger th + th,
-  .ledger td + td {
-    padding-left: 0.75rem;
   }
 
   .masthead__fields form {

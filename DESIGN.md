@@ -197,12 +197,6 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.none}"
     padding: "1.375rem 1.25rem"
-  ledger-cell:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-soft}"
-    typography: "{typography.dispense}"
-    rounded: "{rounded.none}"
-    padding: "0.5rem 0"
   class-mark-private:
     backgroundColor: "{colors.hazard}"
     textColor: "{colors.ink}"
@@ -282,9 +276,9 @@ Warm neutral paper stock and near-black ink carry almost every surface, so that 
 - **Label Stock** (`#fbfbf9`): The sheet itself, and the surface of every band, entry, control strip and empty state. The near-white everything is printed on.
 - **Sunk Stock** (`#f2f0e9`): A recessed fill, used only where you can type or choose a file — every channel, and inline code inside a rendered document. It is the system's only "this accepts input" background.
 - **Catalogue Ink** (`#14171a`): Body ink. Entry names, page names, the wordmark, document headings, solid ink cells, a checked choice, and the two closing rules that top and tail the instrument.
-- **Specification Ink** (`#4a5057`): Running description text, document body text, ledger values and measured values. Lighter than catalogue ink so a name always outranks its specification.
+- **Specification Ink** (`#4a5057`): Running description text, document body text and measured values. Lighter than catalogue ink so a name always outranks its specification.
 - **Legend Grey** (`#6f6860`): Field legends, input placeholders, hints and band notes. The quietest ink in the system; it names a field without competing with the field's value.
-- **Hairline Rule** (`#d8d4cc`): The divider inside an instrument — between bands, between entries, between masthead cells, between control cells, between choices, between ledger rows, down the left of the entry rail.
+- **Hairline Rule** (`#d8d4cc`): The divider inside an instrument — between bands, between entries, between masthead cells, between control cells, between choices, down the left of the entry rail.
 - **Channel Rule** (`#b3ada2`): The heavier rule that declares a channel you can type into: a channel's top and bottom edges, the four-sided border of a boxed channel or a boxed choice group, and the divider before a channel's submit cell. Also the scrollbar thumb.
 
 ### Named Rules
@@ -314,10 +308,10 @@ Both families are self-hosted from `public/fonts/` as four woff2 subsets — lat
 - **Account name** (`600`, `1.1875rem`, mono, `-0.01em`, `1.2`; `1.0625rem` below the breakpoint): The Name role for an identifier rather than a title — an account's username on the admin register. It sits at the Name step, not the Lead step, because a register is a list and its items take the list-item role; it is mono because a username is a value, and it carries no width axis because the mono has none.
 - **Name** (`600`, `1.1875rem`, width `96%`, `-0.02em`, `1.2`): A catalogue entry's name in the index, and the headline of an empty state. Slightly condensed and tightly tracked so a long slug stays on one line.
 - **Body** (`0.875rem`, `1.65`): Specification text — the author-supplied description — and empty-state prose. Capped at `66ch` on wide viewports; uncapped below the breakpoint. Set in Specification Ink.
-- **Legend** (`600`, `0.65rem`, width `88%`, `0.09em`, `1`, uppercase): Every field legend on the instrument, every button and control-cell label, every choice label, every ledger and definition-list term, and the class-mark word. It is also the page title on routes whose subject is a function rather than a name (`Sign in`, `Accounts`, `Publish a skill`). The most-used role in the system. Legend Grey by default; it inherits white inside an inverted cell, catalogue red inside a notice or a destructive cell, and ink inside a class mark.
+- **Legend** (`600`, `0.65rem`, width `88%`, `0.09em`, `1`, uppercase): Every field legend on the instrument, every button and control-cell label, every choice label, every definition-list term, and the class-mark word. It is also the page title on routes whose subject is a function rather than a name (`Sign in`, `Accounts`, `Publish a skill`). The most-used role in the system. Legend Grey by default; it inherits white inside an inverted cell, catalogue red inside a notice or a destructive cell, and ink inside a class mark.
 - **Control** (`0.9375rem`): Text the visitor types into a single-line channel.
 - **Measure** (`0.75rem`, tabular numerals): Mono. Lot, author, date, the signed-in username, the discovery URL, every rail value. Anything that was counted, versioned, addressed or dated.
-- **Dispense** (`0.8125rem`, `1.45`): Mono at the channel step. The `npx skills add` line, the SKILL.md textarea, the file-picker's filename, ledger rows, band notes, notice rows and document code. On the dispense channel the line is set `white-space: pre` and `user-select: all` so a single click takes the whole command; it wraps to `pre-wrap` below the breakpoint rather than scrolling on a phone.
+- **Dispense** (`0.8125rem`, `1.45`): Mono at the channel step. The `npx skills add` line, the SKILL.md textarea, the file-picker's filename, band notes, notice rows and document code. On the dispense channel the line is set `white-space: pre` and `user-select: all` so a single click takes the whole command; it wraps to `pre-wrap` below the breakpoint rather than scrolling on a phone.
 - **Document** (`0.875rem`, `1.7`; headings `1.1875rem` / `1rem` / `0.875rem` at `600`, width `96%`, `-0.015em`, `1.25`): The rendered SKILL.md — the one place where content the system did not author is typeset. Body in Specification Ink, headings in Catalogue Ink, code at the Dispense step. See **The Document** under Components.
 
 ### Named Rules
@@ -334,7 +328,7 @@ The whole application is **one sheet**: a `60rem` column (`--sheet`) centered on
 
 **Every route is flush.** There is no padded variant of main and no density switch: bands stack edge to edge and are separated only by hairlines, so the index, the skill page, the publish forms, the account page and the admin roster all read as one continuous instrument running from the masthead's ink rule to the colophon's. The last band inside main drops its bottom rule — including the last band inside a trailing form — so the sheet closes on the colophon instead of double-ruling against it.
 
-Inside the sheet, everything aligns to a single `1.25rem` gutter. Legends, entry names, specification text, band notes, ledger columns, the first cell of a control strip and the colophon all start at that x. Full-bleed elements — the dispense channel, every input channel, the choice group — deliberately break it and run rule-to-rule across the measure, which is how you can tell at a glance that they are channels rather than content. A band that carries one of them (`band--bleed`) zeroes its own inline padding and re-applies the gutter to its head, its note, its body and its form only; if the channel or choice group is the band's last child, the band also drops its bottom padding and bottom rule so the channel closes the band itself.
+Inside the sheet, everything aligns to a single `1.25rem` gutter. Legends, entry names, specification text, band notes, the first cell of a control strip and the colophon all start at that x. Full-bleed elements — the dispense channel, every input channel, the choice group — deliberately break it and run rule-to-rule across the measure, which is how you can tell at a glance that they are channels rather than content. A band that carries one of them (`band--bleed`) zeroes its own inline padding and re-applies the gutter to its head, its note, its body and its form only; if the channel or choice group is the band's last child, the band also drops its bottom padding and bottom rule so the channel closes the band itself.
 
 A catalogue entry is a two-column grid: the content column (`minmax(0, 1fr)`) carries the name and the specification; a fixed `12.5rem` rail sits at a constant x, separated by `1.25rem` and opened by a hairline on its left edge, and carries the class mark above a definition list of measured values. Because the rail's x never moves, the class column scans vertically down the page. The skill page reuses the same grid for its own header, with the slug at the Lead step in place of an entry name.
 
@@ -344,7 +338,7 @@ Stacked forms are capped at `26rem` and stack their fields `1.125rem` apart, lef
 
 The vertical rhythm steps in sixteenths of a rem: `0.375rem` between paired values, `0.5rem` under a band head, `0.6875rem` inside a channel or a compact band, `0.75rem` inside a control cell or a choice, `1rem` above a band's content, `1.375rem` inside an entry block, and `3.5rem` of vertical air for an empty state — one lot of silence in place of a result.
 
-**Responsive.** One breakpoint, at `40rem`. Below it the sheet drops its vertical rules and becomes the full viewport; the masthead wraps so the wordmark takes its own ruled row and the function cells split the width beneath it as equal cells; the control strip's cells wrap onto further rows at an even inline padding with the first cell still on the gutter; the choice group stops being a row of cells and becomes a stack separated by top hairlines; the Lead steps down to its compact size; the entry grid collapses to one column and the rail moves below the specification as a wrapped baseline-aligned row with its left rule removed; the definition list becomes an inline flow of label/value pairs; the ledger tightens its column gap; the stacked form drops its `26rem` cap; the dispense channel wraps instead of scrolling; and the specification's `66ch` cap is lifted.
+**Responsive.** One breakpoint, at `40rem`. Below it the sheet drops its vertical rules and becomes the full viewport; the masthead wraps so the wordmark takes its own ruled row and the function cells split the width beneath it as equal cells; the control strip's cells wrap onto further rows at an even inline padding with the first cell still on the gutter; the choice group stops being a row of cells and becomes a stack separated by top hairlines; the Lead steps down to its compact size; the entry grid collapses to one column and the rail moves below the specification as a wrapped baseline-aligned row with its left rule removed; the definition list becomes an inline flow of label/value pairs; the stacked form drops its `26rem` cap; the dispense channel wraps instead of scrolling; and the specification's `66ch` cap is lifted.
 
 ### Named Rules
 
@@ -455,12 +449,6 @@ A 22px diamond plus a Legend-role word, inline and baseline-friendly, `0.5625rem
 Sunk Stock between two Channel Rules, full-bleed, holding whatever the visitor operates: a text input, a mono textarea, a file picker, optionally with an ink submit cell flush right. On `:focus-within` a 2px Catalogue Red rule wipes left to right across the channel's bottom edge over `420ms` on `cubic-bezier(0.16, 1, 0.3, 1)`, and a band whose channel is focused steps its live legend from Legend Grey to Catalogue Red over `240ms` on the same curve. Under `prefers-reduced-motion: reduce` both transitions are removed and the rule simply appears.
 
 **The One Moment Rule.** This is the only authored motion in the product, and it belongs to the channel, not to a page — it fires on the index search, on every stacked field, on the SKILL.md textarea and on the admin password reset. It stays one authored moment because only one input can hold focus at a time. Nothing else moves: no entrance animations, no row transitions, no hover lift, no skeleton shimmer, no parallax. The `120ms linear` crossfades on a control cell, a choice and the dispense channel are control-state feedback, not motion, and they are intentionally left running under reduced-motion. If a new surface wants an animation, the answer is no.
-
-### The Ledger (signature)
-
-The system's data table: full-width, collapsed borders, mono with tabular numerals at the Dispense step in Specification Ink. Each row is opened by a hairline on top, `0.5rem` of block padding, everything baseline-aligned. Columns after the first are separated by `1.25rem` of padding rather than a rule — `0.75rem` below the breakpoint. A numeric column is right-aligned and never wraps. Links inside a ledger are Specification Ink underlined and hover to Catalogue Red, so a table of downloads does not turn into a wall of red. The current row is promoted to Catalogue Ink rather than bolded or filled. It carries the file manifest and the version history on a skill page.
-
-A header row is available — left-aligned, baseline, `0.5rem` of clearance beneath it and no rule under it, set in the ledger's own mono rather than at the Legend step. Neither shipped ledger uses it: both are headerless, named by the band head above them instead. Keep it that way unless a ledger grows a column whose meaning the band head cannot carry.
 
 ### The Document (signature)
 
