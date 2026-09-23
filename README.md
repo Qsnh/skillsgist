@@ -71,6 +71,15 @@ After deploying, visit `https://<your-domain>/setup` to create the first admin. 
 
 To bind a custom domain: add `routes` in `wrangler.jsonc` and run `npm run deploy` again — no code changes needed.
 
+## Upgrading
+
+Pull the new code, apply any new migrations, then deploy:
+
+```bash
+npx wrangler d1 migrations apply skillsgist --remote
+npm run deploy
+```
+
 ## Local development
 
 `wrangler dev` has no way to know `SESSION_SECRET` (it's only ever set as a secret at deploy
