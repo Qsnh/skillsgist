@@ -736,10 +736,10 @@ The top of every working page.
 - **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, a flexible spacer and the actions. The nav has no link group.
 - **Signed in:** a primary Publish pill, then the account menu. The menu is a `<details>` whose summary is an outline pill showing the username (truncated at 14ch) and a Warm Muted chevron. The chevron rotates 180° when the menu is open, and the summary border turns Ink.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Users (admins only) and Sign out, which is a form button.
-- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark and tag.
+- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
 - **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
-- **Mobile:** gutters drop to 16px and the tag is hidden. The actions keep their full size.
+- **Mobile:** gutters drop to 16px. The actions keep their full size.
 
 ### Command Panel (signature)
 The hero of the system: an orange field that hands over one line of shell.
@@ -753,7 +753,7 @@ The hero of the system: an orange field that hands over one line of shell.
 ### SKILL.md Document
 - **Frame:** a square frame with registration marks. Its header strip holds the SKILL.md chip on the left and Caption panel meta on the right: "v3, the latest version", or "Viewing v2." with an Orange Ink link to the latest version.
 - **Body:** padded 28px 40px 40px (20px 18px 28px on mobile), set in the SKILL.md type from Typography. Links are Orange Ink with a 1px underline at a 3px offset that thickens to 2px on hover. List markers are Warm Muted. Inline code is Ink mono on Paper Shade with a Hairline border, 5px corners and 1px 5px padding. Code blocks are square Paper Shade boxes with a Hairline border, padded 16px 18px, that scroll sideways. Quotes are Paper Shade blocks padded 12px 18px in Graphite, with no side stripe. Tables scroll sideways, with Hairline cell borders, 8px 12px cell padding and a Paper Shade header row. Horizontal rules are dashed Hairline Strong. Task-list checkboxes use the Signal Orange accent.
-- **Fold:** when the body would hide at least 200px, it is clipped to 720px and fades out over its last 120px, and the frame closes with a Paper Shade footer bar padded 16px 24px (14px 18px on mobile) holding a small centered outline pill, "Show more". Opened, the pill reads "Show less", and folding again scrolls the frame back into view. The bar is hidden until the script runs, so a page without JavaScript shows the whole document.
+- **Fold:** when the body would hide at least 200px, it is clipped to 720px and fades out over its last 120px, and the frame closes with a Paper Shade footer bar padded 16px 24px (14px 18px on mobile) holding a small centered outline pill, "Show more". Opened, the pill reads "Show less", and folding again scrolls the frame back into view. The folded body clips rather than scrolls, and tabbing into its hidden part opens it. The bar is hidden until the script runs, so a page without JavaScript shows the whole document.
 
 ### Users Table
 - **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. The username is weight 500, with the You tag beside your own. The role is a role label, and the last sign-in date is Mono Path in Body Gray.
@@ -779,13 +779,13 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** give text fields and selects 40px of height, 8px corners and a Hairline Strong border that turns #c9b8ae on hover and Ink on focus.
 - **Do** set destructive actions as danger pills: white, with a #f4c7c3 border and #b42318 text, placed at the end of a toolbar or below a dashed rule with a hint.
 - **Do** put errors in an Alert above the form, and one-time information the user must act on in an orange Notice.
-- **Do** use a data chip for filenames and usernames that keep their case, and an uppercase mono label only for short fixed labels.
+- **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
 - **Do** stack tables into label/value rows below 768px instead of scrolling them sideways.
 - **Do** tint every shadow and scrim with Ember (`rgb(60 12 0 / a)`), with a real offset and blur.
 - **Do** theme the browser surfaces from the palette: Selection Peach (#ffd6c2) for selections, a 2px Signal Orange focus ring at a 2px offset (white inside the orange panel), an orange caret and accent color, and a Hairline Strong scrollbar on Paper.
 - **Do** limit motion to the breathing glow, the caret blink and 200–250ms state tints on `cubic-bezier(0.16, 1, 0.3, 1)`, and turn off the glow, the caret and anything that moves under `prefers-reduced-motion`.
-- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The one script, `public/copy.js`, only enhances: every page works without it.
+- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The two scripts, `public/copy.js` and `public/fold.js`, only enhance: every page works without them.
 - **Do** draw icons as inline 16px SVG with a 1.5 stroke, round caps and joins, and `currentColor`.
 - **Do** self-host every face under `default-src 'self'`, as woff2 split by unicode-range with the display face preloaded.
 
