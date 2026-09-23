@@ -1,8 +1,3 @@
-// The artifact wire contract, in one place: the download URL the discovery
-// index advertises, the matcher the download route uses to read it back, and
-// the response both download routes return. Emitter and matcher live next to
-// each other so they can't drift apart.
-
 export const DIGEST_PREFIX = "sha256:";
 
 const ARTIFACT_FILE_RE = /^([a-f0-9]{64})\.zip$/;
@@ -23,8 +18,6 @@ export function zipAttachment(object: R2ObjectBody, slug: string, cacheable: boo
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${slug}.zip"`,
-      // A private artifact must never land in a shared cache, and the two
-      // download routes must agree about that — hence one spelling here.
       "Cache-Control": cacheable ? "public, max-age=300" : "private, no-store",
     },
   });

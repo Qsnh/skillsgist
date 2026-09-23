@@ -4,10 +4,6 @@ import type { UserRow } from "../db/queries";
 
 export function Layout(props: { title: string; user: UserRow | null; children?: unknown }) {
   return (
-    // Without a doctype a browser renders the whole page in quirks mode, which
-    // changes the box model out from under Tailwind. hono/jsx has no way to
-    // express a doctype as an element, so it goes in as raw text ahead of
-    // <html>.
     <>
       {raw("<!DOCTYPE html>")}
       <html lang="en">

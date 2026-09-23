@@ -54,16 +54,6 @@ interface IndexRequest {
   only: string | null;
 }
 
-/**
- * Parse an index path into an `IndexRequest`, or null if it is not one.
- *
- * The CLI treats the whole install URL as a basePath and appends
- * `/.well-known/<ns>/index.json` to it, so "which kind of index request is
- * this" is entirely encoded in the basePath: an `/i/<key>` prefix decides
- * visibility, a `.well-known/<ns>/<slug>` suffix decides which single skill is
- * wanted. Both come out of the same parse, so the anonymous and keyed paths
- * cannot drift apart.
- */
 function indexRequest(path: string): IndexRequest | null {
   const suffix = INDEX_SUFFIXES.find((s) => path.endsWith(s));
   if (!suffix) return null;
@@ -74,16 +64,6 @@ function indexRequest(path: string): IndexRequest | null {
   };
 }
 
-/**
- * Discovery index.
- *
- * A non-empty `only` returns that one skill and nothing else — this is the
- * entire reason a per-skill install address works. `skills add` goes through
- * fetchAllSkills(), which returns every entry in the index and never looks at
- * the slug in the path; it auto-selects a skill only when the index happens to
- * hold exactly one. Without this narrowing, an "install just this one" address
- * installs every skill.
- */
 async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   const origin = new URL(c.req.url).origin;
   let base = origin;
@@ -114,11 +94,6 @@ registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
   return serveArtifact(c.env, c.req.param("slug"), c.req.param("file"), "any");
 });
 
-// Catches the nesting `indexRequest` describes: every install address needs a
-// wildcard behind it. All three share literally the same handler — anonymous
-// and keyed were once two separate pieces of code, and only the keyed one grew
-// a fallback, so the anonymous address was shown to users with nothing serving
-// it.
 for (const prefix of INDEX_PREFIXES) {
   registryRoutes.get(`${prefix}/*`, indexRoute);
 }

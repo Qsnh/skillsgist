@@ -25,8 +25,6 @@ export function IndexPage(props: {
 }) {
   return (
     <Layout title="Skills" user={props.user}>
-      {/* Plain <form>: a GET form must not carry the token — it would end up
-          in the query string and from there in Referer headers. */}
       <form method="get" action="/" class="mb-6 flex gap-2">
         <input
           name="q"

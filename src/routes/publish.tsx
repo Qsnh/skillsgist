@@ -10,24 +10,11 @@ import { EditSkillPage, NewSkillPage, UploadVersionPage } from "../views/publish
 
 export const publishRoutes = new Hono<AppEnv>();
 
-// `undefined` here must mean "the caller didn't supply a visibility at
-// all" (e.g. `PUT /api/skills/:slug` with no `?visibility=` query param),
-// distinct from "explicitly chose private" — `publishBytes` treats those
-// two cases differently on a republish (see src/publish.ts). Only an
-// absent value maps to `undefined`; any present-but-unrecognized value
-// (including "") is still treated as an explicit choice and defaults to
-// "private", same as before.
 function visibilityOf(value: unknown): "public" | "private" | undefined {
   if (value === undefined) return undefined;
   return value === "public" ? "public" : "private";
 }
 
-/**
- * The two errors `publishBytes` raises for bad or unauthorized input. Both
- * carry their own HTTP status, so a handler maps them with one branch instead
- * of one `instanceof` per status — and a third such error class would need no
- * change at any call site.
- */
 function publishFailure(err: unknown): (UploadError | ForbiddenError) | null {
   return err instanceof UploadError || err instanceof ForbiddenError ? err : null;
 }
@@ -115,9 +102,6 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   }
 });
 
-// The other road, alongside the edit page: whole-archive replacement. Each
-// handler reads exactly one field — edit reads markdown, this one reads file —
-// so the question "both were filled in, which wins?" never arises.
 publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
   const slug = c.req.param("slug");
   const guard = await requireManagedSkill(c, slug, "update");

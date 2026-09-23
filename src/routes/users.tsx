@@ -16,12 +16,6 @@ import { LoginPage, MePage, SetupPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
 
-// A well-formed but unusable password hash (`pbkdf2$10000$<salt>$<key>`),
-// generated once offline for a throwaway password no real account uses. When
-// `/login` is given a username that doesn't exist, we still run
-// `verifyPassword` against this constant so the response takes the same
-// PBKDF2-derivation time as a real wrong-password attempt. Without it, an
-// attacker can enumerate usernames by timing how fast `/login` answers.
 const DUMMY_PASSWORD_HASH =
   "pbkdf2$10000$gjyRMe6k+HkicrCTiEY7zg==$ZV/Ne/ZKCLOQWmnxZmtXlwKrXq7/0Th3ydwHLStYv28=";
 
@@ -53,11 +47,6 @@ usersRoutes.post("/setup", async (c) => {
   const inserted = await createFirstAdmin(c.env.DB, {
     id, username, passwordHash: await hashPassword(password), installKey: randomHex(16),
   });
-  // The cheap `countUsers` check above is just the common-path short-circuit
-  // (skips hashing a password once bootstrapped). `createFirstAdmin` is the
-  // actual guard: it and the insert are one atomic statement, so a second
-  // request that raced past the check above still can't insert a second
-  // bootstrap admin.
   if (!inserted) return c.notFound();
   await startSession(c, id);
   return c.redirect("/", 302);
@@ -70,7 +59,6 @@ usersRoutes.post("/login", async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   const user = await getUserByUsername(c.env.DB, username);
-  // Never skip the derivation — see DUMMY_PASSWORD_HASH.
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
   if (!user || !ok) return page(c, <LoginPage error="Incorrect username or password" />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
@@ -96,8 +84,6 @@ usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const token = `sgt_${randomHex(16)}`;
   const api_token_hash = await sha256Hex(token);
   await updateApiTokenHash(c.env.DB, user.id, api_token_hash);
-  // The hash is the only column that changed and we just computed it — no
-  // need to read the row back to render it.
   return page(
     c,
     <MePage user={{ ...user, api_token_hash }} origin={new URL(c.req.url).origin} newToken={token} />,
@@ -150,22 +136,6 @@ usersRoutes.post("/admin/users", requireAdmin, async (c) => {
   return c.redirect("/admin/users", 302);
 });
 
-// Admin-only revocation levers (spec §7.1: create, change role, reset
-// password, delete).
-// Every route below is admin-only (`requireAdmin`) and 404s for an unknown
-// target id, checked before any mutation.
-
-/**
- * The `:id` target of an admin route.
- *
- * `allowSelf` defaults to false, so a new destructive lever added next to
- * these gets the safe behaviour without its author having to think of it.
- * Self-targeting is refused rather than made to work: `deleteUserReassigning`
- * cannot reassign a user's rows to itself (it rejects that outright), and
- * changing your own role from the admin panel while your session is live is
- * the same class of footgun. "Remove or demote my own account" is something
- * another admin does.
- */
 async function adminTarget(
   c: Ctx,
   id: string,

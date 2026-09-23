@@ -2,13 +2,6 @@ import { readFileSync } from "node:fs";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-// Workers running inside the pool get a sandboxed, empty `node:fs` virtual
-// filesystem with no bridge to the host disk (verified empirically: even
-// `process.cwd()` and `/tmp` are unreachable from inside a test). Binary test
-// fixtures therefore have to be read from the real filesystem here, in the
-// config file — which runs in plain Node, same as `readD1Migrations` below —
-// and handed into the worker as `dataBlobBindings`, which surface inside
-// tests as `env.<NAME>: ArrayBuffer`.
 const fixture = (name: string) => new Uint8Array(readFileSync(`./test/fixtures/${name}`));
 
 export default defineConfig(async () => {

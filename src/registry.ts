@@ -30,11 +30,6 @@ export function buildIndex(
 ): { $schema: string; skills: IndexEntry[] } {
   const skills: IndexEntry[] = [];
   for (const row of rows) {
-    // Spec §9 requires a warning when a row
-    // is dropped, so an operator has some signal if this branch is ever
-    // reached — normalizeUpload already enforces these same checks at
-    // publish time, so in practice this is defense-in-depth, but silence
-    // here previously meant zero visibility if it ever did trigger.
     if (!isValidSkillName(row.slug)) {
       console.warn(`buildIndex: dropping row for slug ${row.slug}: invalid name`);
       continue;

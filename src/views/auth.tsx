@@ -7,9 +7,6 @@ export function SetupPage(props: { error?: string }) {
     <Layout title="Setup" user={null}>
       <h1 class="mb-4 text-xl font-semibold">Create the first admin</h1>
       <Alert message={props.error} />
-      {/* Plain <form>, not <Form>: no session exists during bootstrap, so
-          there is no session-bound token to render. Covered by the Origin /
-          Sec-Fetch-Site layer only — see TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/setup" class="max-w-sm space-y-4">
         <Field label="Username" name="username" hint="Lowercase letters, digits and hyphens, 2-32 characters" />
         <Field label="Password" name="password" type="password" hint="At least 12 characters" />
@@ -24,8 +21,6 @@ export function LoginPage(props: { error?: string }) {
     <Layout title="Sign in" user={null}>
       <h1 class="mb-4 text-xl font-semibold">Sign in</h1>
       <Alert message={props.error} />
-      {/* Plain <form>, not <Form>: same reason as SetupPage above — no session
-          to bind a token to yet. See TOKENLESS_PATHS in src/csrf.tsx. */}
       <form method="post" action="/login" class="max-w-sm space-y-4">
         <Field label="Username" name="username" />
         <Field label="Password" name="password" type="password" />
@@ -98,9 +93,6 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
         </thead>
         <tbody>
           {props.users.map((u) => {
-            // The server refuses these outright (see adminTarget), but a
-            // control that is always rejected is a bad guard on its own —
-            // don't render it into a guaranteed 400.
             const isSelf = u.id === props.user.id;
             return (
               <tr class="border-b border-slate-100 align-top">

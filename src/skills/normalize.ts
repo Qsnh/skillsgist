@@ -9,8 +9,6 @@ export const MAX_UNPACKED_BYTES = 8 * 1024 * 1024;
 export const MAX_FILES = 200;
 
 export class UploadError extends Error {
-  // Status and machine-readable code travel with the error, so the routes
-  // map it without re-deciding either (see routes/publish.tsx).
   readonly status = 400;
   readonly code = "invalid_upload";
   constructor(message: string) {

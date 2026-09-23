@@ -72,10 +72,6 @@ export async function createUser(
     .run();
 }
 
-// Atomically creates the first admin. Guards the "no users exist yet" check
-// and the insert in a single statement so two concurrent `POST /setup`
-// requests can't both pass a separate `countUsers` check and both insert a
-// bootstrap admin. Returns whether this call actually inserted the row.
 export async function createFirstAdmin(
   db: D1Database,
   input: { id: string; username: string; passwordHash: string; installKey: string },
@@ -123,19 +119,6 @@ export async function updateUserRole(
   await db.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, userId).run();
 }
 
-// Deletes a user while keeping the foreign keys that reference them intact:
-// `skills.owner_id` and `versions.author_id` both `REFERENCES users(id)`
-// with no ON DELETE clause, so an unqualified delete would fail (or, if it
-// somehow didn't, leave dangling references). Reassigning both to the
-// acting admin first, in the same batch as the delete, keeps every skill
-// the departed user owned or published downloadable and attributed to a
-// user that still exists.
-//
-// `reassignTo` must be a *different* user: with both sides equal the two
-// UPDATEs are a no-op against the row about to be deleted, leaving those
-// foreign keys pointing at an id that no longer exists. The precondition
-// belongs here rather than in each caller, so a second caller (a cleanup
-// job, a bulk delete) can't reintroduce the corruption by forgetting it.
 export async function deleteUserReassigning(
   db: D1Database,
   userId: string,
@@ -192,9 +175,6 @@ export function getVersion(db: D1Database, slug: string, version: number): Promi
     .first<VersionRow>();
 }
 
-// Only the two columns the version list renders. `skill_md` and `html` are
-// the widest columns in the table, and `SELECT *` pulled both for every
-// version of the skill just to print a number and a date.
 export async function listVersions(db: D1Database, slug: string): Promise<VersionSummary[]> {
   const { results } = await db
     .prepare("SELECT version, created_at FROM versions WHERE slug = ? ORDER BY version DESC")
@@ -217,10 +197,6 @@ export async function listPublishedForIndex(
   return results;
 }
 
-// Returns the `r2_key` it recorded as well as the version number: the caller
-// has to write the R2 object under exactly that key, and deriving the same
-// string a second time at the call site is how the stored key and the written
-// object drift apart.
 export async function insertVersion(
   db: D1Database,
   input: InsertVersionInput,
@@ -300,9 +276,6 @@ export async function touchLogin(db: D1Database, userId: string, at: number): Pr
   await db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(at, userId).run();
 }
 
-// The download routes need the object key and the skill's visibility, and
-// nothing else — joining beats fetching the whole skill row and then the
-// whole version row (which carries `skill_md` and `html`) in two round trips.
 const ARTIFACT_SQL =
   "SELECT v.r2_key, s.visibility FROM skills s JOIN versions v ON v.slug = s.slug WHERE s.slug = ?";
 

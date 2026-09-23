@@ -56,9 +56,6 @@ async function gunzip(data: Uint8Array): Promise<Uint8Array> {
   try {
     return await inflateGzipMember(data);
   } catch {
-    // Most likely bsdtar's block padding (see GZIP_TRAILER_LEN above).
-    // Node's zlib tolerates it silently; workerd's DecompressionStream
-    // does not ("Trailing bytes after end of compressed data").
     for (const end of gzipRetryLengths(data)) {
       try {
         return await inflateGzipMember(data.subarray(0, end));
@@ -67,9 +64,6 @@ async function gunzip(data: Uint8Array): Promise<Uint8Array> {
         // corrupt — keep probing the remaining candidates.
       }
     }
-    // No candidate worked (or there were none to try): this isn't padding,
-    // it's real corruption. Let the caller normalize this into an
-    // ArchiveError.
     throw new Error("gzip decompression failed even after trimming trailing padding");
   }
 }
