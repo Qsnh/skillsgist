@@ -626,8 +626,8 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **SKILL.md type** (500 headings at 1.25 and -0.02em in Ink, balanced): H1 30px at -0.03em, H2 23px, H3 18px, H4 16px. The body is 400 at 15.5px and 1.7 in Body Gray. Paragraphs, lists, quotes and headings keep a 72ch measure; tables and code blocks take the full frame width. Code blocks are Red Hat Mono at 13px and 1.6, and inline code is 0.86em.
 - **Body** (400, 15px, 1.5): the base size on the page, empty-state copy (52ch) and text in a field. Choice titles use it at weight 500.
 - **Body Small** (400, 14.5px, 1.55): cell descriptions, capped at 60ch and clamped to three lines.
-- **Label** (500, 14px, line-height 1): button labels, the search button and field labels. Menu items, text links, alerts, notices, the status line and table text use the same 14px at weight 400. Small buttons drop to 13px, and the small field and row text to 13.5px.
-- **Caption** (400, 13px): footer text, field hints, panel meta, choice details, the sort note and the "Copy" button label.
+- **Label** (500, 14px, line-height 1): button labels, the search button and field labels. Menu items, text links, alerts, notices, the status line and table text use the same 14px at weight 400. Small buttons and the "Copy" button label drop to 13px, and the small field and row text to 13.5px.
+- **Caption** (400, 13px): footer text, field hints, panel meta, choice details and the sort note.
 - **Mono Command** (400, 16px/26px; 14px/22px below 640px): the install command and its prompt on the orange panel.
 - **Mono Command Small** (400, 14px/22px): the flat code block at every width.
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
@@ -753,7 +753,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Index stack:** centered. A white Display headline, then the Lede in Ember, then the command box 36px below it (28px on mobile), then the search field 14px below that.
 - **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (version, author, Visibility label, date, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
 - **Command box:** a white box with 12px corners, lifted by the Command Lift shadow. It holds an Orange Ink `$` prompt that cannot be selected, and the command in Mono Command text. The command wraps anywhere. One click anywhere in the box copies it, and without JavaScript the same click selects it entirely (`user-select: all`). A Signal Orange caret block, 0.55em × 1.15em, blinks after it (1.1s, steps(1)). A copy button sits at the right end at every width.
-- **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it carries the same copy button. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret and select-all.
+- **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it carries the same copy button. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret, select-all and copy button.
 - **Copy button:** a 30px white pill at the right end of every command box and flat code block, with a 1px Hairline Strong border and a 16px copy icon beside a 13px weight-500 label. The label reads "Copy" in Warm Muted and turns Ink on hover. After a successful copy it reads "Copied" in Orange Ink for two seconds. If the browser refuses the copy, it reads "Press ⌘C" or "Press Ctrl+C" in Ink, and the command is left selected. It is hidden until the script runs, so a page without JavaScript shows none.
 
 ### SKILL.md Document
@@ -770,7 +770,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Frame:** a square frame with registration marks, 420px wide, padded 32px (24px 20px on mobile). It holds the Auth Title, an optional Alert, and a form of fields 18px apart that ends in a wide primary button.
 
 ### Named Rules
-**The Select-All Rule.** A command or token the user is meant to copy selects entirely with one click and ends in a blinking orange caret block. It never needs a JavaScript copy button.
+**The One-Click Copy Rule.** A command or token the user is meant to copy copies to the clipboard with one click and ends in a blinking orange caret block. Without JavaScript the same click selects it entirely, so it can still be copied by hand.
 
 **The Header Strip Rule.** Every titled frame opens with a Paper Shade strip, at least 52px tall with a Hairline bottom border, holding its title or a filename chip on the left and its meta, count or link on the right. A form frame closes with the same Paper Shade as its footer bar, so Paper Shade marks the top and bottom of a frame and White marks its content.
 
