@@ -174,7 +174,7 @@ export function SkillPage(props: {
 
       <section class="band">
         <div class="band__head">
-          <h2 class="legend">SKILL.md</h2>
+          <h2 class="legend legend--literal">SKILL.md</h2>
         </div>
         <article class="skill-doc" dangerouslySetInnerHTML={{ __html: props.version.html }} />
       </section>

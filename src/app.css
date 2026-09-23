@@ -151,6 +151,10 @@
   color: var(--color-legend);
 }
 
+.legend--literal {
+  text-transform: none;
+}
+
 .masthead {
   display: flex;
   align-items: stretch;
