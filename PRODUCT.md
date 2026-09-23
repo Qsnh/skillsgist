@@ -35,7 +35,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 - **Publishing from the web.** `/new` accepts a `.zip`, a `.tar.gz`, or a single `SKILL.md`. `/s/:slug/edit` changes only the `SKILL.md` text and repacks the previous version's other files unchanged. `/s/:slug/upload` replaces the whole archive. Editing text and uploading an archive are deliberately two separate pages so a single page never offers two competing inputs.
 - **Publishing from a terminal.** `PUT /api/skills/:slug` with `Authorization: Bearer <token>` and a raw archive body. The token is generated on demand from `/me`.
 - **Installing.** `npx skills add https://<domain>/i/<install_key>` for everything visible to that key, `.../i/<key>/.well-known/agent-skills/<name>` for one skill, or the bare origin for public skills with no key at all.
-- **Account administration.** `/admin/users` lists accounts and switches roles, resets passwords, rotates install keys, revokes API tokens, and deletes accounts. `/admin/users/new` creates them.
+- **Account administration.** `/admin/users` lists accounts, switches roles, resets passwords, rotates install keys, revokes API tokens, and deletes accounts. `/admin/users/new` creates them.
 - **Local development.** A local-only `SESSION_SECRET` in `.dev.vars`, `d1 migrations apply --local`, then `npm run dev` (Tailwind watch + `wrangler dev`). `npm test`, `npm run typecheck`, and `npm run verify:cli` are the verification commands; `verify:cli` starts its own `wrangler dev` with an injected secret and needs no `.dev.vars`.
 
 ## Capabilities and Constraints
