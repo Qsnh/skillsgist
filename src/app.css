@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@source "./**/*.tsx";
+
+/* Rendered SKILL.md body. @tailwindcss/typography is not pulled in; these few rules are enough. */
+.skill-doc h1 { @apply mt-6 mb-2 text-lg font-semibold; }
+.skill-doc h2 { @apply mt-5 mb-2 text-base font-semibold; }
+.skill-doc h3 { @apply mt-4 mb-1 text-sm font-semibold; }
+.skill-doc p  { @apply my-2 text-sm leading-6 text-slate-700; }
+.skill-doc ul { @apply my-2 list-disc pl-5 text-sm text-slate-700; }
+.skill-doc ol { @apply my-2 list-decimal pl-5 text-sm text-slate-700; }
+.skill-doc a  { @apply text-blue-700 underline; }
+.skill-doc code { @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-xs; }
+.skill-doc pre { @apply my-3 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100; }
+.skill-doc pre code { @apply bg-transparent p-0 text-slate-100; }
+.skill-doc table { @apply my-3 w-full text-sm; }
+.skill-doc th, .skill-doc td { @apply border-b border-slate-200 px-2 py-1 text-left; }

@@ -1,0 +1,203 @@
+export interface ArchiveEntry {
+  path: string;
+  data: Uint8Array;
+}
+
+export class ArchiveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ArchiveError";
+  }
+}
+
+let CRC_TABLE: Uint32Array | null = null;
+
+function crcTable(): Uint32Array {
+  if (CRC_TABLE) return CRC_TABLE;
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c >>> 0;
+  }
+  CRC_TABLE = t;
+  return t;
+}
+
+export function crc32(data: Uint8Array): number {
+  const t = crcTable();
+  let c = 0xffffffff;
+  for (let i = 0; i < data.length; i++) c = t[(c ^ data[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Shared by the deflate/inflate paths here and by tar.ts's gunzip. */
+export async function pipeBytes(
+  data: Uint8Array,
+  transform: CompressionStream | DecompressionStream,
+): Promise<Uint8Array> {
+  const stream = new Blob([data]).stream().pipeThrough(transform);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  return pipeBytes(data, new CompressionStream("deflate-raw"));
+}
+
+// 1980-01-01, the earliest date the zip spec allows. Pinning it makes identical content produce identical bytes.
+const DOS_DATE = 0x21;
+const DOS_TIME = 0;
+// 0o100644 << 16: regular file permissions. The CLI reads this field to exclude symlinks, so the regular-file bit is required.
+const EXTERNAL_ATTRS = 0x81a40000;
+
+export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const sorted = [...entries].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const entry of sorted) {
+    const nameBytes = enc.encode(entry.path);
+    const crc = crc32(entry.data);
+    const deflated = await deflateRaw(entry.data);
+    const useDeflate = deflated.length < entry.data.length;
+    const body = useDeflate ? deflated : entry.data;
+    const method = useDeflate ? 8 : 0;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true); // interpret file names as UTF-8
+    lv.setUint16(8, method, true);
+    lv.setUint16(10, DOS_TIME, true);
+    lv.setUint16(12, DOS_DATE, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, body.length, true);
+    lv.setUint32(22, entry.data.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, method, true);
+    cv.setUint16(12, DOS_TIME, true);
+    cv.setUint16(14, DOS_DATE, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, body.length, true);
+    cv.setUint32(24, entry.data.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, EXTERNAL_ATTRS, true);
+    cv.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+
+    locals.push(local, body);
+    centrals.push(central);
+    offset += local.length + body.length;
+  }
+
+  const centralSize = centrals.reduce((n, c) => n + c.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);
+  ev.setUint16(6, 0, true);
+  ev.setUint16(8, sorted.length, true);
+  ev.setUint16(10, sorted.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+  ev.setUint16(20, 0, true);
+
+  const parts = [...locals, ...centrals, eocd];
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const part of parts) {
+    out.set(part, pos);
+    pos += part.length;
+  }
+  return out;
+}
+
+function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  return pipeBytes(data, new DecompressionStream("deflate-raw"));
+}
+
+function findEocd(view: DataView, length: number): number {
+  const min = Math.max(0, length - 65535 - 22);
+  for (let offset = length - 22; offset >= min; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) return offset;
+  }
+  return -1;
+}
+
+export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+  if (bytes.length < 22) throw new ArchiveError("Not a valid zip: file too short");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const eocd = findEocd(view, bytes.length);
+  if (eocd < 0) throw new ArchiveError("Not a valid zip: no end-of-central-directory record");
+
+  const count = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  const files = new Map<string, Uint8Array>();
+  const dec = new TextDecoder();
+
+  // The whole read is wrapped once rather than per iteration: every failure
+  // mode here aborts the read anyway, and callers rely on only ArchiveError
+  // coming out (see archive-read.test.ts). A truncated/corrupt deflate stream
+  // makes DecompressionStream throw its own exception type, and a corrupt
+  // central directory can send DataView offsets out of bounds, throwing a raw
+  // RangeError — normalize both so the contract holds for every path.
+  try {
+    for (let i = 0; i < count; i++) {
+      if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("Corrupt zip central directory");
+      const flags = view.getUint16(offset + 8, true);
+      const method = view.getUint16(offset + 10, true);
+      const compressedSize = view.getUint32(offset + 20, true);
+      const uncompressedSize = view.getUint32(offset + 24, true);
+      const nameLen = view.getUint16(offset + 28, true);
+      const extraLen = view.getUint16(offset + 30, true);
+      const commentLen = view.getUint16(offset + 32, true);
+      const externalAttrs = view.getUint32(offset + 38, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const name = dec.decode(bytes.subarray(offset + 46, offset + 46 + nameLen));
+      offset = offset + 46 + nameLen + extraLen + commentLen;
+
+      if (name.endsWith("/")) continue;
+      if (flags & 1) throw new ArchiveError("Encrypted zip entries are not supported");
+      const fileType = (externalAttrs >>> 16) & 0xf000;
+      if (fileType === 0xa000 || fileType === 0x1000) throw new ArchiveError("Link entries in archives are not supported");
+      if (view.getUint32(localOffset, true) !== 0x04034b50) throw new ArchiveError("Corrupt zip local header");
+
+      const localNameLen = view.getUint16(localOffset + 26, true);
+      const localExtraLen = view.getUint16(localOffset + 28, true);
+      const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+      const raw = bytes.subarray(dataStart, dataStart + compressedSize);
+
+      let content: Uint8Array;
+      if (method === 0) content = raw;
+      else if (method === 8) content = await inflateRaw(raw);
+      else throw new ArchiveError(`Unsupported zip compression method: ${method}`);
+
+      if (content.byteLength !== uncompressedSize) throw new ArchiveError(`Zip entry size mismatch: ${name}`);
+      files.set(name, content);
+    }
+  } catch (err) {
+    if (err instanceof ArchiveError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ArchiveError(`Failed to parse zip entry: ${message}`);
+  }
+
+  return files;
+}
