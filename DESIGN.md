@@ -691,7 +691,7 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 
 ### Chips
 - **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The You tag sits beside your own username in the users table. A tag always sits beside the thing it names, never above a heading.
-- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames and usernames: the SKILL.md label in a header strip, the files carried over on Edit, and the username beside the Account title. Chips wrap in a row with 6px gaps.
+- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames: the SKILL.md label in a header strip, and the files carried over on Edit. Chips wrap in a row with 6px gaps.
 - **Count pill:** 24px tall, a white fill with a Hairline Strong outline, holding Mono Meta numerals in Graphite. It sits right after a section headline, a compact page title or a panel title. The number it shows is always the real length of the list.
 - **Status pill:** the same 24px white pill after a 14px Body Gray "Status:" line, holding Mono Meta text. When idle it reads in Warm Muted ("not generated"). When on it reads in Ink and leads with a 6px Signal Orange dot ("active").
 - **Visibility label:** Mono Label text in uppercase with a 13px icon, placed at the top-right of a cell. Public uses a globe in Orange Ink. Private uses a padlock in Warm Muted. It has no fill and no border. On the skill panel it sits in the meta line in Ember.
@@ -712,7 +712,7 @@ There are no cards. Every container is a square hairline frame.
 
 ### Page Head
 The top of every working page.
-- **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps), such as the username chip and role label on Account. An optional Page Lede follows 12px below. It sits 32px above the content.
+- **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps). An optional Page Lede follows 12px below. It sits 32px above the content.
 - **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users.
 
 ### Inputs / Fields

@@ -56,15 +56,7 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
   return (
     <Layout title="Account" user={props.user}>
       <div class="cf-narrow">
-        <PageHead
-          title="Account"
-          aside={
-            <span class="cf-head-aside">
-              <span class="cf-chip">{props.user.username}</span>
-              <RoleLabel role={props.user.role} />
-            </span>
-          }
-        />
+        <PageHead title="Account" />
         <Alert message={props.error} />
 
         <div class="cf-stack-lg">

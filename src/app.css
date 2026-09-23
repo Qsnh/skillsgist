@@ -854,12 +854,6 @@
     line-height: 1.15;
   }
 
-  .cf-head-aside {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-  }
-
   .cf-head-lede {
     max-width: 68ch;
     margin-top: 12px;

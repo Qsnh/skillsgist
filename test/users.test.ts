@@ -95,6 +95,15 @@ describe("/me", () => {
     expect(res.headers.get("Location")).toBe("/login");
   });
 
+  it("shows the Account title without the username chip or role label", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    const head = /<header class="cf-head">([\s\S]*?)<\/header>/.exec(html)?.[1];
+    expect(head).toContain("Account");
+    expect(head).not.toContain("alice");
+    expect(head).not.toContain("cf-vis");
+  });
+
   it("shows a ready-to-copy install command", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
