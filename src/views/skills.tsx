@@ -16,10 +16,7 @@ export function IndexPage(props: {
     <Layout title="Skills" user={props.user}>
       <section class="band band--bleed">
         <div class="band__head">
-          <span class="legend">
-            Order · {props.user ? "entire catalogue, with your install key" : "public catalogue, no key needed"}
-          </span>
-          <span class="legend">Selects as one line</span>
+          <span class="legend">Installation</span>
         </div>
         <CodeBlock>
           npx skills add {props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin}
@@ -141,22 +138,9 @@ export function SkillPage(props: {
 
       <section class="band band--bleed">
         <div class="band__head">
-          <span class="legend">
-            Order · this entry{props.user ? ", with your install key" : ""}
-          </span>
-          <span class="legend">Selects as one line</span>
+          <span class="legend">Installation</span>
         </div>
         <CodeBlock>npx skills add {dispenseUrl}</CodeBlock>
-        <p class="band__note">
-          {superseded
-            ? `This address always installs the current version, v${props.skill.latest_version}, not the one shown here. `
-            : ""}
-          {props.user
-            ? "This command carries your install key, so it can install private skills."
-            : props.skill.visibility === "public"
-              ? "This is the public address. Anyone can use it."
-              : ""}
-        </p>
       </section>
 
       <div class="cells">

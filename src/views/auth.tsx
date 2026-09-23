@@ -45,14 +45,9 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
 
       <section class="band band--bleed">
         <div class="band__head">
-          <span class="legend">Install key · installs every skill you can see</span>
-          <span class="legend">Selects as one line</span>
+          <span class="legend">Installation</span>
         </div>
         <CodeBlock>npx skills add {installUrl}</CodeBlock>
-        <p class="band__note">
-          This key can only install. It cannot sign in, publish or delete. Reset it below if you think
-          it has leaked.
-        </p>
       </section>
 
       <div class="cells">
