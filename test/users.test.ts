@@ -269,7 +269,11 @@ describe("/admin/users/new", () => {
       role: "member",
     });
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain("Username must be 2-32 lowercase letters, digits or hyphens");
+    const html = await res.text();
+    expect(html).toContain("Username must be 2-32 lowercase letters, digits or hyphens");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="Carol!"');
     expect(await getUserByUsername(env.DB, "Carol!")).toBeNull();
   });
 
@@ -282,7 +286,13 @@ describe("/admin/users/new", () => {
       role: "admin",
     });
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain("That username is taken");
+    const html = await res.text();
+    expect(html).toContain("That username is taken");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="carol"');
+    expect(html).toContain('<option value="admin" selected="">admin</option>');
+    expect(html).not.toContain('value="another-long-password"');
     const after = await getUserByUsername(env.DB, "carol");
     expect(after?.role).toBe("member");
     expect(after?.password_hash).toBe(carol.password_hash);
