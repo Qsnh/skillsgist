@@ -28,6 +28,7 @@ export interface VersionRow {
   description: string;
   skill_md: string;
   html: string;
+  html_rev: number;
   files: string;
   r2_key: string;
   author_id: string;
@@ -50,6 +51,7 @@ export interface InsertVersionInput {
   description: string;
   skill_md: string;
   html: string;
+  html_rev: number;
   files: string;
   authorId: string;
   visibility: "public" | "private";
@@ -168,6 +170,19 @@ export function getSkillWithAuthor(
     .first<SkillRow & { author: string }>();
 }
 
+export function updateVersionHtml(
+  db: D1Database,
+  slug: string,
+  version: number,
+  html: string,
+  rev: number,
+): Promise<unknown> {
+  return db
+    .prepare("UPDATE versions SET html = ?, html_rev = ? WHERE slug = ? AND version = ?")
+    .bind(html, rev, slug, version)
+    .run();
+}
+
 export function getVersion(db: D1Database, slug: string, version: number): Promise<VersionRow | null> {
   return db
     .prepare("SELECT * FROM versions WHERE slug = ? AND version = ?")
@@ -221,12 +236,12 @@ export async function insertVersion(
       .bind(input.slug, input.description, input.visibility, input.authorId, version, now, now),
     db
       .prepare(
-        `INSERT INTO versions (slug, version, digest, size, name, description, skill_md, html, files, r2_key, author_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO versions (slug, version, digest, size, name, description, skill_md, html, html_rev, files, r2_key, author_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         input.slug, version, input.digest, input.size, input.name, input.description,
-        input.skill_md, input.html, input.files, r2Key, input.authorId, now,
+        input.skill_md, input.html, input.html_rev, input.files, r2Key, input.authorId, now,
       ),
   ]);
 

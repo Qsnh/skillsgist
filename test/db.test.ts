@@ -14,6 +14,7 @@ const base = {
   description: "a demo skill",
   skill_md: "---\nname: demo\ndescription: a demo skill\n---\nbody",
   html: "<p>body</p>",
+  html_rev: 1,
   files: JSON.stringify([{ path: "SKILL.md", size: 10 }]),
 };
 

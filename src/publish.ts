@@ -1,6 +1,6 @@
 import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { UserRow, VersionRow } from "./db/queries";
-import { renderSkillMd } from "./render/markdown";
+import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
 import type { Env } from "./types";
@@ -73,6 +73,7 @@ export async function publishBytes(
     description: normalized.description,
     skill_md: normalized.skillMd,
     html,
+    html_rev: RENDER_REVISION,
     files: JSON.stringify(normalized.files),
     authorId: user.id,
     visibility: opts.visibility ?? "private",

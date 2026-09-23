@@ -1,6 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill } from "../src/db/queries";
+import { RENDER_REVISION } from "../src/render/markdown";
 import { env, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin } from "./helpers";
 
 // This file asserts the rendered body reaches the page, so it wants a heading
@@ -39,6 +40,48 @@ describe("GET /", () => {
 
 describe("GET /s/:slug", () => {
   beforeEach(resetDb);
+
+  it("re-renders html stored by an older renderer and saves it", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ?")
+      .bind("<hr>\n<h2>name: demo-skill</h2>", "demo-skill")
+      .run();
+
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
+    expect(html).not.toContain("name: demo-skill</h2>");
+    expect(html).toContain("Demo Heading");
+
+    const row = await env.DB.prepare("SELECT html, html_rev FROM versions WHERE slug = ? AND version = 1")
+      .bind("demo-skill")
+      .first<{ html: string; html_rev: number }>();
+    expect(row?.html_rev).toBe(RENDER_REVISION);
+    expect(row?.html).toContain("Demo Heading");
+  });
+
+  it("heals an older version viewed with ?v=", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await publish(cookie, GOOD_MD.replace("Demo Heading", "Second Heading"), "public");
+    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ? AND version = 1")
+      .bind("<h2>stale</h2>", "demo-skill")
+      .run();
+
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill?v=1`)).text();
+    expect(html).not.toContain("stale");
+    expect(html).toContain("Demo Heading");
+  });
+
+  it("serves current html from storage without re-rendering", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await env.DB.prepare("UPDATE versions SET html = ? WHERE slug = ?")
+      .bind("<p>stored-sentinel</p>", "demo-skill")
+      .run();
+
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
+    expect(html).toContain("stored-sentinel");
+  });
 
   it("renders the stored html and the install command", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
