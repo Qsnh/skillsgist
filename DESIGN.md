@@ -627,7 +627,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
 - **Mono Meta Large** (400, 13px, tabular numerals): the skill-page meta line and the version links in the Versions list.
 - **Mono Path** (400, 12.5px): file paths in the Files list and dates in the users table.
-- **Mono Meta** (400, 12px, tabular numerals): version, author handle and date in a cell, row sizes and timestamps, the count pill, chips and the status pill.
+- **Mono Meta** (400, 12px, tabular numerals): the author handle in a cell, row sizes and timestamps, the count pill, chips and the status pill.
 - **Mono Label** (500, 11px, 0.1em, uppercase): the Public, Private, admin and member labels and the users table column headers.
 - **Mono Tag** (500, 10.5px, 0.1em, uppercase): the You tag. The stacked table labels below 768px use the same size and tracking at weight 400.
 
@@ -745,7 +745,7 @@ The top of every working page.
 The hero of the system: an orange field that hands over one line of shell.
 - **Field:** Signal Orange with 16px corners, inset 8px from the viewport. It carries the dot-matrix texture and the breathing glow at its foot (opacity 0.85 to 1, scale from 1 × 0.92 to 1.06 × 1.08, 7s ease-in-out, alternating).
 - **Index stack:** centered. A white Display headline, then the Lede in Ember, then the command box 36px below it (28px on mobile), then the search field 14px below that.
-- **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (version, author, Visibility label, date, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
+- **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (author and Visibility label, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
 - **Command box:** a white box with 12px corners, lifted by the Command Lift shadow. It holds an Orange Ink `$` prompt that cannot be selected, and the command in Mono Command text. The command wraps anywhere. One click anywhere in the box copies it, and without JavaScript the same click selects it entirely (`user-select: all`). A Signal Orange caret block, 0.55em × 1.15em, blinks after it (1.1s, steps(1)). A copy button sits at the right end at every width.
 - **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it carries the same copy button. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret, select-all and copy button.
 - **Copy button:** a 30px white pill at the right end of every command box and flat code block, with a 1px Hairline Strong border and a 16px copy icon beside a 13px weight-500 label. The label reads "Copy" in Warm Muted and turns Ink on hover. After a successful copy it reads "Copied" in Orange Ink for two seconds. If the browser refuses the copy, it reads "Press ⌘C" or "Press Ctrl+C" in Ink, and the command is left selected. It is hidden until the script runs, so a page without JavaScript shows none.

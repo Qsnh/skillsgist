@@ -1,5 +1,5 @@
 import { Form } from "../csrf";
-import { Button, CodeBlock, DATE, Icon, Layout, Panel } from "./layout";
+import { Button, CodeBlock, Icon, Layout, Panel } from "./layout";
 import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
@@ -24,7 +24,6 @@ function Visibility(props: { value: SkillRow["visibility"] }) {
 
 function SkillCell(props: { skill: SkillRow & { author: string } }) {
   const s = props.skill;
-  const updated = new Date(s.updated_at);
   return (
     <li class="cf-cell">
       <div class="cf-cell-head">
@@ -35,9 +34,7 @@ function SkillCell(props: { skill: SkillRow & { author: string } }) {
       </div>
       <p class="cf-cell-desc">{s.description}</p>
       <p class="cf-cell-meta">
-        <span>v{s.latest_version}</span>
         <span>{s.author}</span>
-        <time datetime={updated.toISOString()}>{DATE.format(updated)}</time>
         <span class="cf-cell-arrow">
           <Icon>
             <path d="M3 8h10M9 4l4 4-4 4" />
@@ -193,7 +190,6 @@ export function SkillPage(props: {
   const isLatest = version.version === skill.latest_version;
   const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
   const url = `${base}/.well-known/agent-skills/${skill.slug}`;
-  const published = new Date(version.created_at);
   return (
     <Layout title={skill.slug} user={props.user} bare>
       <section class="cf-hero cf-hero-compact" aria-labelledby="skill-title">
@@ -201,10 +197,8 @@ export function SkillPage(props: {
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{skill.slug}</h1>
           <p class="cf-hero-lede">{version.description}</p>
           <p class="cf-hero-meta">
-            <span>v{version.version}</span>
             <span>{skill.author}</span>
             <Visibility value={skill.visibility} />
-            <time datetime={published.toISOString()}>{DATE.format(published)}</time>
           </p>
           <CodeBlock raised>npx skills add {url}</CodeBlock>
           {props.user ? (
