@@ -1,18 +1,80 @@
 import { Form } from "../csrf";
-import { CodeBlock, Layout } from "./layout";
+import { Button, CodeBlock, DATE, Icon, Layout, Panel } from "./layout";
 import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
 
-function InstallBlock(props: { origin: string; slug: string; user: UserRow | null; isPublic: boolean }) {
-  const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
-  const url = `${base}/.well-known/agent-skills/${props.slug}`;
+function Visibility(props: { value: SkillRow["visibility"] }) {
+  return props.value === "public" ? (
+    <span class="cf-vis cf-vis-public">
+      <Icon>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z" />
+      </Icon>
+      Public
+    </span>
+  ) : (
+    <span class="cf-vis cf-vis-private">
+      <Icon>
+        <rect x="3" y="7" width="10" height="7" rx="1.5" />
+        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+      </Icon>
+      Private
+    </span>
+  );
+}
+
+function SkillCell(props: { skill: SkillRow & { author: string } }) {
+  const s = props.skill;
+  const updated = new Date(s.updated_at);
   return (
-    <div>
-      <CodeBlock>npx skills add {url}</CodeBlock>
-      {props.user ? (
-        <p class="mt-1 text-xs text-slate-500">This command carries your install key, so it can install private skills.</p>
-      ) : props.isPublic ? (
-        <p class="mt-1 text-xs text-slate-500">This is the public address. Anyone can use it.</p>
-      ) : null}
+    <li class="cf-cell">
+      <div class="cf-cell-head">
+        <h3 class="cf-cell-title">
+          <a href={`/s/${s.slug}`} class="cf-cell-link">{s.slug}</a>
+        </h3>
+        <Visibility value={s.visibility} />
+      </div>
+      <p class="cf-cell-desc">{s.description}</p>
+      <p class="cf-cell-meta">
+        <span>v{s.latest_version}</span>
+        <span>{s.author}</span>
+        <time datetime={updated.toISOString()}>{DATE.format(updated)}</time>
+        <span class="cf-cell-arrow">
+          <Icon>
+            <path d="M3 8h10M9 4l4 4-4 4" />
+          </Icon>
+        </span>
+      </p>
+    </li>
+  );
+}
+
+function EmptyRegistry(props: { user: UserRow | null; q: string }) {
+  if (props.q) {
+    return (
+      <div class="cf-empty">
+        <p class="cf-empty-title">No skills match &ldquo;{props.q}&rdquo;.</p>
+        <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
+        <a href="/" class="cf-btn cf-btn-outline">Clear search</a>
+      </div>
+    );
+  }
+  if (props.user) {
+    return (
+      <div class="cf-empty">
+        <p class="cf-empty-title">No skills yet.</p>
+        <p class="cf-empty-body">
+          Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
+          from your account.
+        </p>
+        <a href="/new" class="cf-btn cf-btn-primary">Publish the first skill</a>
+      </div>
+    );
+  }
+  return (
+    <div class="cf-empty">
+      <p class="cf-empty-title">No public skills yet.</p>
+      <p class="cf-empty-body">Skills are private until their owner makes them public. Sign in to see the rest.</p>
+      <a href="/login" class="cf-btn cf-btn-outline">Sign in</a>
     </div>
   );
 }
@@ -23,52 +85,98 @@ export function IndexPage(props: {
   q: string;
   origin: string;
 }) {
+  const address = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
+  const count = props.skills.length;
+  const fillWide = (3 - (count % 3)) % 3;
+  const fillMid = count % 2;
   return (
-    <Layout title="Skills" user={props.user}>
-      <form method="get" action="/" class="mb-6 flex gap-2">
-        <input
-          name="q"
-          value={props.q}
-          placeholder="Search names, descriptions and body text"
-          class="flex-1 rounded border border-slate-300 px-3 py-2"
-        />
-        <button type="submit" class="rounded bg-slate-900 px-4 py-2 text-sm text-white">Search</button>
-      </form>
-
-      {props.user ? (
-        <div class="mb-6">
-          <h2 class="mb-1 text-sm font-medium text-slate-700">Install everything at once</h2>
-          <CodeBlock>npx skills add {props.origin}/i/{props.user.install_key}</CodeBlock>
+    <Layout title="Skills" user={props.user} bare>
+      <section class="cf-hero" aria-labelledby="hero-title">
+        <div class="cf-hero-inner">
+          <h1 id="hero-title" class="cf-hero-title">
+            {props.user ? "Install every skill with one command" : "Install public skills with one command"}
+          </h1>
+          {props.user ? (
+            <p class="cf-hero-lede">
+              The address carries your install key, so private skills come along. The key can only install; reset it
+              from <a href="/me">your account</a> if it leaks.
+            </p>
+          ) : (
+            <p class="cf-hero-lede">
+              This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Public skills need no key.{" "}
+              <a href="/login">Sign in</a> to see the private ones.
+            </p>
+          )}
+          <CodeBlock raised>npx skills add {address}</CodeBlock>
+          <form method="get" action="/" class="cf-search" role="search">
+            <Icon>
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="M10.5 10.5L14 14" />
+            </Icon>
+            <label for="q" class="sr-only">Search skills</label>
+            <input
+              id="q"
+              name="q"
+              type="search"
+              value={props.q}
+              placeholder="Search skills"
+              class="cf-search-input"
+            />
+            <button type="submit" class="cf-search-submit">Search</button>
+          </form>
         </div>
-      ) : null}
+      </section>
 
-      {props.skills.length === 0 ? (
-        <p class="text-sm text-slate-500">
-          {props.q ? "No skills match." : "No skills yet."}
-        </p>
-      ) : (
-        <ul class="divide-y divide-slate-200">
-          {props.skills.map((s) => (
-            <li class="py-3">
-              <div class="flex items-baseline gap-2">
-                <a href={`/s/${s.slug}`} class="font-medium text-slate-900 hover:underline">{s.slug}</a>
-                <span
-                  class={`rounded px-1.5 py-0.5 text-xs ${
-                    s.visibility === "private"
-                      ? "bg-slate-200 text-slate-600"
-                      : "bg-emerald-100 text-emerald-700"
-                  }`}
-                >
-                  {s.visibility}
-                </span>
-                <span class="text-xs text-slate-400">v{s.latest_version} · {s.author}</span>
-              </div>
-              <p class="mt-1 text-sm text-slate-600">{s.description}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <section class="cf-page cf-guides cf-registry" aria-labelledby="registry-title">
+        <div class="cf-registry-head">
+          <h2 id="registry-title" class="cf-registry-title">
+            {props.q ? <>Results for &ldquo;{props.q}&rdquo;</> : "Skills"}
+          </h2>
+          <span class="cf-count">{count}</span>
+          {props.q && count > 0 ? <a href="/" class="cf-link">Clear search</a> : null}
+          <span class="cf-registry-sort">Recently updated first</span>
+        </div>
+        <div class="cf-frame">
+          {count === 0 ? (
+            <EmptyRegistry user={props.user} q={props.q} />
+          ) : (
+            <div class="cf-grid-clip">
+              <ul class="cf-grid">
+                {props.skills.map((s) => (
+                  <SkillCell skill={s} />
+                ))}
+                {fillWide ? <li class={`cf-cell-fill cf-fill-wide cf-span-${fillWide}`} aria-hidden="true" /> : null}
+                {fillMid ? <li class="cf-cell-fill cf-fill-mid" aria-hidden="true" /> : null}
+              </ul>
+            </div>
+          )}
+        </div>
+      </section>
     </Layout>
+  );
+}
+
+const STAMP = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+});
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function DownloadIcon() {
+  return (
+    <Icon>
+      <path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10" />
+    </Icon>
   );
 }
 
@@ -80,78 +188,110 @@ export function SkillPage(props: {
   origin: string;
   canManage: boolean;
 }) {
-  const files = JSON.parse(props.version.files) as Array<{ path: string; size: number }>;
+  const { skill, version } = props;
+  const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
+  const isLatest = version.version === skill.latest_version;
+  const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
+  const url = `${base}/.well-known/agent-skills/${skill.slug}`;
+  const published = new Date(version.created_at);
   return (
-    <Layout title={props.skill.slug} user={props.user}>
-      <div class="mb-2 flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold">{props.skill.slug}</h1>
-        <span class="text-xs text-slate-400">
-          v{props.version.version} · {props.skill.author} · {props.skill.visibility}
-        </span>
-      </div>
-      <p class="mb-6 text-sm text-slate-600">{props.version.description}</p>
+    <Layout title={skill.slug} user={props.user} bare>
+      <section class="cf-hero cf-hero-compact" aria-labelledby="skill-title">
+        <div class="cf-hero-inner cf-hero-start">
+          <h1 id="skill-title" class="cf-hero-title cf-skill-title">{skill.slug}</h1>
+          <p class="cf-hero-lede">{version.description}</p>
+          <p class="cf-hero-meta">
+            <span>v{version.version}</span>
+            <span>{skill.author}</span>
+            <Visibility value={skill.visibility} />
+            <time datetime={published.toISOString()}>{DATE.format(published)}</time>
+          </p>
+          <CodeBlock raised>npx skills add {url}</CodeBlock>
+          {props.user ? (
+            <p class="cf-hero-note">This command carries your install key, so it can install private skills.</p>
+          ) : skill.visibility === "public" ? (
+            <p class="cf-hero-note">This is the public address. Anyone can use it.</p>
+          ) : null}
+        </div>
+      </section>
 
-      <div class="mb-6 space-y-2">
-        <InstallBlock
-          origin={props.origin}
-          slug={props.skill.slug}
-          user={props.user}
-          isPublic={props.skill.visibility === "public"}
-        />
-        <div class="flex flex-wrap gap-2 text-sm">
-          <a href={`/s/${props.skill.slug}/download`} class="rounded border border-slate-300 px-3 py-1.5">
+      <div class="cf-page cf-guides cf-skill-body">
+        <div class="cf-toolbar">
+          <a href={`/s/${skill.slug}/download`} class="cf-btn cf-btn-outline">
+            <DownloadIcon />
             Download zip
           </a>
           {props.canManage ? (
             <>
-              <a href={`/s/${props.skill.slug}/edit`} class="rounded border border-slate-300 px-3 py-1.5">
-                Edit SKILL.md
-              </a>
-              <a href={`/s/${props.skill.slug}/upload`} class="rounded border border-slate-300 px-3 py-1.5">
-                Upload an archive
-              </a>
-              <Form action={`/s/${props.skill.slug}/visibility`}>
-                <button type="submit" class="rounded border border-slate-300 px-3 py-1.5">
-                  {props.skill.visibility === "public" ? "Make private" : "Make public"}
-                </button>
+              <a href={`/s/${skill.slug}/edit`} class="cf-btn cf-btn-outline">Edit SKILL.md</a>
+              <a href={`/s/${skill.slug}/upload`} class="cf-btn cf-btn-outline">Upload an archive</a>
+              <Form action={`/s/${skill.slug}/visibility`}>
+                <Button variant="outline">{skill.visibility === "public" ? "Make private" : "Make public"}</Button>
               </Form>
-              <Form action={`/s/${props.skill.slug}/delete`}>
-                <button type="submit" class="rounded border border-red-300 px-3 py-1.5 text-red-700">
-                  Delete
-                </button>
+              <Form action={`/s/${skill.slug}/delete`} class="cf-toolbar-end">
+                <Button variant="danger">Delete</Button>
               </Form>
             </>
           ) : null}
         </div>
+
+        <div class="cf-skill-grid">
+          <article class="cf-frame cf-doc" aria-label="SKILL.md">
+            <header class="cf-panel-head">
+              <span class="cf-chip">SKILL.md</span>
+              {isLatest ? (
+                <span class="cf-panel-meta">v{version.version}, the latest version</span>
+              ) : (
+                <span class="cf-panel-meta">
+                  Viewing v{version.version}.{" "}
+                  <a href={`/s/${skill.slug}`} class="cf-link">Go to the latest, v{skill.latest_version}</a>
+                </span>
+              )}
+            </header>
+            <div class="skill-doc" dangerouslySetInnerHTML={{ __html: version.html }} />
+          </article>
+
+          <aside class="cf-skill-aside">
+            <Panel title="Files" aside={<span class="cf-count">{files.length}</span>}>
+              <ul class="cf-rows">
+                {files.map((f) => (
+                  <li class="cf-row">
+                    <span class="cf-row-main cf-row-path">{f.path}</span>
+                    <span class="cf-row-meta">{formatSize(f.size)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+            <Panel title="Versions" aside={<span class="cf-count">{props.versions.length}</span>}>
+              <ul class="cf-rows">
+                {props.versions.map((v) => {
+                  const at = new Date(v.created_at);
+                  const current = v.version === version.version;
+                  return (
+                    <li class={current ? "cf-row cf-row-current" : "cf-row"}>
+                      <a
+                        href={`/s/${skill.slug}?v=${v.version}`}
+                        class="cf-row-main cf-row-version"
+                        aria-current={current ? "page" : undefined}
+                      >
+                        v{v.version}
+                      </a>
+                      <time class="cf-row-meta" datetime={at.toISOString()}>{STAMP.format(at)}</time>
+                      <a
+                        href={`/s/${skill.slug}/v/${v.version}/download`}
+                        class="cf-icon-link"
+                        aria-label={`Download v${v.version}`}
+                      >
+                        <DownloadIcon />
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          </aside>
+        </div>
       </div>
-
-      <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">Files</h2>
-        <ul class="text-sm text-slate-600">
-          {files.map((f) => (
-            <li class="flex justify-between border-b border-slate-100 py-1">
-              <span class="font-mono">{f.path}</span>
-              <span class="text-slate-400">{f.size} B</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section class="mb-6">
-        <h2 class="mb-2 text-sm font-medium text-slate-700">Versions</h2>
-        <ul class="text-sm text-slate-600">
-          {props.versions.map((v) => (
-            <li class="flex items-center gap-3 border-b border-slate-100 py-1">
-              <a href={`/s/${props.skill.slug}?v=${v.version}`} class="hover:underline">v{v.version}</a>
-              <span class="text-slate-400">{new Date(v.created_at).toISOString().slice(0, 16).replace("T", " ")}</span>
-              <span class="flex-1" />
-              <a href={`/s/${props.skill.slug}/v/${v.version}/download`} class="hover:underline">Download</a>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <article class="skill-doc" dangerouslySetInnerHTML={{ __html: props.version.html }} />
     </Layout>
   );
 }
