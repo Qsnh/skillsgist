@@ -103,6 +103,20 @@ describe("/me", () => {
     expect(html).toContain(`/i/${user.install_key}`);
   });
 
+  it("puts exactly the install command inside the copyable element", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    const text = /<code class="cf-command-text">([^<]*)<\/code>/.exec(html)?.[1];
+    expect(text).toBe(`npx skills add ${ORIGIN}/i/${user.install_key}`);
+  });
+
+  it("gives the one-time api token its own copy button", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await postForm("/me/api-token", cookie)).text();
+    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(2);
+    expect(html).toMatch(/<code class="cf-command-text">sgt_[a-f0-9]{32}<\/code>/);
+  });
+
   it("rotates the install key", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const res = await postForm("/me/install-key", cookie);

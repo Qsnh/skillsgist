@@ -543,7 +543,7 @@ components:
 
 skillsgist borrows the look of cloudflare.com and developers.cloudflare.com, but none of the brand. The ground is warm white paper, the text is true-gray ink, and the hairlines lean slightly toward terracotta. At the top of the index page sits one drenched orange panel with a dot-matrix texture and a slow glow at its foot. The system exists to hand over one line of shell, the install command, and then get out of the way. Below the panel the registry is a square, hairline-framed grid with corner registration marks, dashed column gutters and monospace metadata. It reads more like a technical drawing than a gallery of cards. No Cloudflare logo, cloud mark or trademarked asset appears anywhere. Schibsted Grotesk and Red Hat Mono are self-hosted under the OFL as open stand-ins for Cloudflare's proprietary FT Kunst Grotesk and Apercu Mono.
 
-The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered with no client-side JavaScript, so every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards, a file input and a command that selects entirely on one click. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
+The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards and a file input. The one exception is the command block. A small script copies it to the clipboard on one click, and without JavaScript the same click selects the whole command. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
 
 Every page lives in this world. The skill page keeps its own orange panel, compact and left-aligned, because it also hands over an install command. The working pages (publish, edit, upload, account, users, sign-in and setup) have no orange field. They sit on the paper ground between the dashed gutters and are built from the same parts: a page head, square frames with registration marks, a Paper Shade header strip on every titled frame, 8px fields and pill buttons. Sign-in and setup center one frame on a softly masked dot field.
 
@@ -556,7 +556,7 @@ Every page lives in this world. The skill page keeps its own orange panel, compa
 - Schibsted Grotesk at weight 500 for headings, and Red Hat Mono for commands and data.
 - Ember-tinted shadows, used in exactly two places: the raised command box and the account menu.
 - Danger is a line and a text color, never a fill.
-- No client JavaScript: native `<details>` menus, forms, and commands that select all on click.
+- Client JavaScript only as enhancement: native `<details>` menus and forms, plus one script that copies a command on click and falls back to select-all without it.
 
 ## Colors
 
@@ -581,7 +581,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Ink** (#171717): headings, cell titles, button, field and menu labels, input text, file paths, the wordmark, and bold text inside a rendered SKILL.md.
 - **Graphite** (#404040): secondary ink for the tags, count pill, chips, footer links, the resting cell arrow and download icon, and quoted text in a SKILL.md.
 - **Body Gray** (#525252): descriptions, page ledes, empty-state copy, rendered SKILL.md text, the status line, the file-picker text and the dates in the users table.
-- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers and stacked table labels, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the "Click to select" hint and footer text. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
+- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers and stacked table labels, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the idle "Copy" button label and footer text. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
 - **Paper** (#fdfdfc): the page ground behind everything, the fill inside the registration marks, the file picker and the chips.
 - **Paper Shade** (#f9f7f6): the footer band, every header strip and form footer bar, the table header row, code and quote blocks in a SKILL.md, and the hover fill on menu items, the search button and the download icon.
 - **Peach Tint** (#fff7f2): the hover wash on a skill cell, the fill of a checked choice card, the current row in the Versions list, and the notice fill.
@@ -626,8 +626,8 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **SKILL.md type** (500 headings at 1.25 and -0.02em in Ink, balanced): H1 30px at -0.03em, H2 23px, H3 18px, H4 16px. The body is 400 at 15.5px and 1.7 in Body Gray. Paragraphs, lists, quotes and headings keep a 72ch measure; tables and code blocks take the full frame width. Code blocks are Red Hat Mono at 13px and 1.6, and inline code is 0.86em.
 - **Body** (400, 15px, 1.5): the base size on the page, empty-state copy (52ch) and text in a field. Choice titles use it at weight 500.
 - **Body Small** (400, 14.5px, 1.55): cell descriptions, capped at 60ch and clamped to three lines.
-- **Label** (500, 14px, line-height 1): button labels, the search button and field labels. Menu items, text links, alerts, notices, the status line and table text use the same 14px at weight 400. Small buttons drop to 13px, and the small field and row text to 13.5px.
-- **Caption** (400, 13px): footer text, field hints, panel meta, choice details, the sort note and the "Click to select" hint.
+- **Label** (500, 14px, line-height 1): button labels, the search button and field labels. Menu items, text links, alerts, notices, the status line and table text use the same 14px at weight 400. Small buttons and the "Copy" button label drop to 13px, and the small field and row text to 13.5px.
+- **Caption** (400, 13px): footer text, field hints, panel meta, choice details and the sort note.
 - **Mono Command** (400, 16px/26px; 14px/22px below 640px): the install command and its prompt on the orange panel.
 - **Mono Command Small** (400, 14px/22px): the flat code block at every width.
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
@@ -724,7 +724,7 @@ The top of every working page.
 ### Inputs / Fields
 - **Field:** a 14px weight-500 Ink label, the control 6px below it, and an optional Caption hint in Warm Muted 6px below that.
 - **Text field:** 40px tall with 12px horizontal padding, a white fill, a 1px Hairline Strong border and 8px corners. Text is 15px Ink and the placeholder is Warm Muted. On hover the border turns Hairline Hover (#c9b8ae), over 200ms.
-- **Focus:** the border turns Ink and the global 2px Signal Orange ring sits 1px outside it. Inside the orange panel, every focus ring is white instead of orange.
+- **Focus:** the border turns Ink and the global 2px Signal Orange ring sits 1px outside it. Inside the orange panel, every focus ring is white instead of orange. The copy button inside the white command box is the exception: its ring stays Signal Orange so it shows against the white.
 - **Small text field:** 32px tall, 13.5px text, up to 300px wide (full width in the stacked table). It is used for the reset-password field in the users table.
 - **Textarea:** the text-field frame grown to at least 280px, padded 12px, in Red Hat Mono at 13.5px and 1.6, resizable vertically. It is used to paste SKILL.md on Publish.
 - **Editor:** a borderless mono textarea (13.5px, 1.65) that fills the edit frame, at least 480px tall, padded 20px 24px (16px 18px on mobile), with a Hairline bottom border. Its focus ring is drawn inside the frame.
@@ -752,8 +752,9 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Field:** Signal Orange with 16px corners, inset 8px from the viewport. It carries the dot-matrix texture and the breathing glow at its foot (opacity 0.85 to 1, scale from 1 × 0.92 to 1.06 × 1.08, 7s ease-in-out, alternating).
 - **Index stack:** centered. A white Display headline, then the Lede in Ember, then the command box 36px below it (28px on mobile), then the search field 14px below that.
 - **Skill stack:** compact and left-aligned. A white Display Skill slug, the Lede 14px below (64ch), a Mono Meta Large meta line 16px below in Ember (version, author, Visibility label, date, with 4px 18px gaps), the command box 28px below, and a 14px Ember note 12px below it that says what the command carries.
-- **Command box:** a white box with 12px corners, lifted by the Command Lift shadow. It holds an Orange Ink `$` prompt that cannot be selected, and the command in Mono Command text. The command wraps anywhere and selects entirely on one click (`user-select: all`). A Signal Orange caret block, 0.55em × 1.15em, blinks after it (1.1s, steps(1)). At 1280px and wider, a Caption hint in Warm Muted, "Click to select", sits at the right end.
-- **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it never shows the hint. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret and select-all.
+- **Command box:** a white box with 12px corners, lifted by the Command Lift shadow. It holds an Orange Ink `$` prompt that cannot be selected, and the command in Mono Command text. The command wraps anywhere. One click anywhere in the box copies it, and without JavaScript the same click selects it entirely (`user-select: all`). A Signal Orange caret block, 0.55em × 1.15em, blinks after it (1.1s, steps(1)). A copy button sits at the right end at every width.
+- **Flat code block:** the same command box off the orange panel. It is white with a 1px Hairline Strong border, 8px corners and no shadow, full width, in Mono Command Small, and it carries the same copy button. It carries the install command on Account. For a secret such as a new API token it drops the `$` prompt and keeps the caret, select-all and copy button.
+- **Copy button:** a 30px white pill at the right end of every command box and flat code block, with a 1px Hairline Strong border and a 16px copy icon beside a 13px weight-500 label. The label reads "Copy" in Warm Muted and turns Ink on hover. After a successful copy it reads "Copied" in Orange Ink for two seconds. If the browser refuses the copy, it reads "Press ⌘C" or "Press Ctrl+C" in Ink, and the command is left selected. It is hidden until the script runs, so a page without JavaScript shows none.
 
 ### SKILL.md Document
 - **Frame:** a square frame with registration marks. Its header strip holds the SKILL.md chip on the left and Caption panel meta on the right: "v3, the latest version", or "Viewing v2." with an Orange Ink link to the latest version.
@@ -769,7 +770,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Frame:** a square frame with registration marks, 420px wide, padded 32px (24px 20px on mobile). It holds the Auth Title, an optional Alert, and a form of fields 18px apart that ends in a wide primary button.
 
 ### Named Rules
-**The Select-All Rule.** A command or token the user is meant to copy selects entirely with one click and ends in a blinking orange caret block. It never needs a JavaScript copy button.
+**The One-Click Copy Rule.** A command or token the user is meant to copy copies to the clipboard with one click and ends in a blinking orange caret block. Without JavaScript the same click selects it entirely, so it can still be copied by hand.
 
 **The Header Strip Rule.** Every titled frame opens with a Paper Shade strip, at least 52px tall with a Hairline bottom border, holding its title or a filename chip on the left and its meta, count or link on the right. A form frame closes with the same Paper Shade as its footer bar, so Paper Shade marks the top and bottom of a frame and White marks its content.
 
@@ -789,7 +790,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** tint every shadow and scrim with Ember (`rgb(60 12 0 / a)`), with a real offset and blur.
 - **Do** theme the browser surfaces from the palette: Selection Peach (#ffd6c2) for selections, a 2px Signal Orange focus ring at a 2px offset (white inside the orange panel), an orange caret and accent color, and a Hairline Strong scrollbar on Paper.
 - **Do** limit motion to the breathing glow, the caret blink and 200–250ms state tints on `cubic-bezier(0.16, 1, 0.3, 1)`, and turn off the glow, the caret and anything that moves under `prefers-reduced-motion`.
-- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The product ships no client-side JavaScript.
+- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The one script, `public/copy.js`, only enhances: every page works without it.
 - **Do** draw icons as inline 16px SVG with a 1.5 stroke, round caps and joins, and `currentColor`.
 - **Do** self-host every face under `default-src 'self'`, as woff2 split by unicode-range with the display face preloaded.
 

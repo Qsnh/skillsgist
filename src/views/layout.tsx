@@ -65,6 +65,7 @@ export function Layout(props: {
           <title>{props.title} · skillsgist</title>
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
+          <script src="/copy.js" defer />
         </head>
         <body class="cf-body">
           <a href="#main" class="cf-skip">Skip to content</a>
@@ -200,10 +201,17 @@ export function Alert(props: { message?: string }) {
 
 export function CodeBlock(props: { prompt?: boolean; raised?: boolean; children?: unknown }) {
   return (
-    <div class={props.raised ? "cf-command" : "cf-command cf-command-flat"}>
+    <div class={props.raised ? "cf-command" : "cf-command cf-command-flat"} data-copy>
       {props.prompt === false ? null : <span class="cf-command-prompt" aria-hidden="true">$</span>}
       <code class="cf-command-text">{props.children}</code>
-      <span class="cf-command-hint" aria-hidden="true">Click to select</span>
+      <button type="button" class="cf-command-copy" hidden>
+        <Icon>
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+          <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+        </Icon>
+        <span class="cf-command-copy-label">Copy</span>
+      </button>
+      <span class="cf-command-status sr-only" role="status" />
     </div>
   );
 }

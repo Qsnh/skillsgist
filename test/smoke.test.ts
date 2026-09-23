@@ -33,3 +33,8 @@ it("starts HTML pages with a doctype so browsers don't use quirks mode", async (
   const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
   expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="en">/);
 });
+
+it("loads the copy script from the same origin, deferred", async () => {
+  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+  expect(html).toContain(`<script src="/copy.js" defer=""></script>`);
+});

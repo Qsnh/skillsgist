@@ -51,7 +51,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 
 **Durable constraints**
 
-- **Server-rendered HTML only, no client-side JavaScript.** Confirmed as a long-term constraint, not a temporary state. All interaction is forms and links.
+- **Server-rendered HTML; client-side JavaScript only as progressive enhancement.** Every page works with JavaScript disabled, and all interaction that changes state is forms and links. The one script is `public/copy.js`, same-origin and deferred, which adds one-click copy to command blocks because no HTML or CSS feature can write to the clipboard.
 - **The stock CLI is the contract.** `npx skills` sends no custom headers, so a private install credential can only live in the URL path. The install key is therefore install-only — it cannot sign in, publish, or delete — and is rotatable from `/me` in one click.
 - **API tokens never travel in a URL.** `/api/*` reads only `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into making an API call on a user's behalf. The web forms take the other path: a session-bound CSRF token attached automatically.
 - Content-Security-Policy on every HTML response: `default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
@@ -83,6 +83,6 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 
 1. **Private by default; every act of sharing is explicit.** Nothing becomes public as a side effect.
 2. **The stock CLI is the contract.** Speak the published discovery protocol; never require a custom client, and never break `npx skills add`.
-3. **Server-rendered, no client-side JavaScript.** Forms and links, permanently.
+3. **Server-rendered; JavaScript only enhances.** Forms and links carry every interaction. A script may add a convenience the platform cannot provide without it, such as clipboard copy, and the page must still work without it.
 4. **Both audiences are first-class.** The operator standing up an instance and the person who only ever runs one install command each deserve a path that works without learning the other's.
 5. **Stay self-hostable and cheap.** One person with a Cloudflare account must be able to deploy and run this without operational burden.
