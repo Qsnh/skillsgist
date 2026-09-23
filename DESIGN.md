@@ -252,12 +252,6 @@ components:
     textColor: "{colors.cf-ink}"
     padding: "0 24px"
     height: "64px"
-  nav-tag:
-    textColor: "{colors.cf-ink-2}"
-    typography: "{typography.mono-tag}"
-    rounded: "{rounded.tag}"
-    padding: "0 6px"
-    height: "20px"
   count-pill:
     backgroundColor: "{colors.white}"
     textColor: "{colors.cf-ink-2}"
@@ -635,7 +629,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Mono Path** (400, 12.5px): file paths in the Files list and dates in the users table.
 - **Mono Meta** (400, 12px, tabular numerals): version, author handle and date in a cell, row sizes and timestamps, the count pill, chips and the status pill.
 - **Mono Label** (500, 11px, 0.1em, uppercase): the Public, Private, admin and member labels and the users table column headers.
-- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the Registry and You tags. The stacked table labels below 768px use the same size and tracking at weight 400.
+- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the You tag. The stacked table labels below 768px use the same size and tracking at weight 400.
 
 ### Named Rules
 **The Medium Voice Rule.** Headings are set at weight 500. They get their presence from size and tight tracking, between -0.02em and -0.035em, never from bold. Weight 600 belongs only to the wordmark and to bold text inside a rendered SKILL.md.
@@ -696,7 +690,7 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 - **Wide:** the full width of its form and 42px tall. It is used only for the single submit on sign-in and setup.
 
 ### Chips
-- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The Registry tag borrows the shape of Cloudflare's DOCS tag and sits beside the wordmark to name the product area; it is hidden below 640px. The You tag sits beside your own username in the users table. A tag always sits beside the thing it names, never above a heading.
+- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The You tag sits beside your own username in the users table. A tag always sits beside the thing it names, never above a heading.
 - **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames and usernames: the SKILL.md label in a header strip, the files carried over on Edit, and the username beside the Account title. Chips wrap in a row with 6px gaps.
 - **Count pill:** 24px tall, a white fill with a Hairline Strong outline, holding Mono Meta numerals in Graphite. It sits right after a section headline, a compact page title or a panel title. The number it shows is always the real length of the list.
 - **Status pill:** the same 24px white pill after a 14px Body Gray "Status:" line, holding Mono Meta text. When idle it reads in Warm Muted ("not generated"). When on it reads in Ink and leads with a 6px Signal Orange dot ("active").
@@ -739,7 +733,7 @@ The top of every working page.
 - **Notice:** the same shape in orange, with a Notice Line border, a Peach Tint fill and Orange Ink text. It is for information the user must act on now, such as "This token is shown once. Save it now."
 
 ### Navigation
-- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, the Registry tag, a flexible spacer and the actions. The nav has no link group.
+- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, a flexible spacer and the actions. The nav has no link group.
 - **Signed in:** a primary Publish pill, then the account menu. The menu is a `<details>` whose summary is an outline pill showing the username (truncated at 14ch) and a Warm Muted chevron. The chevron rotates 180° when the menu is open, and the summary border turns Ink.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Users (admins only) and Sign out, which is a form button.
 - **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark and tag.
