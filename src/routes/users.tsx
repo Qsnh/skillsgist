@@ -5,6 +5,7 @@ import {
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
+import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
   getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
@@ -12,7 +13,7 @@ import {
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
-import { LoginPage, MePage, SetupPage, UsersPage } from "../views/auth";
+import { LoginPage, MePage, NewUserPage, SetupPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
 
@@ -23,7 +24,7 @@ export const usersRoutes = new Hono<AppEnv>();
 
 const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
 
-/** Re-render the user list with an error. Every 400 on these routes is this. */
+/** Re-render the user list with an error. */
 const usersError = async (c: Ctx, admin: UserRow, error: string) =>
   page(c, <UsersPage user={admin} users={await listUsers(c.env.DB)} error={error} />, 400);
 
@@ -107,6 +108,7 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
     return page(c, <MePage user={user} origin={origin} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
+  await flash(c, "Your password has been changed.");
   return c.redirect("/me", 302);
 });
 
@@ -114,23 +116,25 @@ usersRoutes.get("/admin/users", requireAdmin, async (c) =>
   page(c, <UsersPage user={c.get("user")} users={await listUsers(c.env.DB)} />),
 );
 
-usersRoutes.post("/admin/users", requireAdmin, async (c) => {
-  const admin = c.get("user");
+usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));
+
+usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
-  if (!USERNAME.test(username)) {
-    return usersError(c, admin, "Username must be 2-32 lowercase letters, digits or hyphens");
-  }
+  const role = roleOf(body.role);
+  const fail = (error: string) =>
+    page(c, <NewUserPage user={c.get("user")} error={error} username={username} role={role} />, 400);
+  if (!USERNAME.test(username)) return fail("Username must be 2-32 lowercase letters, digits or hyphens");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return usersError(c, admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    return fail(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
-  if (await getUserByUsername(c.env.DB, username)) return usersError(c, admin, "That username is taken");
+  if (await getUserByUsername(c.env.DB, username)) return fail("That username is taken");
   await createUser(c.env.DB, {
     id: randomHex(8),
     username,
     passwordHash: await hashPassword(password),
-    role: roleOf(body.role),
+    role,
     installKey: randomHex(16),
   });
   return c.redirect("/admin/users", 302);
@@ -177,6 +181,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
     return usersError(c, guard.admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
+  await flash(c, `Password reset for ${guard.target.username}.`);
   return c.redirect("/admin/users", 302);
 });
 
@@ -184,6 +189,7 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
+  await flash(c, `Install key rotated for ${guard.target.username}. The old install command no longer works.`);
   return c.redirect("/admin/users", 302);
 });
 

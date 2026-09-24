@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
+import type { CookieOptions } from "hono/utils/cookie";
 import { decodeBase64, encodeBase64 } from "hono/utils/encode";
 import { getSkill, getUserById } from "./db/queries";
 import type { SkillRow, UserRow } from "./db/queries";
@@ -91,13 +92,11 @@ export async function startSession(c: Ctx, userId: string): Promise<void> {
     exp: Date.now() + SESSION_TTL_MS,
     csrf: randomHex(16),
   } satisfies SessionPayload);
-  await setSignedCookie(c, SESSION_COOKIE, payload, c.env.SESSION_SECRET, {
-    httpOnly: true,
-    secure: new URL(c.req.url).protocol === "https:",
-    sameSite: "Lax",
-    path: "/",
-    maxAge: SESSION_TTL_MS / 1000,
-  });
+  await setSignedCookie(c, SESSION_COOKIE, payload, c.env.SESSION_SECRET, cookieOptions(c, SESSION_TTL_MS / 1000));
+}
+
+export function cookieOptions(c: Ctx, maxAge: number): CookieOptions {
+  return { httpOnly: true, secure: new URL(c.req.url).protocol === "https:", sameSite: "Lax", path: "/", maxAge };
 }
 
 export function clearSession(c: Ctx): void {

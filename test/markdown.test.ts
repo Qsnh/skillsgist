@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderMarkdown } from "../src/render/markdown";
+import { renderMarkdown, renderSkillMd } from "../src/render/markdown";
 
 /**
  * An href the sanitizer must drop: the attribute is gone, the link text
@@ -226,5 +226,38 @@ describe("renderMarkdown", () => {
       expect(html).toContain("before");
       expect(html).toContain("after");
     });
+  });
+});
+
+describe("renderSkillMd", () => {
+  it("drops the frontmatter and renders the body", async () => {
+    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\n# Demo\n\nBody.\n");
+    expect(html).not.toContain("name: demo-skill");
+    expect(html).not.toContain("<hr");
+    expect(html).toContain("<h1>Demo</h1>");
+    expect(html).toContain("<p>Body.</p>");
+  });
+
+  it("drops CRLF frontmatter", async () => {
+    const html = await renderSkillMd("---\r\nname: demo-skill\r\ndescription: A demo skill.\r\n---\r\n\r\n# Demo\r\n");
+    expect(html).not.toContain("name: demo-skill");
+    expect(html).toContain("<h1>Demo</h1>");
+  });
+
+  it("keeps a body that starts right after the closing fence", async () => {
+    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\nFirst line.\n");
+    expect(html).toContain("<p>First line.</p>");
+  });
+
+  it("keeps thematic breaks inside the body", async () => {
+    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\nAbove\n\n---\n\nBelow\n");
+    expect(html).toContain("<hr>");
+    expect(html).toContain("<p>Above</p>");
+    expect(html).toContain("<p>Below</p>");
+  });
+
+  it("still sanitizes the body", async () => {
+    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\n<script>alert(1)</script>\n");
+    expect(html).not.toContain("<script");
   });
 });

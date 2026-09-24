@@ -1,6 +1,6 @@
 import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { UserRow, VersionRow } from "./db/queries";
-import { renderMarkdown } from "./render/markdown";
+import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
 import type { Env } from "./types";
@@ -12,6 +12,12 @@ export class ForbiddenError extends Error {
     super(message);
     this.name = "ForbiddenError";
   }
+}
+
+export function unchangedError(latest: VersionRow): UploadError {
+  return new UploadError(
+    `This is identical to v${latest.version}, the latest version of ${latest.slug}, so no new version was published`,
+  );
 }
 
 export interface PublishOutcome {
@@ -26,7 +32,7 @@ export async function publishBytes(
   env: Env,
   user: UserRow,
   bytes: Uint8Array,
-  opts: { expectedSlug?: string; visibility?: "public" | "private" } = {},
+  opts: { expectedSlug?: string; visibility?: "public" | "private"; rejectUnchanged?: boolean } = {},
 ): Promise<PublishOutcome> {
   const normalized = await normalizeUpload(bytes);
 
@@ -41,30 +47,34 @@ export async function publishBytes(
     throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
   }
 
+  const latest = existing ? await getVersion(env.DB, existing.slug, existing.latest_version) : null;
+  const unchanged = latest !== null && latest.digest === normalized.digest;
+
+  if (unchanged) {
+    const object = await env.BUCKET.head(latest.r2_key);
+    if (!object) {
+      await env.BUCKET.put(latest.r2_key, normalized.zip, {
+        httpMetadata: { contentType: "application/zip" },
+      });
+    }
+    if (opts.rejectUnchanged) throw unchangedError(latest);
+  }
+
   if (existing && opts.visibility !== undefined) {
     await setVisibility(env.DB, existing.slug, opts.visibility);
   }
 
-  if (existing) {
-    const latest = await getVersion(env.DB, existing.slug, existing.latest_version);
-    if (latest?.digest === normalized.digest) {
-      const object = await env.BUCKET.head(latest.r2_key);
-      if (!object) {
-        await env.BUCKET.put(latest.r2_key, normalized.zip, {
-          httpMetadata: { contentType: "application/zip" },
-        });
-      }
-      return {
-        slug: existing.slug,
-        version: existing.latest_version,
-        digest: normalized.digest,
-        unchanged: true,
-        files: normalized.files,
-      };
-    }
+  if (unchanged) {
+    return {
+      slug: latest.slug,
+      version: latest.version,
+      digest: normalized.digest,
+      unchanged: true,
+      files: normalized.files,
+    };
   }
 
-  const html = await renderMarkdown(normalized.skillMd);
+  const html = await renderSkillMd(normalized.skillMd);
   const { version, r2Key } = await insertVersion(env.DB, {
     slug: normalized.name,
     digest: normalized.digest,
@@ -73,6 +83,7 @@ export async function publishBytes(
     description: normalized.description,
     skill_md: normalized.skillMd,
     html,
+    html_rev: RENDER_REVISION,
     files: JSON.stringify(normalized.files),
     authorId: user.id,
     visibility: opts.visibility ?? "private",

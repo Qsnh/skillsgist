@@ -215,17 +215,14 @@ try {
   // still come up green — which is exactly how the bug where a per-skill address
   // installed every skill went unnoticed.
   const publishMarkdown = async (name, description, visibility) => {
-    const form = new FormData();
-    form.set("_csrf", csrf);
-    form.set("markdown", `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`);
-    form.set("visibility", visibility);
-    const res = await fetch(`${ORIGIN}/new`, {
-      method: "POST",
-      headers: { Cookie: cookie, Origin: ORIGIN },
-      body: form,
-      redirect: "manual",
+    const res = await fetch(`${ORIGIN}/api/skills/${name}?visibility=${visibility}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+      body: `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`,
     });
-    if (res.status !== 302) throw new Error(`failed to publish ${name}: ${res.status} ${await res.text()}`);
+    if (res.status !== 201 && res.status !== 200) {
+      throw new Error(`failed to publish ${name}: ${res.status} ${await res.text()}`);
+    }
   };
 
   await publishMarkdown("other-skill", "A second skill, so the index has more than one.", "public");

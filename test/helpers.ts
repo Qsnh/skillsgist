@@ -2,6 +2,7 @@ import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
 import { createUser, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
+import { FLASH_COOKIE } from "../src/flash";
 
 /**
  * The worker's bindings, typed.
@@ -172,4 +173,20 @@ export async function seedAndToken(
 ): Promise<{ user: UserRow; cookie: string; token: string }> {
   const { user, cookie } = await seedAndLogin(opts);
   return { user, cookie, token: await apiToken(cookie) };
+}
+
+export const FLASH_CLEARED = new RegExp(`^${FLASH_COOKIE}=;.*Max-Age=0`, "i");
+
+export function flashCookie(res: Response): string | undefined {
+  return res.headers.getSetCookie().find((line) => line.startsWith(`${FLASH_COOKIE}=`));
+}
+
+export async function follow(res: Response, cookie: string): Promise<Response> {
+  const location = res.headers.get("Location");
+  if (!location) throw new Error(`not a redirect: ${res.status}`);
+  const flashed = flashCookie(res)?.split(";")[0];
+  return SELF.fetch(`${ORIGIN}${location}`, {
+    headers: { Cookie: flashed ? `${cookie}; ${flashed}` : cookie },
+    redirect: "manual",
+  });
 }

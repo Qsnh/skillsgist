@@ -5,8 +5,9 @@ import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
   deleteSkill, getArtifactByVersion, getSkillWithAuthor, getVersion, listSkills, listVersions,
-  setVisibility,
+  setVisibility, updateVersionHtml,
 } from "../db/queries";
+import { RENDER_REVISION, renderSkillMd } from "../render/markdown";
 import { IndexPage, SkillPage } from "../views/skills";
 
 export const skillsRoutes = new Hono<AppEnv>();
@@ -31,6 +32,15 @@ skillsRoutes.get("/s/:slug", async (c) => {
     listVersions(c.env.DB, slug),
   ]);
   if (!version) return c.notFound();
+
+  if (version.html_rev < RENDER_REVISION) {
+    version.html = await renderSkillMd(version.skill_md);
+    try {
+      await updateVersionHtml(c.env.DB, slug, version.version, version.html, RENDER_REVISION);
+    } catch (err) {
+      console.error("html heal write failed", err);
+    }
+  }
 
   return page(
     c,

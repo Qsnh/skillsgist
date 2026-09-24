@@ -71,6 +71,15 @@ After deploying, visit `https://<your-domain>/setup` to create the first admin. 
 
 To bind a custom domain: add `routes` in `wrangler.jsonc` and run `npm run deploy` again — no code changes needed.
 
+## Upgrading
+
+Pull the new code, apply any new migrations, then deploy:
+
+```bash
+npx wrangler d1 migrations apply skillsgist --remote
+npm run deploy
+```
+
 ## Local development
 
 `wrangler dev` has no way to know `SESSION_SECRET` (it's only ever set as a secret at deploy
@@ -94,7 +103,7 @@ runs fine on a clean checkout with no `.dev.vars` present.
 
 ## User management
 
-`/admin/users` supports creating accounts, changing roles (admin ↔ member), resetting passwords, rotating install keys, revoking API tokens and deleting accounts, all restricted to admins, and it never allows demoting or deleting the last remaining admin.
+`/admin/users` lists accounts and supports changing roles (admin ↔ member), resetting passwords, rotating install keys, revoking API tokens and deleting accounts, all restricted to admins, and it never allows demoting or deleting the last remaining admin. Accounts are created at `/admin/users/new`, linked from the list.
 
 **Deleting a user reassigns the skills they own (`owner_id`) and the author
 records on their published versions (`author_id`) to the admin doing the

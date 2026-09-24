@@ -17,6 +17,10 @@ export function parseFrontmatter(src: string): { data: Record<string, unknown>; 
   return { data: record, body: src.slice(match[0].length) };
 }
 
+export function stripFrontmatter(src: string): string {
+  return src.replace(FRONTMATTER, "");
+}
+
 export function isValidSkillName(name: unknown): name is string {
   if (typeof name !== "string") return false;
   if (name.length < 1 || name.length > 64) return false;

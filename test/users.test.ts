@@ -2,9 +2,10 @@ import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
+import { FLASH_COOKIE } from "../src/flash";
 import {
-  apiToken, env, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin,
-  seedUser,
+  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb,
+  seedAndLogin, seedUser,
 } from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
@@ -95,12 +96,35 @@ describe("/me", () => {
     expect(res.headers.get("Location")).toBe("/login");
   });
 
+  it("shows the Account title without the username chip or role label", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    const head = /<header class="cf-head">([\s\S]*?)<\/header>/.exec(html)?.[1];
+    expect(head).toContain("Account");
+    expect(head).not.toContain("alice");
+    expect(head).not.toContain("cf-vis");
+  });
+
   it("shows a ready-to-copy install command", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
     const html = await res.text();
     expect(html).toContain(`npx skills add`);
     expect(html).toContain(`/i/${user.install_key}`);
+  });
+
+  it("puts exactly the install command inside the copyable element", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    const text = /<code class="cf-command-text">([^<]*)<\/code>/.exec(html)?.[1];
+    expect(text).toBe(`npx skills add ${ORIGIN}/i/${user.install_key}`);
+  });
+
+  it("gives the one-time api token its own copy button", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const html = await (await postForm("/me/api-token", cookie)).text();
+    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(2);
+    expect(html).toMatch(/<code class="cf-command-text">sgt_[a-f0-9]{32}<\/code>/);
   });
 
   it("rotates the install key", async () => {
@@ -129,7 +153,106 @@ describe("/me", () => {
       next: "another-long-password",
     });
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/me");
     await login("alice", "another-long-password");
+  });
+
+  it("confirms a password change once on the account page", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/password", cookie, {
+      current: password,
+      next: "another-long-password",
+    });
+    const shown = await follow(res, cookie);
+    expect(shown.status).toBe(200);
+    const html = await shown.text();
+    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Your password has been changed\.<\/span><\/p>/);
+    expect(html).not.toContain("cf-alert");
+    expect(flashCookie(shown)).toMatch(FLASH_CLEARED);
+    const again = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+    expect(await again.text()).not.toContain("cf-done");
+  });
+
+  it("sets the flash cookie http-only, same-site and short-lived", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/password", cookie, {
+      current: password,
+      next: "another-long-password",
+    });
+    const line = flashCookie(res);
+    expect(line).toMatch(/Max-Age=60/i);
+    expect(line).toMatch(/Path=\//i);
+    expect(line).toMatch(/HttpOnly/i);
+    expect(line).toMatch(/SameSite=Lax/i);
+  });
+
+  it("leaves the flash cookie alone on a page load without one", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(flashCookie(res)).toBeUndefined();
+    expect(await res.text()).not.toContain("cf-done");
+  });
+
+  it("does not render a signed session value planted as a flash", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const planted = cookie.replace(/^sg_session=/, `${FLASH_COOKIE}=`);
+    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).not.toContain("cf-done");
+    expect(html).not.toContain("&quot;uid&quot;");
+    expect(flashCookie(res)).toMatch(FLASH_CLEARED);
+  });
+
+  it("does not show one session's flash in another session", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob" });
+    const res = await postForm("/me/password", alice.cookie, {
+      current: alice.password,
+      next: "another-long-password",
+    });
+    const flashed = flashCookie(res)?.split(";")[0];
+    expect(flashed).toBeDefined();
+    const shown = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${bob.cookie}; ${flashed}` } });
+    expect(shown.status).toBe(200);
+    const html = await shown.text();
+    expect(html).not.toContain("cf-done");
+    expect(html).not.toContain("Your password has been changed.");
+    expect(flashCookie(shown)).toMatch(FLASH_CLEARED);
+  });
+
+  it("ignores and clears a flash cookie it did not sign", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const forged = [
+      `${FLASH_COOKIE}=Visit%20evil.example`,
+      `${FLASH_COOKIE}=${encodeURIComponent(`Visit evil.example.${"A".repeat(43)}=`)}`,
+    ];
+    for (const planted of forged) {
+      const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).not.toContain("cf-done");
+      expect(html).not.toContain("evil.example");
+      expect(flashCookie(res)).toMatch(FLASH_CLEARED);
+    }
+  });
+
+  it("sets no flash when the change is refused", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const wrong = await postForm("/me/password", cookie, {
+      current: "wrong-password-x",
+      next: "another-long-password",
+    });
+    expect(wrong.status).toBe(400);
+    expect(flashCookie(wrong)).toBeUndefined();
+    const wrongHtml = await wrong.text();
+    expect(wrongHtml).toContain("Current password is incorrect");
+    expect(wrongHtml).not.toContain("cf-done");
+    const short = await postForm("/me/password", cookie, { current: password, next: "short" });
+    expect(short.status).toBe(400);
+    expect(flashCookie(short)).toBeUndefined();
+    expect(await short.text()).not.toContain("cf-done");
   });
 });
 
@@ -142,16 +265,36 @@ describe("/admin/users", () => {
     expect(res.status).toBe(403);
   });
 
-  it("lets an admin create a member", async () => {
+  it("lets an admin create a member and returns to the list", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin/users");
+    const carol = await getUserByUsername(env.DB, "carol");
+    expect(carol?.role).toBe("member");
+  });
+
+  it("links to the add-user page instead of embedding the form", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+    expect(html).toContain('href="/admin/users/new"');
+    expect(html).not.toContain('action="/admin/users/new"');
+    expect(html).not.toContain('name="username"');
+  });
+
+  it("no longer creates accounts from the list URL", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const res = await postForm("/admin/users", cookie, {
       username: "carol",
       password: "carols-long-password",
       role: "member",
     });
-    expect(res.status).toBe(302);
-    const carol = await getUserByUsername(env.DB, "carol");
-    expect(carol?.role).toBe("member");
+    expect(res.status).toBe(404);
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
   });
 
   // The UI side of adminTarget's self-targeting refusal: the role-toggle and
@@ -170,6 +313,103 @@ describe("/admin/users", () => {
     const carol = await getUserByUsername(env.DB, "carol");
     expect(html).toContain(`/admin/users/${carol!.id}/role`);
     expect(html).toContain(`/admin/users/${carol!.id}/delete`);
+  });
+
+  it("puts account deletion behind a confirm step that names the user", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: carol } = await seedUser({ username: "carol", role: "member" });
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+
+    const blocks = html.match(/<details class="cf-confirm" name="delete-user">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger cf-btn-sm">Delete account</summary>`);
+    expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);
+    expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
+    expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger cf-btn-sm">Delete carol</button>`);
+    expect(html.split(`/admin/users/${carol.id}/delete`)).toHaveLength(2);
+  });
+});
+
+describe("/admin/users/new", () => {
+  beforeEach(resetDb);
+
+  it("is forbidden for members", async () => {
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const get = await SELF.fetch(`${ORIGIN}/admin/users/new`, { headers: { Cookie: cookie } });
+    expect(get.status).toBe(403);
+    const post = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(post.status).toBe(403);
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
+  });
+
+  it("renders a form that posts to itself with a Cancel back to the list", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await SELF.fetch(`${ORIGIN}/admin/users/new`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).toContain('name="username"');
+    expect(html).toContain('<a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>');
+    expect(html).not.toContain('<option value="admin" selected="">');
+  });
+
+  it("re-renders itself with the error and the typed values on a short password", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "short",
+      role: "admin",
+    });
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain("Password must be at least 12 characters");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="carol"');
+    expect(html).toContain('<option value="admin" selected="">admin</option>');
+    expect(html).not.toContain('value="short"');
+    expect(await getUserByUsername(env.DB, "carol")).toBeNull();
+  });
+
+  it("rejects a malformed username", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "Carol!",
+      password: "carols-long-password",
+      role: "member",
+    });
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain("Username must be 2-32 lowercase letters, digits or hyphens");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="Carol!"');
+    expect(await getUserByUsername(env.DB, "Carol!")).toBeNull();
+  });
+
+  it("rejects a taken username without touching the existing account", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: carol } = await seedUser({ username: "carol", role: "member" });
+    const res = await postForm("/admin/users/new", cookie, {
+      username: "carol",
+      password: "another-long-password",
+      role: "admin",
+    });
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain("That username is taken");
+    expect(html).toContain('action="/admin/users/new"');
+    expect(html).not.toContain('class="cf-table"');
+    expect(html).toContain('value="carol"');
+    expect(html).toContain('<option value="admin" selected="">admin</option>');
+    expect(html).not.toContain('value="another-long-password"');
+    const after = await getUserByUsername(env.DB, "carol");
+    expect(after?.role).toBe("member");
+    expect(after?.password_hash).toBe(carol.password_hash);
   });
 });
 
@@ -195,6 +435,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/${target.user.id}/${path}`, cookie, body);
       expect(res.status).toBe(403);
+      expect(flashCookie(res)).toBeUndefined();
     }
   });
 
@@ -203,6 +444,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/does-not-exist/${path}`, cookie, body);
       expect(res.status).toBe(404);
+      expect(flashCookie(res)).toBeUndefined();
     }
   });
 
@@ -214,21 +456,28 @@ describe("/admin/users/:id/*", () => {
     expect((await getUserByUsername(env.DB, "carol"))?.role).toBe("admin");
   });
 
-  it("lets an admin reset a member's password", async () => {
+  it("lets an admin reset a member's password and confirms it by username", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, {
       password: "carols-new-long-password",
     });
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin/users");
     await login("carol", "carols-new-long-password");
+    const html = await (await follow(res, cookie)).text();
+    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Password reset for carol\.<\/span><\/p>/);
   });
 
-  it("rejects a too-short password reset with 400", async () => {
+  it("rejects a too-short password reset with 400 and no flash", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, { password: "short" });
     expect(res.status).toBe(400);
+    expect(flashCookie(res)).toBeUndefined();
+    const html = await res.text();
+    expect(html).toContain("Password must be at least 12 characters");
+    expect(html).not.toContain("cf-done");
   });
 
   it("lets an admin revoke a member's api token", async () => {
@@ -319,6 +568,10 @@ describe("/admin/users/:id/*", () => {
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
+    const html = await (await follow(res, cookie)).text();
+    expect(html).toMatch(
+      /<p class="cf-done" role="status">[\s\S]*?Install key rotated for dave\. The old install command no longer works\.<\/span><\/p>/,
+    );
 
     const afterOld = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
     expect(afterOld.status).toBe(404);

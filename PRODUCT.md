@@ -32,10 +32,10 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 ## Operating Context
 
 - **First deploy.** `wrangler d1 create` + `wrangler r2 bucket create` + `d1 migrations apply --remote` + a `SESSION_SECRET` secret + `npm run deploy`. Then `/setup` creates the first admin and disables itself permanently once any user exists. Binding a custom domain is a `routes` entry in `wrangler.jsonc`, no code change.
-- **Publishing from the web.** `/new` accepts a `.zip`, a `.tar.gz`, or a single `SKILL.md`. `/s/:slug/edit` changes only the `SKILL.md` text and repacks the previous version's other files unchanged. `/s/:slug/upload` replaces the whole archive. Editing text and uploading an archive are deliberately two separate pages so a single page never offers two competing inputs.
-- **Publishing from a terminal.** `PUT /api/skills/:slug` with `Authorization: Bearer <token>` and a raw archive body. The token is generated on demand from `/me`.
+- **Publishing from the web.** `/new` accepts a `.zip`, a `.tar.gz`, or a single `SKILL.md`. `/s/:slug/edit` changes only the `SKILL.md` text and repacks the previous version's other files unchanged. `/s/:slug/upload` replaces the whole archive. Editing text and uploading an archive are deliberately two separate pages so a single page never offers two competing inputs. All three pages refuse content identical to the skill's latest version with an error, and a refused request changes nothing else, visibility included. Content identical to an older version still publishes, which is how a rollback works.
+- **Publishing from a terminal.** `PUT /api/skills/:slug` with `Authorization: Bearer <token>` and a raw archive body. The token is generated on demand from `/me`. Unlike the web pages, the API is idempotent: identical content answers `200` with `unchanged: true` and still applies `?visibility=`, so a script can republish on every push.
 - **Installing.** `npx skills add https://<domain>/i/<install_key>` for everything visible to that key, `.../i/<key>/.well-known/agent-skills/<name>` for one skill, or the bare origin for public skills with no key at all.
-- **Account administration.** `/admin/users` creates accounts, switches roles, resets passwords, rotates install keys, revokes API tokens, and deletes accounts.
+- **Account administration.** `/admin/users` lists accounts, switches roles, resets passwords, rotates install keys, revokes API tokens, and deletes accounts. `/admin/users/new` creates them.
 - **Local development.** A local-only `SESSION_SECRET` in `.dev.vars`, `d1 migrations apply --local`, then `npm run dev` (Tailwind watch + `wrangler dev`). `npm test`, `npm run typecheck`, and `npm run verify:cli` are the verification commands; `verify:cli` starts its own `wrangler dev` with an injected secret and needs no `.dev.vars`.
 
 ## Capabilities and Constraints
@@ -51,7 +51,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 
 **Durable constraints**
 
-- **Server-rendered HTML only, no client-side JavaScript.** Confirmed as a long-term constraint, not a temporary state. All interaction is forms and links.
+- **Server-rendered HTML; client-side JavaScript only as progressive enhancement.** Every page works with JavaScript disabled, and all interaction that changes state is forms and links. There are two scripts, both same-origin and deferred: `public/copy.js` adds one-click copy to command blocks because no HTML or CSS feature can write to the clipboard, and `public/fold.js` folds a long SKILL.md, Files list or Versions list behind a Show more button because no HTML or CSS feature can tell whether an element overflows.
 - **The stock CLI is the contract.** `npx skills` sends no custom headers, so a private install credential can only live in the URL path. The install key is therefore install-only — it cannot sign in, publish, or delete — and is rotatable from `/me` in one click.
 - **API tokens never travel in a URL.** `/api/*` reads only `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into making an API call on a user's behalf. The web forms take the other path: a session-bound CSRF token attached automatically.
 - Content-Security-Policy on every HTML response: `default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
@@ -83,6 +83,6 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 
 1. **Private by default; every act of sharing is explicit.** Nothing becomes public as a side effect.
 2. **The stock CLI is the contract.** Speak the published discovery protocol; never require a custom client, and never break `npx skills add`.
-3. **Server-rendered, no client-side JavaScript.** Forms and links, permanently.
+3. **Server-rendered; JavaScript only enhances.** Forms and links carry every interaction. A script may add a convenience the platform cannot provide without it, such as clipboard copy, and the page must still work without it.
 4. **Both audiences are first-class.** The operator standing up an instance and the person who only ever runs one install command each deserve a path that works without learning the other's.
 5. **Stay self-hostable and cheap.** One person with a Cloudflare account must be able to deploy and run this without operational burden.

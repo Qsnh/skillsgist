@@ -32,6 +32,7 @@ CREATE TABLE versions (
   description TEXT NOT NULL,
   skill_md    TEXT NOT NULL,
   html        TEXT NOT NULL,
+  html_rev    INTEGER NOT NULL,
   files       TEXT NOT NULL,
   r2_key      TEXT NOT NULL,
   author_id   TEXT NOT NULL REFERENCES users(id),

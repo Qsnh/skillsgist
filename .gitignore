@@ -4,3 +4,5 @@ public/app.css
 dist/
 .dev.vars
 docs/superpowers/
+.impeccable/review/
+.impeccable/questions/
