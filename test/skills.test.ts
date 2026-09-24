@@ -139,10 +139,21 @@ describe("GET /s/:slug", () => {
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
     expect(html).toContain(`<div id="skill-doc" class="skill-doc" data-fold="true">`);
-    expect(html).toContain(`<footer class="cf-doc-foot" hidden="">`);
     expect(html).toContain(
-      `<button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="skill-doc" aria-expanded="false">Show more</button>`,
+      `<footer class="cf-fold-foot" hidden=""><button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="skill-doc" aria-expanded="false">Show more</button></footer>`,
     );
+  });
+
+  it("renders the Files and Versions lists with fold hooks and hidden Show more toggles", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
+    for (const id of ["skill-files", "skill-versions"]) {
+      expect(html).toContain(`<ul id="${id}" class="cf-rows" data-fold="true">`);
+      expect(html).toContain(
+        `</div><footer class="cf-fold-foot" hidden=""><button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="${id}" aria-expanded="false">Show more</button></footer></section>`,
+      );
+    }
   });
 
   it("renders the stored html and the install command", async () => {

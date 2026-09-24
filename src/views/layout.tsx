@@ -120,7 +120,7 @@ export function PageHead(props: { title: unknown; aside?: unknown; compact?: boo
   );
 }
 
-export function Panel(props: { title?: unknown; aside?: unknown; class?: string; children?: unknown }) {
+export function Panel(props: { title?: unknown; aside?: unknown; foot?: unknown; class?: string; children?: unknown }) {
   return (
     <section class={`cf-frame cf-panel ${props.class ?? ""}`}>
       {props.title ? (
@@ -130,6 +130,7 @@ export function Panel(props: { title?: unknown; aside?: unknown; class?: string;
         </header>
       ) : null}
       <div class="cf-panel-body">{props.children}</div>
+      {props.foot}
     </section>
   );
 }

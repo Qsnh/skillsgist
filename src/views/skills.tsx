@@ -169,6 +169,16 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function FoldFoot(props: { controls: string }) {
+  return (
+    <footer class="cf-fold-foot" hidden>
+      <button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls={props.controls} aria-expanded="false">
+        Show more
+      </button>
+    </footer>
+  );
+}
+
 function DownloadIcon() {
   return (
     <Icon>
@@ -243,16 +253,16 @@ export function SkillPage(props: {
               )}
             </header>
             <div id="skill-doc" class="skill-doc" data-fold dangerouslySetInnerHTML={{ __html: version.html }} />
-            <footer class="cf-doc-foot" hidden>
-              <button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="skill-doc" aria-expanded="false">
-                Show more
-              </button>
-            </footer>
+            <FoldFoot controls="skill-doc" />
           </article>
 
           <aside class="cf-skill-aside">
-            <Panel title="Files" aside={<span class="cf-count">{files.length}</span>}>
-              <ul class="cf-rows">
+            <Panel
+              title="Files"
+              aside={<span class="cf-count">{files.length}</span>}
+              foot={<FoldFoot controls="skill-files" />}
+            >
+              <ul id="skill-files" class="cf-rows" data-fold>
                 {files.map((f) => (
                   <li class="cf-row">
                     <span class="cf-row-main cf-row-path">{f.path}</span>
@@ -261,8 +271,12 @@ export function SkillPage(props: {
                 ))}
               </ul>
             </Panel>
-            <Panel title="Versions" aside={<span class="cf-count">{props.versions.length}</span>}>
-              <ul class="cf-rows">
+            <Panel
+              title="Versions"
+              aside={<span class="cf-count">{props.versions.length}</span>}
+              foot={<FoldFoot controls="skill-versions" />}
+            >
+              <ul id="skill-versions" class="cf-rows" data-fold>
                 {props.versions.map((v) => {
                   const at = new Date(v.created_at);
                   const current = v.version === version.version;

@@ -1423,15 +1423,21 @@
 
   .cf-doc {
     --cf-fold: 720px;
+    --cf-fold-fade: 120px;
   }
 
-  .skill-doc[data-fold-state="folded"] {
+  .cf-panel {
+    --cf-fold: 400px;
+    --cf-fold-fade: 80px;
+  }
+
+  [data-fold-state="folded"] {
     max-height: var(--cf-fold);
     overflow: clip;
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 120px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cf-fold-fade)), transparent);
   }
 
-  .cf-doc-foot {
+  .cf-fold-foot {
     display: flex;
     justify-content: center;
     padding: 16px 24px;
@@ -1839,7 +1845,7 @@
       padding: 20px 18px 28px;
     }
 
-    .cf-doc-foot {
+    .cf-fold-foot {
       padding: 14px 18px;
     }
 
