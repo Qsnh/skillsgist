@@ -406,6 +406,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/${target.user.id}/${path}`, cookie, body);
       expect(res.status).toBe(403);
+      expect(setCookieFor(res, "sg_flash")).toBeUndefined();
     }
   });
 
@@ -414,6 +415,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/does-not-exist/${path}`, cookie, body);
       expect(res.status).toBe(404);
+      expect(setCookieFor(res, "sg_flash")).toBeUndefined();
     }
   });
 
@@ -425,21 +427,28 @@ describe("/admin/users/:id/*", () => {
     expect((await getUserByUsername(env.DB, "carol"))?.role).toBe("admin");
   });
 
-  it("lets an admin reset a member's password", async () => {
+  it("lets an admin reset a member's password and confirms it by username", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, {
       password: "carols-new-long-password",
     });
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin/users");
     await login("carol", "carols-new-long-password");
+    const html = await (await follow(res, cookie)).text();
+    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Password reset for carol\.<\/span><\/p>/);
   });
 
-  it("rejects a too-short password reset with 400", async () => {
+  it("rejects a too-short password reset with 400 and no flash", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, { password: "short" });
     expect(res.status).toBe(400);
+    expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+    const html = await res.text();
+    expect(html).toContain("Password must be at least 12 characters");
+    expect(html).not.toContain("cf-done");
   });
 
   it("lets an admin revoke a member's api token", async () => {
@@ -530,6 +539,10 @@ describe("/admin/users/:id/*", () => {
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
+    const html = await (await follow(res, cookie)).text();
+    expect(html).toMatch(
+      /<p class="cf-done" role="status">[\s\S]*?Install key rotated for dave\. The old install command no longer works\.<\/span><\/p>/,
+    );
 
     const afterOld = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
     expect(afterOld.status).toBe(404);

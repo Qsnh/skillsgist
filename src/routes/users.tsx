@@ -181,6 +181,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
     return usersError(c, guard.admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
+  await flash(c, `Password reset for ${guard.target.username}.`);
   return c.redirect("/admin/users", 302);
 });
 
@@ -188,6 +189,7 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
+  await flash(c, `Install key rotated for ${guard.target.username}. The old install command no longer works.`);
   return c.redirect("/admin/users", 302);
 });
 
