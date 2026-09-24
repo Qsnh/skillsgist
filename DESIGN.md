@@ -537,7 +537,7 @@ components:
 
 skillsgist borrows the look of cloudflare.com and developers.cloudflare.com, but none of the brand. The ground is warm white paper, the text is true-gray ink, and the hairlines lean slightly toward terracotta. At the top of the index page sits one drenched orange panel with a dot-matrix texture and a slow glow at its foot. The system exists to hand over one line of shell, the install command, and then get out of the way. Below the panel the registry is a square, hairline-framed grid with corner registration marks, dashed column gutters and monospace metadata. It reads more like a technical drawing than a gallery of cards. No Cloudflare logo, cloud mark or trademarked asset appears anywhere. Schibsted Grotesk and Red Hat Mono are self-hosted under the OFL as open stand-ins for Cloudflare's proprietary FT Kunst Grotesk and Apercu Mono.
 
-The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu, GET and POST forms, radio cards and a file input. There are two exceptions. A small script copies the command block to the clipboard on one click, and without JavaScript the same click selects the whole command. A second script folds a long SKILL.md to 720px, and a long Files or Versions list to 400px, behind a Show more button, and without JavaScript everything shows. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
+The density is moderate. The panel padding is generous, body text is 15px, and each cell is at least 216px tall so a three-line description has room. Pages are server-rendered, and every interaction the system defines is native: a `<details>` account menu and delete confirmation, GET and POST forms, radio cards and a file input. There are two exceptions. A small script copies the command block to the clipboard on one click, and without JavaScript the same click selects the whole command. A second script folds a long SKILL.md to 720px, and a long Files or Versions list to 400px, behind a Show more button, and without JavaScript everything shows. Motion is sparse and ambient. The glow at the panel foot breathes on a 7-second cycle, a caret block blinks after the command, and hover tints last 200ms. The glow, the caret and every transition switch off under reduced motion.
 
 Every page lives in this world. The skill page keeps its own orange panel, compact and left-aligned, because it also hands over an install command. The working pages (publish, edit, upload, account, users, add a user, sign-in and setup) have no orange field. They sit on the paper ground between the dashed gutters and are built from the same parts: a page head, square frames with registration marks, a Paper Shade header strip on every titled frame, 8px fields and pill buttons. Sign-in and setup center one frame on a softly masked dot field.
 
@@ -548,9 +548,9 @@ Every page lives in this world. The skill page keeps its own orange panel, compa
 - Titled frames open with a Paper Shade header strip, and forms close with a Paper Shade footer bar.
 - Pill-shaped buttons, 8px fields, and 12–16px corners only for the panel and the things that float.
 - Schibsted Grotesk at weight 500 for headings, and Red Hat Mono for commands and data.
-- Ember-tinted shadows, used in exactly two places: the raised command box and the account menu.
+- Ember-tinted shadows, used in exactly three places: the raised command box, the account menu and the skill page's delete confirmation.
 - Danger is a line and a text color, never a fill.
-- Client JavaScript only as enhancement: native `<details>` menus and forms, plus two scripts: one copies a command on click and falls back to select-all, one folds a long SKILL.md, Files list or Versions list and falls back to showing all of it.
+- Client JavaScript only as enhancement: native `<details>` menus and delete confirmations and forms, plus two scripts: one copies a command on click and falls back to select-all, one folds a long SKILL.md, Files list or Versions list and falls back to showing all of it.
 
 ## Colors
 
@@ -595,7 +595,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 
 **The Warm Neutral Rule.** Grounds, hairlines and muted text lean warm, at an OKLCH hue near 50. Text inks are true neutral gray. Cool slate and blue-gray never appear in this system.
 
-**The Quiet Danger Rule.** Danger is a line and a text color, never a fill. A danger button is white with a Danger Line border and Danger text, and only gains the Danger Tint on hover. A destructive action stands apart from its neighbors: at the far end of the toolbar, or below a dashed rule with a hint that says what it does.
+**The Quiet Danger Rule.** Danger is a line and a text color, never a fill. A danger button is white with a Danger Line border and Danger text, and only gains the Danger Tint on hover. A destructive action stands apart from its neighbors: at the far end of the toolbar, or below a dashed rule. Nothing is deleted on the first click: the danger button opens a delete confirmation that says what deleting does, and only its second danger button, which names what it deletes, submits.
 
 ## Typography
 
@@ -655,11 +655,11 @@ The spacing rhythm is set by the scale in the frontmatter. Groups are tight (6�
 
 ## Elevation & Depth
 
-The system is flat by default, and depth comes from line and light. Frames, panels, cells, forms, tables, the nav and the footer have no shadow. They separate from the ground with hairlines and from each other with the paper, white and paper-shade steps. Only two things lift, and both are handed to the user or float over the page: the raised command box on an orange panel, and the open account menu. The flat code block on white does not lift. The warm glow at the panel foot is a light source, not a shadow. It is an ellipse 180px tall, filled with a radial gradient that fades from pale cream (#fff6d6) through Glow Amber to a translucent orange, blurred 6px, and set 55% below the panel edge so only its crown shows. The cream and translucent-orange stops exist only in this glow and are not palette colors.
+The system is flat by default, and depth comes from line and light. Frames, panels, cells, forms, tables, the nav and the footer have no shadow. They separate from the ground with hairlines and from each other with the paper, white and paper-shade steps. Only three things lift, and each is handed to the user or floats over the page: the raised command box on an orange panel, the open account menu and the open delete confirmation on the skill page. The flat code block on white does not lift. The warm glow at the panel foot is a light source, not a shadow. It is an ellipse 180px tall, filled with a radial gradient that fades from pale cream (#fff6d6) through Glow Amber to a translucent orange, blurred 6px, and set 55% below the panel edge so only its crown shows. The cream and translucent-orange stops exist only in this glow and are not palette colors.
 
 ### Shadow Vocabulary
 - **Command Lift** (`box-shadow: 0 1px 2px rgb(60 12 0 / 0.12), 0 18px 40px -16px rgb(60 12 0 / 0.5)`): only under the raised command box on an orange panel. A tight contact shadow plus a deep ember drop.
-- **Popover** (`box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22)`): the open account menu panel.
+- **Popover** (`box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22)`): the open account menu panel and the open delete confirmation on the skill page.
 
 ### Named Rules
 **The Warm Shadow Rule.** Every shadow and scrim is Ember at some alpha (`rgb(60 12 0 / a)`), with a real offset and blur. Never use neutral black or a zero-offset halo.
@@ -686,6 +686,7 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 - **Hover / Focus:** the fill darkens to Action Orange Pressed over 200ms on the house curve (`cubic-bezier(0.16, 1, 0.3, 1)`). Focus shows the global 2px Signal Orange ring at a 2px offset.
 - **Outline:** a white fill with a 1px Hairline Strong border and Ink text. On hover the border turns Ink. Use it for secondary actions such as Cancel, Clear search, Download zip, Reset install key, Sign in inside an empty state, and the account menu trigger.
 - **Danger:** a white fill with a Danger Line border and Danger text. On hover the border turns Danger and the fill turns Danger Tint. Use it for Delete, Revoke and Delete account, and see The Quiet Danger Rule.
+- **Delete confirmation:** a `<details>` whose summary is the danger pill, Delete on the skill page or a small Delete account in the users table. While it is open the summary border stays Danger. It reveals a Caption hint (60ch) that says what deleting does and, 10px below it, a danger pill of the same size that names what it deletes, such as "Delete demo-skill" or "Delete carol". That second pill is the only control that submits, and clicking the summary again closes the confirmation. In the users table it opens in place, 10px under the summary, and its hint wraps to the Actions column instead of widening it. Opening one row's confirmation closes any other. On the skill page it floats: a white panel 340px wide (never wider than the toolbar), padded 14px, with 12px corners, a 1px Hairline outline and the Popover shadow, 8px below the toolbar and right-aligned to it. It works the same without JavaScript.
 - **Small:** 32px tall, 12px horizontal padding and 13px text, in any variant. It is used for the row actions in the users table.
 - **Wide:** the full width of its form and 42px tall. It is used only for the single submit on sign-in and setup.
 
@@ -757,7 +758,7 @@ The hero of the system: an orange field that hands over one line of shell.
 
 ### Users Table
 - **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. The username is weight 500, with the You tag beside your own. The role is a role label, and the last sign-in date is Mono Path in Body Gray.
-- **Actions:** a column of small outline pills (8px gaps), then an inline reset-password form (a small text field and a small outline pill), then, for other users, a danger zone: a dashed Hairline Strong rule, 12px of space, a small Delete account danger pill and a Caption hint (60ch) that says what deleting does.
+- **Actions:** a column of small outline pills (8px gaps), then an inline reset-password form (a small text field and a small outline pill), then, for other users, a danger zone: a dashed Hairline Strong rule, 12px of space and a small Delete account delete confirmation (see Buttons).
 - **Below 768px:** the header row is visually hidden and each row stacks into label/value pairs, padded 16px 18px with Hairline dividers. Each cell is a two-column grid (96px label, then the value, 12px apart), and the label is drawn from the cell's `data-label` in 10.5px uppercase mono at 0.1em in Warm Muted. The Actions cell stacks its label above the value and stretches the password field to full width.
 
 ### Sign-in Frame
@@ -777,7 +778,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** frame lists of records as a square hairline grid: a 1px Hairline Strong frame, 1px Hairline dividers, 7px registration marks and dot-filled cells that complete the last row.
 - **Do** build every other container as the same square frame with registration marks, opened by a Paper Shade header strip when it has a title, and closed by a Paper Shade footer bar when it is a form.
 - **Do** give text fields and selects 40px of height, 8px corners and a Hairline Strong border that turns #c9b8ae on hover and Ink on focus.
-- **Do** set destructive actions as danger pills: white, with a #f4c7c3 border and #b42318 text, placed at the end of a toolbar or below a dashed rule with a hint.
+- **Do** set destructive actions as danger pills: white, with a #f4c7c3 border and #b42318 text, placed at the end of a toolbar or below a dashed rule, behind a delete confirmation that says what deleting does.
 - **Do** put errors in an Alert above the form, and one-time information the user must act on in an orange Notice.
 - **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
@@ -785,7 +786,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** tint every shadow and scrim with Ember (`rgb(60 12 0 / a)`), with a real offset and blur.
 - **Do** theme the browser surfaces from the palette: Selection Peach (#ffd6c2) for selections, a 2px Signal Orange focus ring at a 2px offset (white inside the orange panel), an orange caret and accent color, and a Hairline Strong scrollbar on Paper.
 - **Do** limit motion to the breathing glow, the caret blink and 200–250ms state tints on `cubic-bezier(0.16, 1, 0.3, 1)`, and turn off the glow, the caret and anything that moves under `prefers-reduced-motion`.
-- **Do** build every interaction from native HTML: `<details>` for menus, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The two scripts, `public/copy.js` and `public/fold.js`, only enhance: every page works without them.
+- **Do** build every interaction from native HTML: `<details>` for menus and delete confirmations, GET and POST forms, radio cards, file inputs, links and `user-select: all`. The two scripts, `public/copy.js` and `public/fold.js`, only enhance: every page works without them.
 - **Do** draw icons as inline 16px SVG with a 1.5 stroke, round caps and joins, and `currentColor`.
 - **Do** self-host every face under `default-src 'self'`, as woff2 split by unicode-range with the display face preloaded.
 
