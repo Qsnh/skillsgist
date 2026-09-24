@@ -239,6 +239,24 @@ components:
     height: "36px"
   button-danger-hover:
     backgroundColor: "{colors.cf-danger-tint}"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.cf-ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 12px"
+    height: "36px"
+  button-ghost-hover:
+    backgroundColor: "{colors.cf-paper-2}"
+  button-ghost-danger:
+    backgroundColor: "transparent"
+    textColor: "{colors.cf-danger}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 12px"
+    height: "36px"
+  button-ghost-danger-hover:
+    backgroundColor: "{colors.cf-danger-tint}"
   button-sm:
     rounded: "{rounded.pill}"
     padding: "0 12px"
@@ -575,11 +593,11 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Ink** (#171717): headings, cell titles, button, field and menu labels, input text, file paths, the wordmark, and bold text inside a rendered SKILL.md.
 - **Graphite** (#404040): secondary ink for the tags, count pill, chips, footer links, the resting cell arrow and download icon, and quoted text in a SKILL.md.
 - **Body Gray** (#525252): descriptions, page ledes, empty-state copy, rendered SKILL.md text, the status line, the file-picker text and the dates in the users table.
-- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers and stacked table labels, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the idle "Copy" button label and footer text. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
+- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers and stacked table labels, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the idle "Copy" button label, the resting icon of a ghost button and footer text. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
 - **Paper** (#fdfdfc): the page ground behind everything, the fill inside the registration marks, the file picker and the chips.
-- **Paper Shade** (#f9f7f6): the footer band, every header strip and form footer bar, the table header row, code and quote blocks in a SKILL.md, and the hover fill on menu items, the search button and the download icon.
+- **Paper Shade** (#f9f7f6): the footer band, every header strip and form footer bar, the table header row, code and quote blocks in a SKILL.md, and the hover fill on menu items, ghost buttons, the search button and the download icon.
 - **Peach Tint** (#fff7f2): the hover wash on a skill cell, the fill of a checked choice card, the current row in the Versions list, and the notice fill.
-- **Hairline** (#efe6e1): internal dividers: between cells, under the nav and every header strip, between form sections, rows and table rows, above the footer, and around the menu panel and SKILL.md code, quotes and tables.
+- **Hairline** (#efe6e1): internal dividers: between cells, between the skill toolbar's groups, under the nav and every header strip, between form sections, rows and table rows, above the footer, and around the menu panel and SKILL.md code, quotes and tables.
 - **Hairline Strong** (#dfd2cb): the outer frame of every container, the registration marks, dashed gutters and dashed rules, the resting border of outline buttons, fields, choice cards, the file picker and its button, the tag, chip and pill outlines, the fill-cell and sign-in dot fields, the version-link underline and the scrollbar thumb.
 - **Hairline Hover** (#c9b8ae): the border of a text field or select under the pointer.
 - **Notice Line** (#f6d3c1): the border of the orange notice.
@@ -595,7 +613,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 
 **The Warm Neutral Rule.** Grounds, hairlines and muted text lean warm, at an OKLCH hue near 50. Text inks are true neutral gray. Cool slate and blue-gray never appear in this system.
 
-**The Quiet Danger Rule.** Danger is a line and a text color, never a fill. A danger button is white with a Danger Line border and Danger text, and only gains the Danger Tint on hover. A destructive action stands apart from its neighbors: at the far end of the toolbar, or below a dashed rule. Nothing is deleted on the first click: the danger button opens a delete confirmation that says what deleting does, and only its second danger button, which names what it deletes, submits.
+**The Quiet Danger Rule.** Danger is a line and a text color, never a fill. A danger control is set in Danger text, either as a white pill with a Danger Line border or, inside the skill toolbar, as a danger ghost, and it only gains the Danger Tint on hover. A destructive action stands apart from its neighbors: at the far end of the toolbar, or below a dashed rule. Nothing is deleted on the first click: the danger button opens a delete confirmation that says what deleting does, and only its second danger button, which names what it deletes, submits.
 
 ## Typography
 
@@ -642,7 +660,7 @@ Everything uses one 1280px column: the nav, the registry, every page body and th
 
 The registry section is padded 56px above and 112px below (48px and 72px on mobile). The heading row has the headline, the count pill, an optional "Clear search" link and a right-aligned sort note. It is inset 24px (18px on mobile) so it lines up with the cell padding. The sort note is hidden below 640px. The grid has one column below 640px, two from 640px to 1023px, and three from 1024px up. Cells are at least 216px tall with padding of 24px 24px 20px. On mobile the height becomes automatic and the padding drops to 20px 18px 18px. Metadata sits at the bottom of each cell, whatever the length of the description.
 
-The skill page uses a compact panel padded 56px 24px 72px (40px 16px 56px on mobile). Its content is left-aligned on the full 1280px column, so the slug lines up with the toolbar and frames below. The command box shrinks to fit its command, up to the full width. Below the panel the body is padded 32px above and 112px below. A toolbar of outline pills sits 32px above the content, with 8px gaps, and from 768px up the danger button is pushed to its far end. The content is one column, and from 1024px up it splits into the SKILL.md frame and a 340px aside, 32px apart. The aside stacks the Files and Versions panels 32px apart.
+The skill page uses a compact panel padded 56px 24px 72px (40px 16px 56px on mobile). Its content is left-aligned on the full 1280px column, so the slug lines up with the toolbar and frames below. The command box shrinks to fit its command, up to the full width. Below the panel the body is padded 32px above and 112px below. The skill toolbar, a square frame of ghost buttons (see Toolbar), sits 32px above the content. The content is one column, and from 1024px up it splits into the SKILL.md frame and a 340px aside, 32px apart. The aside stacks the Files and Versions panels 32px apart.
 
 The working pages share one body: padded 56px above and 112px below (36px and 72px on mobile), between the dashed gutters. Publish, Upload, Account and Add a user center a 760px column; Edit widens it to 960px for the editor. The Users page uses the full column for its table. A page head sits 32px above its content (24px for the compact head, which is inset 20px, or 18px on mobile, to line up with the table's cell padding). Panels on Account stack 32px apart. Inside a panel the body is padded 20px with a 14px gap. Stacked forms use 18px between fields and cap their width at 420px. Form sections are padded 24px (18px on mobile), and the footer bar 16px 24px (14px 18px on mobile). Sign-in and setup center a 420px frame, with 40px of extra space above it and 24px below it.
 
@@ -668,7 +686,7 @@ The system is flat by default, and depth comes from line and light. Frames, pane
 
 ## Shapes
 
-The shape language has two halves. Containers that hold data are square: the registry frame, its cells, the empty state, panels, form frames, the SKILL.md frame, the users table, the sign-in frame and the code and quote blocks inside a SKILL.md all have 0 corners. Each frame carries a registration mark at every corner, a 7px Hairline Strong square with a 5px Paper center, which reads like a crop mark on a plate. Pressable actions are full pills (999px): buttons, the file-picker button, the search field and its button, the count pill, the status pill and the skip link. Things you fill in or choose between take 8px corners: text fields, selects, the paste textarea, the file picker, choice cards, alerts, notices, the flat code block and menu items. The orange panel takes 16px corners (12px below 640px), and the things that float take 12px: the raised command box and the menu panel. The small end of the scale is 6px for the hover plate behind a download icon and 5px for tags, chips and inline code. The only true circle is the 6px status dot.
+The shape language has two halves. Containers that hold data are square: the registry frame, its cells, the empty state, panels, form frames, the skill toolbar, the SKILL.md frame, the users table, the sign-in frame and the code and quote blocks inside a SKILL.md all have 0 corners. Each frame carries a registration mark at every corner, a 7px Hairline Strong square with a 5px Paper center, which reads like a crop mark on a plate. Pressable actions are full pills (999px): buttons, the file-picker button, the search field and its button, the count pill, the status pill and the skip link. Things you fill in or choose between take 8px corners: text fields, selects, the paste textarea, the file picker, choice cards, alerts, notices, the flat code block and menu items. The orange panel takes 16px corners (12px below 640px), and the things that float take 12px: the raised command box and the menu panel. The small end of the scale is 6px for the hover plate behind a download icon and 5px for tags, chips and inline code. The only true circle is the 6px status dot.
 
 Icons are drawn inline as 16px SVG on a 16-unit grid with a 1.5 stroke and round caps and joins, in `currentColor`. The system includes a chevron, a globe, a padlock, a magnifier, an arrow, a download arrow and an alert circle. Visibility labels shrink their icon to 13px.
 
@@ -684,9 +702,10 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 - **Shape:** full pill (999px), 36px tall, 16px horizontal padding, and a 6px gap when the button holds an icon.
 - **Primary:** Action Orange fill with white Label text. This is the one primary action in a context: Publish or Sign in in the nav, the submit of a form, or the main call to action in an empty state.
 - **Hover / Focus:** the fill darkens to Action Orange Pressed over 200ms on the house curve (`cubic-bezier(0.16, 1, 0.3, 1)`). Focus shows the global 2px Signal Orange ring at a 2px offset.
-- **Outline:** a white fill with a 1px Hairline Strong border and Ink text. On hover the border turns Ink. Use it for secondary actions such as Cancel, Clear search, Download zip, Reset install key, Sign in inside an empty state, and the account menu trigger.
-- **Danger:** a white fill with a Danger Line border and Danger text. On hover the border turns Danger and the fill turns Danger Tint. Use it for Delete, Revoke and Delete account, and see The Quiet Danger Rule.
-- **Delete confirmation:** a `<details>` whose summary is the danger pill, Delete on the skill page or a small Delete account in the users table. While it is open the summary border stays Danger. It reveals a Caption hint (60ch) that says what deleting does and, 10px below it, a danger pill of the same size that names what it deletes, such as "Delete demo-skill" or "Delete carol". That second pill is the only control that submits, and clicking the summary again closes the confirmation. In the users table it opens in place, 10px under the summary, and its hint wraps to the Actions column instead of widening it. Opening one row's confirmation closes any other. On the skill page it floats: a white panel 340px wide (never wider than the toolbar), padded 14px, with 12px corners, a 1px Hairline outline and the Popover shadow, 8px below the toolbar and right-aligned to it. It works the same without JavaScript.
+- **Outline:** a white fill with a 1px Hairline Strong border and Ink text. On hover the border turns Ink. Use it for secondary actions such as Cancel, Clear search, Reset install key, Sign in inside an empty state, and the account menu trigger.
+- **Danger:** a white fill with a Danger Line border and Danger text. On hover the border turns Danger and the fill turns Danger Tint. Use it for Revoke, Delete account and the second, submitting pill of every delete confirmation, and see The Quiet Danger Rule.
+- **Ghost:** no fill and no border at rest, 12px horizontal padding, an Ink label and a 16px icon in Warm Muted. On hover the pill fills with Paper Shade and the icon turns Ink. The danger ghost has a Danger label and icon and fills with Danger Tint on hover. Ghost buttons live only inside the skill toolbar, where the frame and its dividers already mark the controls, so a border on each would double the lines.
+- **Delete confirmation:** a `<details>` whose summary is the danger ghost, Delete with a trash icon in the skill toolbar, or a small Delete account danger pill in the users table. While it is open the summary border turns Danger, and the danger ghost also fills with Danger Tint. It reveals a Caption hint (60ch) that says what deleting does and, 10px below it, a danger pill of the same size that names what it deletes, such as "Delete demo-skill" or "Delete carol". That second pill is the only control that submits, and clicking the summary again closes the confirmation. In the users table it opens in place, 10px under the summary, and its hint wraps to the Actions column instead of widening it. Opening one row's confirmation closes any other. On the skill page it floats: a white panel 340px wide (never wider than the toolbar), padded 14px, with 12px corners, a 1px Hairline outline and the Popover shadow, 8px below the toolbar and right-aligned to it. It works the same without JavaScript.
 - **Small:** 32px tall, 12px horizontal padding and 13px text, in any variant. It is used for the row actions in the users table.
 - **Wide:** the full width of its form and 42px tall. It is used only for the single submit on sign-in and setup.
 
@@ -709,6 +728,7 @@ There are no cards. Every container is a square hairline frame.
 - **Empty state:** a centered stack on the 10px dot grid inside the same frame. It has a Title Large line, a Body line in Body Gray (52ch) and one pill button. Its copy says what happened and how to recover: for example, "No skills match …" followed by Clear search.
 - **Panel:** a frame with an optional header strip and a body padded 20px with a 14px gap. The strip is Paper Shade, at least 52px tall, padded 12px 20px, with a Hairline bottom border. It holds a Panel Title on the left and a count pill or other aside on the right. When the body holds a row list it drops its padding so the rows run edge to edge.
 - **Row list:** rows padded 10px 20px with 12px gaps and Hairline dividers, in 13.5px text. In Files, each row shows the path in Mono Path Ink and the size in Mono Meta Warm Muted. In Versions, each row shows the version as a Mono Meta Large Ink link with a Hairline Strong underline, a UTC timestamp and a download icon. The version link turns Orange Ink on hover. The current version's row is tinted Peach Tint, and its link is Orange Ink at weight 500 with `aria-current`. The download icon is Graphite on a 6px-radius plate padded 4px (pulled back by a -4px margin so it does not shift the row), and on hover the plate fills with Paper Shade and the icon turns Orange Ink. A long Files or Versions list folds like the SKILL.md body (see Fold below), clipped to 400px, about ten rows, and fading out over its last 80px. Versions stays whole when the fold would hide the current version's row.
+- **Toolbar:** the skill page's actions sit in one full-width square frame with registration marks and a White inside, so the toolbar lines up with the frames below it. From 1024px up it is a single 54px row split into groups by 1px Hairline dividers that run its full height, and each group pads its ghost buttons 8px with 2px gaps: Download zip; Edit SKILL.md and Upload an archive; Make public or Make private; then Delete, pushed to the far end. Each button leads with a 16px icon: a down arrow, a pencil, an up arrow, a globe for Make public, a padlock for Make private and a trash can. The first icon lines up with the SKILL.md chip below. Below 1024px the dividers drop, the buttons wrap inside the frame's 8px padding, and Delete moves under a dashed Hairline Strong rule that spans the frame. Below 640px the buttons settle into two left-aligned columns, and below 360px into one. A visitor who cannot manage the skill sees the same frame holding Download zip alone.
 - **Form frame:** the form itself is the frame. It is split into sections padded 24px with Hairline dividers, and it closes with a Paper Shade footer bar padded 16px 24px, holding the primary button and an outline Cancel 10px apart. The edit form opens with a header strip holding the SKILL.md chip, followed by the full-width editor.
 
 ### Page Head
@@ -778,7 +798,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** frame lists of records as a square hairline grid: a 1px Hairline Strong frame, 1px Hairline dividers, 7px registration marks and dot-filled cells that complete the last row.
 - **Do** build every other container as the same square frame with registration marks, opened by a Paper Shade header strip when it has a title, and closed by a Paper Shade footer bar when it is a form.
 - **Do** give text fields and selects 40px of height, 8px corners and a Hairline Strong border that turns #c9b8ae on hover and Ink on focus.
-- **Do** set destructive actions as danger pills: white, with a #f4c7c3 border and #b42318 text, placed at the end of a toolbar or below a dashed rule, behind a delete confirmation that says what deleting does.
+- **Do** set destructive actions in #b42318 text, as danger pills (white, with a #f4c7c3 border) or, in the skill toolbar, as a danger ghost. Place them at the end of a toolbar or below a dashed rule, behind a delete confirmation that says what deleting does.
 - **Do** put errors in an Alert above the form, and one-time information the user must act on in an orange Notice.
 - **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
