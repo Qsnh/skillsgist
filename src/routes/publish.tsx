@@ -4,7 +4,7 @@ import type { AppEnv } from "../auth";
 import { API_PREFIX, page } from "../csrf";
 import { getVersion } from "../db/queries";
 import type { VersionRow } from "../db/queries";
-import { ForbiddenError, publishBytes, repackWithSkillMd } from "../publish";
+import { ForbiddenError, publishBytes, repackWithSkillMd, unchangedError } from "../publish";
 import { UploadError } from "../skills/normalize";
 import { EditSkillPage, NewSkillPage, UploadVersionPage } from "../views/publish";
 
@@ -13,6 +13,10 @@ export const publishRoutes = new Hono<AppEnv>();
 function visibilityOf(value: unknown): "public" | "private" | undefined {
   if (value === undefined) return undefined;
   return value === "public" ? "public" : "private";
+}
+
+function withLf(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
 }
 
 function publishFailure(err: unknown): (UploadError | ForbiddenError) | null {
@@ -31,7 +35,7 @@ async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array>
   if (file instanceof File && file.size > 0) {
     return new Uint8Array(await file.arrayBuffer());
   }
-  const markdown = typeof body.markdown === "string" ? body.markdown.trim() : "";
+  const markdown = typeof body.markdown === "string" ? withLf(body.markdown).trim() : "";
   if (markdown) return new TextEncoder().encode(`${markdown}\n`);
   throw new UploadError("Upload an archive, or paste SKILL.md into the text box");
 }
@@ -83,9 +87,11 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
   try {
-    if (!markdown.trim()) throw new UploadError("SKILL.md cannot be empty");
+    const text = withLf(markdown).trim();
+    if (!text) throw new UploadError("SKILL.md cannot be empty");
+    if (text === withLf(latest.skill_md).trim()) throw unchangedError(latest);
     // This page can only change SKILL.md; the other files come from the previous version's archive.
-    const bytes = await repackWithSkillMd(c.env, latest, `${markdown.trim()}\n`);
+    const bytes = await repackWithSkillMd(c.env, latest, `${text}\n`);
     await publishBytes(c.env, user, bytes, { expectedSlug: slug, rejectUnchanged: true });
     return c.redirect(`/s/${slug}`, 302);
   } catch (err) {

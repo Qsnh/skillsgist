@@ -323,6 +323,16 @@ describe("POST /new", () => {
     expect(res.status).toBe(403);
     expect(await res.text()).not.toContain("identical");
   });
+
+  it("refuses pasted markdown identical to the latest version when the browser sends CRLF", async () => {
+    const { cookie, token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD);
+
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD.replace(/\n/g, "\r\n") });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
 });
 
 describe("POST /s/:slug/edit", () => {
@@ -449,6 +459,42 @@ describe("POST /s/:slug/edit", () => {
     const v1 = await getVersion(env.DB, "demo-skill", 1);
 
     const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: v1!.skill_md });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("refuses an untouched save that the browser submits with CRLF line endings", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+      markdown: v1!.skill_md.replace(/\n/g, "\r\n"),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("refuses an untouched save when the stored SKILL.md has CRLF line endings", async () => {
+    const { cookie, token } = await seedAndToken({ username: "alice" });
+    const crlf = GOOD_MD.replace(/\n/g, "\r\n");
+    await putSkill(token, crlf);
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: crlf });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("refuses an untouched save when the stored SKILL.md lacks a trailing newline", async () => {
+    const { cookie, token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD.trimEnd());
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: GOOD_MD.trimEnd() });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("identical to v1");
     expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);

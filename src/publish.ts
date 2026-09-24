@@ -14,6 +14,12 @@ export class ForbiddenError extends Error {
   }
 }
 
+export function unchangedError(latest: VersionRow): UploadError {
+  return new UploadError(
+    `This is identical to v${latest.version}, the latest version of ${latest.slug}, so no new version was published`,
+  );
+}
+
 export interface PublishOutcome {
   slug: string;
   version: number;
@@ -51,11 +57,7 @@ export async function publishBytes(
         httpMetadata: { contentType: "application/zip" },
       });
     }
-    if (opts.rejectUnchanged) {
-      throw new UploadError(
-        `This is identical to v${latest.version}, the latest version of ${latest.slug}, so no new version was published`,
-      );
-    }
+    if (opts.rejectUnchanged) throw unchangedError(latest);
   }
 
   if (existing && opts.visibility !== undefined) {
