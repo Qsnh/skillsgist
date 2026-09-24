@@ -1154,7 +1154,8 @@
   }
 
   .cf-alert,
-  .cf-notice {
+  .cf-notice,
+  .cf-done {
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -1167,18 +1168,30 @@
     color: var(--color-cf-danger);
   }
 
-  .cf-alert {
+  .cf-alert,
+  .cf-done {
     margin-bottom: 24px;
   }
 
   .cf-alert .cf-icon,
-  .cf-notice .cf-icon {
+  .cf-notice .cf-icon,
+  .cf-done .cf-icon {
     margin-top: 2px;
   }
 
   .cf-notice {
     border-color: #f6d3c1;
     background: var(--color-cf-tint);
+    color: var(--color-cf-orange-ink);
+  }
+
+  .cf-done {
+    border-color: var(--color-cf-line-strong);
+    background: #fff;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-done .cf-icon {
     color: var(--color-cf-orange-ink);
   }
 

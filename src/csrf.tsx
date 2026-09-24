@@ -4,6 +4,7 @@ import type { JSX } from "hono/jsx/jsx-runtime";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
+import { FlashContext, takeFlash } from "./flash";
 
 
 const CsrfContext = createContext<string>("");
@@ -35,8 +36,13 @@ export async function page(
   element: JSX.Element,
   status?: ContentfulStatusCode,
 ): Promise<Response> {
-  const token = (await sessionCsrf(c)) ?? "";
-  return c.html(<CsrfContext.Provider value={token}>{element}</CsrfContext.Provider>, status);
+  const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
+  return c.html(
+    <CsrfContext.Provider value={token ?? ""}>
+      <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
+    </CsrfContext.Provider>,
+    status,
+  );
 }
 
 export const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

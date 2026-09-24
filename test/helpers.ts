@@ -173,3 +173,17 @@ export async function seedAndToken(
   const { user, cookie } = await seedAndLogin(opts);
   return { user, cookie, token: await apiToken(cookie) };
 }
+
+export function setCookieFor(res: Response, name: string): string | undefined {
+  return res.headers.getSetCookie().find((line) => line.startsWith(`${name}=`));
+}
+
+export async function follow(res: Response, cookie: string): Promise<Response> {
+  const location = res.headers.get("Location");
+  if (!location) throw new Error(`not a redirect: ${res.status}`);
+  const flashed = setCookieFor(res, "sg_flash")?.split(";")[0];
+  return SELF.fetch(`${ORIGIN}${location}`, {
+    headers: { Cookie: flashed ? `${cookie}; ${flashed}` : cookie },
+    redirect: "manual",
+  });
+}

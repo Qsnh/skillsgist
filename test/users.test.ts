@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
 import {
-  apiToken, env, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin,
-  seedUser,
+  apiToken, env, follow, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin,
+  seedUser, setCookieFor,
 } from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
@@ -152,7 +152,78 @@ describe("/me", () => {
       next: "another-long-password",
     });
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/me");
     await login("alice", "another-long-password");
+  });
+
+  it("confirms a password change once on the account page", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/password", cookie, {
+      current: password,
+      next: "another-long-password",
+    });
+    const shown = await follow(res, cookie);
+    expect(shown.status).toBe(200);
+    const html = await shown.text();
+    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Your password has been changed\.<\/span><\/p>/);
+    expect(html).not.toContain("cf-alert");
+    expect(setCookieFor(shown, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+    const again = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+    expect(await again.text()).not.toContain("cf-done");
+  });
+
+  it("sets the flash cookie http-only, same-site and short-lived", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const res = await postForm("/me/password", cookie, {
+      current: password,
+      next: "another-long-password",
+    });
+    const line = setCookieFor(res, "sg_flash");
+    expect(line).toMatch(/Max-Age=60/i);
+    expect(line).toMatch(/Path=\//i);
+    expect(line).toMatch(/HttpOnly/i);
+    expect(line).toMatch(/SameSite=Lax/i);
+  });
+
+  it("leaves the flash cookie alone on a page load without one", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+    expect(await res.text()).not.toContain("cf-done");
+  });
+
+  it("ignores and clears a flash cookie it did not sign", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const forged = [
+      "sg_flash=Visit%20evil.example",
+      `sg_flash=${encodeURIComponent(`Visit evil.example.${"A".repeat(43)}=`)}`,
+    ];
+    for (const planted of forged) {
+      const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).not.toContain("cf-done");
+      expect(html).not.toContain("evil.example");
+      expect(setCookieFor(res, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+    }
+  });
+
+  it("sets no flash when the change is refused", async () => {
+    const { password, cookie } = await seedAndLogin({ username: "alice" });
+    const wrong = await postForm("/me/password", cookie, {
+      current: "wrong-password-x",
+      next: "another-long-password",
+    });
+    expect(wrong.status).toBe(400);
+    expect(setCookieFor(wrong, "sg_flash")).toBeUndefined();
+    const wrongHtml = await wrong.text();
+    expect(wrongHtml).toContain("Current password is incorrect");
+    expect(wrongHtml).not.toContain("cf-done");
+    const short = await postForm("/me/password", cookie, { current: password, next: "short" });
+    expect(short.status).toBe(400);
+    expect(setCookieFor(short, "sg_flash")).toBeUndefined();
+    expect(await short.text()).not.toContain("cf-done");
   });
 });
 

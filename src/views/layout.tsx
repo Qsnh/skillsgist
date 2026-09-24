@@ -1,6 +1,8 @@
 import { raw } from "hono/html";
+import { useContext } from "hono/jsx";
 import { Form } from "../csrf";
 import type { UserRow } from "../db/queries";
+import { FlashContext } from "../flash";
 
 export const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -109,14 +111,18 @@ export function Layout(props: {
 }
 
 export function PageHead(props: { title: unknown; aside?: unknown; compact?: boolean; children?: unknown }) {
+  const flashed = useContext(FlashContext);
   return (
-    <header class={props.compact ? "cf-head cf-head-compact" : "cf-head"}>
-      <div class="cf-head-row">
-        <h1 class="cf-head-title">{props.title}</h1>
-        {props.aside}
-      </div>
-      {props.children ? <div class="cf-head-lede">{props.children}</div> : null}
-    </header>
+    <>
+      <header class={props.compact ? "cf-head cf-head-compact" : "cf-head"}>
+        <div class="cf-head-row">
+          <h1 class="cf-head-title">{props.title}</h1>
+          {props.aside}
+        </div>
+        {props.children ? <div class="cf-head-lede">{props.children}</div> : null}
+      </header>
+      <Done message={flashed} />
+    </>
   );
 }
 
@@ -223,6 +229,19 @@ export function Alert(props: { message?: string }) {
       <Icon>
         <circle cx="8" cy="8" r="6" />
         <path d="M8 5v3.5M8 11h.01" />
+      </Icon>
+      <span>{props.message}</span>
+    </p>
+  );
+}
+
+export function Done(props: { message?: string }) {
+  if (!props.message) return null;
+  return (
+    <p class="cf-done" role="status">
+      <Icon>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M5.5 8.2l1.7 1.7 3.3-3.6" />
       </Icon>
       <span>{props.message}</span>
     </p>

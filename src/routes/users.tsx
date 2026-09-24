@@ -5,6 +5,7 @@ import {
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
+import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
   getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
@@ -107,6 +108,7 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
     return page(c, <MePage user={user} origin={origin} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
+  await flash(c, "Your password has been changed.");
   return c.redirect("/me", 302);
 });
 
