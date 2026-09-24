@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in skillsgist does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Upload a skill at /new with ...
+        2. Run `npx skills add https://<your-domain>/i/<install_key>`
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installing with npx skills
+        - Publishing from the web
+        - Publishing through the API
+        - Accounts and administration
+        - Deploying or upgrading
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: skillsgist version or commit
+      placeholder: v1.0.0 or a commit SHA
+    validations:
+      required: true
+  - type: input
+    id: cli-version
+    attributes:
+      label: npx skills version
+      description: Only if the problem involves installing. Run `npx skills --version`.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and error output
+      description: CLI output, `wrangler tail` output, or the error shown in the browser. Remove install keys and API tokens first.
+      render: shell
