@@ -44,7 +44,10 @@ publishRoutes.post("/new", requireUser, async (c) => {
   const markdown = typeof body.markdown === "string" ? body.markdown : undefined;
   try {
     const bytes = await bytesFromForm(body);
-    const result = await publishBytes(c.env, user, bytes, { visibility: visibilityOf(body.visibility) });
+    const result = await publishBytes(c.env, user, bytes, {
+      visibility: visibilityOf(body.visibility),
+      rejectUnchanged: true,
+    });
     return c.redirect(`/s/${result.slug}`, 302);
   } catch (err) {
     const failure = publishFailure(err);
@@ -83,7 +86,7 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
     if (!markdown.trim()) throw new UploadError("SKILL.md cannot be empty");
     // This page can only change SKILL.md; the other files come from the previous version's archive.
     const bytes = await repackWithSkillMd(c.env, latest, `${markdown.trim()}\n`);
-    await publishBytes(c.env, user, bytes, { expectedSlug: slug });
+    await publishBytes(c.env, user, bytes, { expectedSlug: slug, rejectUnchanged: true });
     return c.redirect(`/s/${slug}`, 302);
   } catch (err) {
     const failure = publishFailure(err);
@@ -121,7 +124,7 @@ publishRoutes.post("/s/:slug/upload", requireUser, async (c) => {
       throw new UploadError("Choose an archive");
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
-    await publishBytes(c.env, user, bytes, { expectedSlug: slug });
+    await publishBytes(c.env, user, bytes, { expectedSlug: slug, rejectUnchanged: true });
     return c.redirect(`/s/${slug}`, 302);
   } catch (err) {
     const failure = publishFailure(err);

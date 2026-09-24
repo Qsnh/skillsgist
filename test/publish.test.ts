@@ -189,6 +189,16 @@ describe("PUT /api/skills/:slug", () => {
     const version = await getVersion(env.DB, "demo-skill", 2);
     expect(version?.author_id).toBe(admin.user.id);
   });
+
+  it("applies ?visibility on an unchanged republish", async () => {
+    const { token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, GOOD_MD, { visibility: "private" });
+
+    const res = await putSkill(token, GOOD_MD, { visibility: "public" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ unchanged: true, version: 1 });
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
 });
 
 describe("POST /new", () => {
@@ -254,6 +264,64 @@ describe("POST /new", () => {
     });
     expect(res.status).toBe(302);
     expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+
+  it("refuses an archive identical to the latest version", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const upload = () =>
+      postMultipart("/new", cookie, {
+        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+      });
+    expect((await upload()).status).toBe(302);
+
+    const res = await upload();
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1, the latest version of demo-skill");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("leaves visibility alone when it refuses identical content", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
+
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private" });
+    expect(res.status).toBe(400);
+    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+  });
+
+  it("publishes content identical to an older version as a new version", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    await postMultipart("/new", cookie, { markdown: `${GOOD_MD}\nchanged\n` });
+
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    expect(res.status).toBe(302);
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(3);
+  });
+
+  it("repairs a missing archive even when it refuses identical content", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const upload = () =>
+      postMultipart("/new", cookie, {
+        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+      });
+    await upload();
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+    await env.BUCKET.delete(v1!.r2_key);
+
+    const res = await upload();
+    expect(res.status).toBe(400);
+    expect(await env.BUCKET.get(v1!.r2_key)).not.toBeNull();
+  });
+
+  it("answers identical content on another user's skill with forbidden", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", alice.cookie, { markdown: GOOD_MD });
+
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    const res = await postMultipart("/new", bob.cookie, { markdown: GOOD_MD });
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("identical");
   });
 });
 
@@ -362,6 +430,29 @@ describe("POST /s/:slug/edit", () => {
     expect(html).toContain("references/api.md");
     expect(html).toContain("scripts/run.sh");
   });
+
+  it("refuses a save that changes nothing", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: GOOD_MD });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1, the latest version of demo-skill");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
+
+  it("refuses an untouched save when the skill carries other files", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, {
+      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+    });
+    const v1 = await getVersion(env.DB, "demo-skill", 1);
+
+    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: v1!.skill_md });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v1");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+  });
 });
 
 describe("POST /s/:slug/upload", () => {
@@ -427,6 +518,21 @@ describe("POST /s/:slug/upload", () => {
       file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("refuses an archive identical to the latest version", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    const upload = () =>
+      postMultipart("/s/demo-skill/upload", cookie, {
+        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
+      });
+    expect((await upload()).status).toBe(302);
+
+    const res = await upload();
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("identical to v2, the latest version of demo-skill");
+    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
   });
 });
 

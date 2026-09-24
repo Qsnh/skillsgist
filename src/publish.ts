@@ -26,7 +26,7 @@ export async function publishBytes(
   env: Env,
   user: UserRow,
   bytes: Uint8Array,
-  opts: { expectedSlug?: string; visibility?: "public" | "private" } = {},
+  opts: { expectedSlug?: string; visibility?: "public" | "private"; rejectUnchanged?: boolean } = {},
 ): Promise<PublishOutcome> {
   const normalized = await normalizeUpload(bytes);
 
@@ -41,27 +41,35 @@ export async function publishBytes(
     throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
   }
 
+  const latest = existing ? await getVersion(env.DB, existing.slug, existing.latest_version) : null;
+  const unchanged = latest !== null && latest.digest === normalized.digest;
+
+  if (unchanged) {
+    const object = await env.BUCKET.head(latest.r2_key);
+    if (!object) {
+      await env.BUCKET.put(latest.r2_key, normalized.zip, {
+        httpMetadata: { contentType: "application/zip" },
+      });
+    }
+    if (opts.rejectUnchanged) {
+      throw new UploadError(
+        `This is identical to v${latest.version}, the latest version of ${latest.slug}, so no new version was published`,
+      );
+    }
+  }
+
   if (existing && opts.visibility !== undefined) {
     await setVisibility(env.DB, existing.slug, opts.visibility);
   }
 
-  if (existing) {
-    const latest = await getVersion(env.DB, existing.slug, existing.latest_version);
-    if (latest?.digest === normalized.digest) {
-      const object = await env.BUCKET.head(latest.r2_key);
-      if (!object) {
-        await env.BUCKET.put(latest.r2_key, normalized.zip, {
-          httpMetadata: { contentType: "application/zip" },
-        });
-      }
-      return {
-        slug: existing.slug,
-        version: existing.latest_version,
-        digest: normalized.digest,
-        unchanged: true,
-        files: normalized.files,
-      };
-    }
+  if (existing && unchanged) {
+    return {
+      slug: existing.slug,
+      version: existing.latest_version,
+      digest: normalized.digest,
+      unchanged: true,
+      files: normalized.files,
+    };
   }
 
   const html = await renderSkillMd(normalized.skillMd);
