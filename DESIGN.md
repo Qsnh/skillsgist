@@ -479,6 +479,11 @@ components:
     textColor: "{colors.cf-orange-ink}"
     rounded: "{rounded.sm}"
     padding: "12px 14px"
+  done:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.cf-ink}"
+    rounded: "{rounded.sm}"
+    padding: "12px 14px"
   row:
     textColor: "{colors.cf-ink}"
     padding: "10px 20px"
@@ -688,7 +693,7 @@ The system is flat by default, and depth comes from line and light. Frames, pane
 
 The shape language has two halves. Containers that hold data are square: the registry frame, its cells, the empty state, panels, form frames, the skill toolbar, the SKILL.md frame, the users table, the sign-in frame and the code and quote blocks inside a SKILL.md all have 0 corners. Each frame carries a registration mark at every corner, a 7px Hairline Strong square with a 5px Paper center, which reads like a crop mark on a plate. Pressable actions are full pills (999px): buttons, the file-picker button, the search field and its button, the count pill, the status pill and the skip link. Things you fill in or choose between take 8px corners: text fields, selects, the paste textarea, the file picker, choice cards, alerts, notices, the flat code block and menu items. The orange panel takes 16px corners (12px below 640px), and the things that float take 12px: the raised command box and the menu panel. The small end of the scale is 6px for the hover plate behind a download icon and 5px for tags, chips and inline code. The only true circle is the 6px status dot.
 
-Icons are drawn inline as 16px SVG on a 16-unit grid with a 1.5 stroke and round caps and joins, in `currentColor`. The system includes a chevron, a globe, a padlock, a magnifier, an arrow, a download arrow and an alert circle. Visibility labels shrink their icon to 13px.
+Icons are drawn inline as 16px SVG on a 16-unit grid with a 1.5 stroke and round caps and joins, in `currentColor`. The system includes a chevron, a globe, a padlock, a magnifier, an arrow, a download arrow, an alert circle and a check circle. Visibility labels shrink their icon to 13px.
 
 Textures and dashes also belong to shape. The panel carries a white dot matrix (0.8px dots on a 6px pitch at 20% opacity) that fades out toward the bottom. Fill cells carry Hairline Strong dots and empty states carry Hairline dots, both on a 10px pitch. The sign-in and setup pages carry the same Hairline Strong dots behind their frame, faded by a radial mask to nothing at the edges. The masks are alpha ramps (`#000` to transparent), not colors. Dashed Hairline Strong lines mark the column gutters, the file picker's border, the rule above a danger zone, and a horizontal rule in a SKILL.md.
 
@@ -735,6 +740,7 @@ There are no cards. Every container is a square hairline frame.
 The top of every working page.
 - **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps). An optional Page Lede follows 12px below. It sits 32px above the content.
 - **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it and an optional outline pill pushed to the far end of the row, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users, where the pill is Add a user.
+- **Flash:** when the previous action redirected here with a confirmation, a Done line follows either head, before any Alert. Only pages with a page head show one; the hero pages and the sign-in frame do not, so no action redirects there with a flash.
 
 ### Inputs / Fields
 - **Field:** a 14px weight-500 Ink label, the control 6px below it, and an optional Caption hint in Warm Muted 6px below that.
@@ -748,10 +754,12 @@ The top of every working page.
 - **Choice cards:** radio cards in a two-column grid with 12px gaps (one column below 640px). Each card is a white box with a 1px Hairline Strong border and 8px corners, padded 14px 16px 14px 44px. The 16px native radio sits 16px from the left, and a weight-500 title sits over a Caption detail in Warm Muted. On hover the border turns Warm Muted. When checked, the border turns Orange Ink and the card fills with Peach Tint.
 - **Search field:** a 52px pill on the orange panel (48px below 640px). The fill is Ember at 30%, with a 1px border of white at 28% opacity. It holds a 16px magnifier, a transparent 16px input with white text, white placeholder text and a white caret, and a white pill Search button inside, 6px from the edges. White placeholder text on the composited fill measures 4.99:1. On `:focus-within` the border turns solid white and the fill deepens to Ember at 38%.
 - **Errors:** validation happens on the server. The page re-renders with an Alert above the form or inside the sign-in frame. Every text input and textarea carries a Signal Orange caret and accent color.
+- **Confirmations:** an action whose result the page cannot show (a password change, a password reset, an install key rotation) sets a one-time flash before it redirects. The flash is a cookie signed with the session secret that lives 60 seconds, and the next page clears it as it shows it. An unsigned or tampered flash shows nothing.
 
-### Alerts and Notices
+### Alerts, Notices and Done
 - **Alert:** an 8px-radius box padded 12px 14px with a Danger Line border and a Danger Tint fill, holding a 16px alert-circle icon and 14px Danger text 10px apart. It sits 24px above the form it belongs to and is announced with `role="alert"`.
 - **Notice:** the same shape in orange, with a Notice Line border, a Peach Tint fill and Orange Ink text. It is for information the user must act on now, such as "This token is shown once. Save it now."
+- **Done:** the same shape in Ink on white with a Hairline Strong border, and a 16px check-circle icon in Orange Ink. It confirms a change the page cannot show, such as "Your password has been changed." It sits under the page head, 24px above the content, and is announced with `role="status"`.
 
 ### Navigation
 - **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, a flexible spacer and the actions. The nav has no link group.
@@ -799,7 +807,7 @@ The hero of the system: an orange field that hands over one line of shell.
 - **Do** build every other container as the same square frame with registration marks, opened by a Paper Shade header strip when it has a title, and closed by a Paper Shade footer bar when it is a form.
 - **Do** give text fields and selects 40px of height, 8px corners and a Hairline Strong border that turns #c9b8ae on hover and Ink on focus.
 - **Do** set destructive actions in #b42318 text, as danger pills (white, with a #f4c7c3 border) or, in the skill toolbar, as a danger ghost. Place them at the end of a toolbar or below a dashed rule, behind a delete confirmation that says what deleting does.
-- **Do** put errors in an Alert above the form, and one-time information the user must act on in an orange Notice.
+- **Do** put errors in an Alert above the form, one-time information the user must act on in an orange Notice, and the confirmation of a change the page cannot show in a Done line.
 - **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
 - **Do** stack tables into label/value rows below 768px instead of scrolling them sideways.
