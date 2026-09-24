@@ -1,10 +1,33 @@
 {
   "name": "skillsgist",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "description": "A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.",
+  "keywords": [
+    "agent-skills",
+    "skills",
+    "claude-code",
+    "ai-agents",
+    "registry",
+    "self-hosted",
+    "cloudflare-workers",
+    "cloudflare-d1",
+    "cloudflare-r2",
+    "hono"
+  ],
+  "homepage": "https://github.com/Qsnh/skillsgist#readme",
+  "bugs": {
+    "url": "https://github.com/Qsnh/skillsgist/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qsnh/skillsgist.git"
+  },
+  "license": "MIT",
+  "author": "Qsnh",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
     "test": "vitest run",
@@ -15,19 +38,6 @@
     "verify:cli": "node scripts/verify-cli.mjs",
     "fixtures": "./scripts/make-fixtures.sh"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Qsnh/skillsgist.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "bugs": {
-    "url": "https://github.com/Qsnh/skillsgist/issues"
-  },
-  "homepage": "https://github.com/Qsnh/skillsgist#readme",
-  "private": true,
   "dependencies": {
     "hono": "^4.13.8",
     "marked": "^18.0.13",
