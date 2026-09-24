@@ -193,6 +193,34 @@ describe("/me", () => {
     expect(await res.text()).not.toContain("cf-done");
   });
 
+  it("does not render a signed session value planted as a flash", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const planted = cookie.replace(/^sg_session=/, "sg_flash=");
+    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).not.toContain("cf-done");
+    expect(html).not.toContain("&quot;uid&quot;");
+    expect(setCookieFor(res, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+  });
+
+  it("does not show one session's flash in another session", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob" });
+    const res = await postForm("/me/password", alice.cookie, {
+      current: alice.password,
+      next: "another-long-password",
+    });
+    const flashed = setCookieFor(res, "sg_flash")?.split(";")[0];
+    expect(flashed).toBeDefined();
+    const shown = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${bob.cookie}; ${flashed}` } });
+    expect(shown.status).toBe(200);
+    const html = await shown.text();
+    expect(html).not.toContain("cf-done");
+    expect(html).not.toContain("Your password has been changed.");
+    expect(setCookieFor(shown, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+  });
+
   it("ignores and clears a flash cookie it did not sign", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const forged = [
