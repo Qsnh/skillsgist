@@ -1195,6 +1195,44 @@
     color: var(--color-cf-orange-ink);
   }
 
+  .cf-head-compact ~ :is(.cf-alert, .cf-done) {
+    margin-inline: 20px;
+  }
+
+  .cf-narrow {
+    --cf-gutter-inset: 0px;
+  }
+
+  .cf-narrow > .cf-head {
+    padding-inline: var(--cf-gutter-inset);
+  }
+
+  .cf-narrow > :is(.cf-alert, .cf-done) {
+    margin-inline: var(--cf-gutter-inset);
+  }
+
+  @media (max-width: 1007.98px) {
+    .cf-narrow-wide {
+      --cf-gutter-inset: 20px;
+    }
+  }
+
+  @media (max-width: 807.98px) {
+    .cf-narrow {
+      --cf-gutter-inset: 20px;
+    }
+  }
+
+  @media (max-width: 639.98px) {
+    .cf-narrow {
+      --cf-gutter-inset: 18px;
+    }
+
+    .cf-head-compact ~ :is(.cf-alert, .cf-done) {
+      margin-inline: 18px;
+    }
+  }
+
   .cf-status {
     display: flex;
     align-items: center;
