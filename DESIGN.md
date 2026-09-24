@@ -740,7 +740,7 @@ There are no cards. Every container is a square hairline frame.
 The top of every working page.
 - **Standard:** a Page Title with an optional aside on the same wrapping row (10px 14px gaps). An optional Page Lede follows 12px below. It sits 32px above the content.
 - **Compact:** a Headline-sized title (32px, 26px on mobile) with a count pill beside it and an optional outline pill pushed to the far end of the row, 24px above a full-width table and inset 20px (18px on mobile) to line up with the table's cells. It is used on Users, where the pill is Add a user.
-- **Flash:** when the previous action redirected here with a confirmation, a Done line follows either head, before any Alert. Only pages with a page head show one; the hero pages and the sign-in frame do not, so no action redirects there with a flash.
+- **Flash:** when the previous action redirected here with a confirmation, a Done line follows either head, before any Alert. Only pages with a page head show one. The hero pages and the sign-in frame still clear a pending flash without showing it, so no action redirects there with one.
 
 ### Inputs / Fields
 - **Field:** a 14px weight-500 Ink label, the control 6px below it, and an optional Caption hint in Warm Muted 6px below that.
@@ -754,7 +754,7 @@ The top of every working page.
 - **Choice cards:** radio cards in a two-column grid with 12px gaps (one column below 640px). Each card is a white box with a 1px Hairline Strong border and 8px corners, padded 14px 16px 14px 44px. The 16px native radio sits 16px from the left, and a weight-500 title sits over a Caption detail in Warm Muted. On hover the border turns Warm Muted. When checked, the border turns Orange Ink and the card fills with Peach Tint.
 - **Search field:** a 52px pill on the orange panel (48px below 640px). The fill is Ember at 30%, with a 1px border of white at 28% opacity. It holds a 16px magnifier, a transparent 16px input with white text, white placeholder text and a white caret, and a white pill Search button inside, 6px from the edges. White placeholder text on the composited fill measures 4.99:1. On `:focus-within` the border turns solid white and the fill deepens to Ember at 38%.
 - **Errors:** validation happens on the server. The page re-renders with an Alert above the form or inside the sign-in frame. Every text input and textarea carries a Signal Orange caret and accent color.
-- **Confirmations:** an action whose result the page cannot show (a password change, a password reset, an install key rotation) sets a one-time flash before it redirects. The flash is a cookie signed with the session secret that lives 60 seconds, and the next page clears it as it shows it. An unsigned or tampered flash shows nothing.
+- **Confirmations:** an action whose result the page cannot show (a password change, a password reset, an install key rotation) sets a one-time flash before it redirects. The flash is a cookie signed with the session secret, bound to the session that set it, and it lives 60 seconds. The next rendered page clears it and shows it only if the page has a page head. A flash that is unsigned, tampered or set by another session shows nothing.
 
 ### Alerts, Notices and Done
 - **Alert:** an 8px-radius box padded 12px 14px with a Danger Line border and a Danger Tint fill, holding a 16px alert-circle icon and 14px Danger text 10px apart. It sits 24px above the form it belongs to and is announced with `role="alert"`.
