@@ -1,5 +1,5 @@
 import { Form } from "../csrf";
-import { Button, CodeBlock, Icon, Layout, Panel } from "./layout";
+import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel } from "./layout";
 import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
@@ -232,9 +232,14 @@ export function SkillPage(props: {
               <Form action={`/s/${skill.slug}/visibility`}>
                 <Button variant="outline">{skill.visibility === "public" ? "Make private" : "Make public"}</Button>
               </Form>
-              <Form action={`/s/${skill.slug}/delete`} class="cf-toolbar-end">
-                <Button variant="danger">Delete</Button>
-              </Form>
+              <ConfirmDelete
+                action={`/s/${skill.slug}/delete`}
+                label="Delete"
+                confirm={`Delete ${skill.slug}`}
+                class="cf-toolbar-end"
+              >
+                Deleting removes {skill.slug} and all of its versions. It cannot be undone.
+              </ConfirmDelete>
             </>
           ) : null}
         </div>

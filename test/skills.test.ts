@@ -276,6 +276,20 @@ describe("visibility and deletion", () => {
     expect(await env.BUCKET.get("skills/demo-skill/1.zip")).toBeNull();
   });
 
+  it("puts skill deletion behind a confirm step that names the skill", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "private");
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+
+    const blocks = html.match(/<details class="cf-confirm cf-toolbar-end">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger">Delete</summary>`);
+    expect(blocks[0]).toContain(`<p class="cf-hint">Deleting removes demo-skill and all of its versions.`);
+    expect(blocks[0]).toContain(`action="/s/demo-skill/delete"`);
+    expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger">Delete demo-skill</button>`);
+    expect(html.split("/s/demo-skill/delete")).toHaveLength(2);
+  });
+
   it("stops a member touching another user's skill", async () => {
     const alice = await seedAndLogin({ username: "alice" });
     await publish(alice.cookie, GOOD_MD, "private");

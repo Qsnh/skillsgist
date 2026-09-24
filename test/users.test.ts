@@ -214,6 +214,20 @@ describe("/admin/users", () => {
     expect(html).toContain(`/admin/users/${carol!.id}/role`);
     expect(html).toContain(`/admin/users/${carol!.id}/delete`);
   });
+
+  it("puts account deletion behind a confirm step that names the user", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: carol } = await seedUser({ username: "carol", role: "member" });
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+
+    const blocks = html.match(/<details class="cf-confirm" name="delete-user">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger cf-btn-sm">Delete account</summary>`);
+    expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);
+    expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
+    expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger cf-btn-sm">Delete carol</button>`);
+    expect(html.split(`/admin/users/${carol.id}/delete`)).toHaveLength(2);
+  });
 });
 
 describe("/admin/users/new", () => {

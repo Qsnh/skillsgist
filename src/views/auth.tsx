@@ -1,5 +1,5 @@
 import { Form } from "../csrf";
-import { Alert, Button, CodeBlock, DATE, Field, Icon, Layout, PageHead, Panel, Select } from "./layout";
+import { Alert, Button, CodeBlock, ConfirmDelete, DATE, Field, Icon, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow } from "../db/queries";
 
 function AuthCard(props: { title: string; error?: string; children?: unknown }) {
@@ -199,14 +199,17 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                       </Form>
                       {isSelf ? null : (
                         <div class="cf-danger-zone">
-                          <Form action={`/admin/users/${u.id}/delete`}>
-                            <Button variant="danger" size="sm">Delete account</Button>
-                          </Form>
-                          <p class="cf-hint">
+                          <ConfirmDelete
+                            action={`/admin/users/${u.id}/delete`}
+                            label="Delete account"
+                            confirm={`Delete ${u.username}`}
+                            size="sm"
+                            name="delete-user"
+                          >
                             Deleting reassigns this user's skills and their published versions' author records to you.
                             To keep the author records, use "Demote to member" plus "Rotate install key" instead of
                             deleting.
-                          </p>
+                          </ConfirmDelete>
                         </div>
                       )}
                     </div>

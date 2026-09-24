@@ -186,6 +186,30 @@ export function Button(props: {
   );
 }
 
+export function ConfirmDelete(props: {
+  action: string;
+  label: string;
+  confirm: string;
+  size?: "sm";
+  class?: string;
+  name?: string;
+  children?: unknown;
+}) {
+  const classes = ["cf-confirm", props.class].filter(Boolean).join(" ");
+  const summary = ["cf-btn", "cf-btn-danger", props.size ? "cf-btn-sm" : ""].filter(Boolean).join(" ");
+  return (
+    <details class={classes} name={props.name}>
+      <summary class={summary}>{props.label}</summary>
+      <div class="cf-confirm-panel">
+        <p class="cf-hint">{props.children}</p>
+        <Form action={props.action}>
+          <Button variant="danger" size={props.size}>{props.confirm}</Button>
+        </Form>
+      </div>
+    </details>
+  );
+}
+
 export function Alert(props: { message?: string }) {
   if (!props.message) return null;
   return (
