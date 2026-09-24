@@ -281,9 +281,9 @@ describe("visibility and deletion", () => {
     await publish(cookie, GOOD_MD, "private");
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`, { headers: { Cookie: cookie } })).text();
 
-    const blocks = html.match(/<details class="cf-confirm cf-toolbar-end">[\s\S]*?<\/details>/g) ?? [];
+    const blocks = html.match(/<div class="cf-toolbar-group cf-toolbar-end"><details class="cf-confirm">[\s\S]*?<\/details>/g) ?? [];
     expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger">Delete</summary>`);
+    expect(blocks[0]).toMatch(/<summary class="cf-btn cf-btn-ghost cf-btn-ghost-danger"><svg [^>]*>[\s\S]*?<\/svg>Delete<\/summary>/);
     expect(blocks[0]).toContain(`<p class="cf-hint">Deleting removes demo-skill and all of its versions.`);
     expect(blocks[0]).toContain(`action="/s/demo-skill/delete"`);
     expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger">Delete demo-skill</button>`);

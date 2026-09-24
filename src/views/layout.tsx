@@ -172,7 +172,7 @@ export function Select(props: { label: string; name: string; children?: unknown 
 }
 
 export function Button(props: {
-  variant?: "primary" | "outline" | "danger";
+  variant?: "primary" | "outline" | "danger" | "ghost";
   size?: "sm";
   wide?: boolean;
   children?: unknown;
@@ -191,15 +191,21 @@ export function ConfirmDelete(props: {
   label: string;
   confirm: string;
   size?: "sm";
+  ghost?: boolean;
+  icon?: unknown;
   class?: string;
   name?: string;
   children?: unknown;
 }) {
   const classes = ["cf-confirm", props.class].filter(Boolean).join(" ");
-  const summary = ["cf-btn", "cf-btn-danger", props.size ? "cf-btn-sm" : ""].filter(Boolean).join(" ");
+  const variant = props.ghost ? "cf-btn-ghost cf-btn-ghost-danger" : "cf-btn-danger";
+  const summary = ["cf-btn", variant, props.size ? "cf-btn-sm" : ""].filter(Boolean).join(" ");
   return (
     <details class={classes} name={props.name}>
-      <summary class={summary}>{props.label}</summary>
+      <summary class={summary}>
+        {props.icon}
+        {props.label}
+      </summary>
       <div class="cf-confirm-panel">
         <p class="cf-hint">{props.children}</p>
         <Form action={props.action}>

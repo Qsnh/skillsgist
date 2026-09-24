@@ -5,18 +5,12 @@ import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/querie
 function Visibility(props: { value: SkillRow["visibility"] }) {
   return props.value === "public" ? (
     <span class="cf-vis cf-vis-public">
-      <Icon>
-        <circle cx="8" cy="8" r="6" />
-        <path d="M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z" />
-      </Icon>
+      <GlobeIcon />
       Public
     </span>
   ) : (
     <span class="cf-vis cf-vis-private">
-      <Icon>
-        <rect x="3" y="7" width="10" height="7" rx="1.5" />
-        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
-      </Icon>
+      <LockIcon />
       Private
     </span>
   );
@@ -187,6 +181,48 @@ function DownloadIcon() {
   );
 }
 
+function UploadIcon() {
+  return (
+    <Icon>
+      <path d="M8 10.5v-8M4.5 6L8 2.5 11.5 6M3 13.5h10" />
+    </Icon>
+  );
+}
+
+function EditIcon() {
+  return (
+    <Icon>
+      <path d="M10.25 2.75l3 3L6 13H3v-3l7.25-7.25zM8.75 4.25l3 3" />
+    </Icon>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <Icon>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z" />
+    </Icon>
+  );
+}
+
+function LockIcon() {
+  return (
+    <Icon>
+      <rect x="3" y="7" width="10" height="7" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+    </Icon>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <Icon>
+      <path d="M2.5 4.5h11M6.5 4.5V3a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1.5M4 4.5l.6 8.1a1 1 0 001 .9h4.8a1 1 0 001-.9l.6-8.1M6.75 7v4M9.25 7v4" />
+    </Icon>
+  );
+}
+
 export function SkillPage(props: {
   user: UserRow | null;
   skill: SkillRow & { author: string };
@@ -220,26 +256,49 @@ export function SkillPage(props: {
       </section>
 
       <div class="cf-page cf-guides cf-skill-body">
-        <div class="cf-toolbar">
-          <a href={`/s/${skill.slug}/download`} class="cf-btn cf-btn-outline">
-            <DownloadIcon />
-            Download zip
-          </a>
+        <div class="cf-frame cf-toolbar">
+          <div class="cf-toolbar-group">
+            <a href={`/s/${skill.slug}/download`} class="cf-btn cf-btn-ghost">
+              <DownloadIcon />
+              Download zip
+            </a>
+          </div>
           {props.canManage ? (
             <>
-              <a href={`/s/${skill.slug}/edit`} class="cf-btn cf-btn-outline">Edit SKILL.md</a>
-              <a href={`/s/${skill.slug}/upload`} class="cf-btn cf-btn-outline">Upload an archive</a>
-              <Form action={`/s/${skill.slug}/visibility`}>
-                <Button variant="outline">{skill.visibility === "public" ? "Make private" : "Make public"}</Button>
+              <div class="cf-toolbar-group">
+                <a href={`/s/${skill.slug}/edit`} class="cf-btn cf-btn-ghost">
+                  <EditIcon />
+                  Edit SKILL.md
+                </a>
+                <a href={`/s/${skill.slug}/upload`} class="cf-btn cf-btn-ghost">
+                  <UploadIcon />
+                  Upload an archive
+                </a>
+              </div>
+              <Form action={`/s/${skill.slug}/visibility`} class="cf-toolbar-group">
+                {skill.visibility === "public" ? (
+                  <Button variant="ghost">
+                    <LockIcon />
+                    Make private
+                  </Button>
+                ) : (
+                  <Button variant="ghost">
+                    <GlobeIcon />
+                    Make public
+                  </Button>
+                )}
               </Form>
-              <ConfirmDelete
-                action={`/s/${skill.slug}/delete`}
-                label="Delete"
-                confirm={`Delete ${skill.slug}`}
-                class="cf-toolbar-end"
-              >
-                Deleting removes {skill.slug} and all of its versions. It cannot be undone.
-              </ConfirmDelete>
+              <div class="cf-toolbar-group cf-toolbar-end">
+                <ConfirmDelete
+                  action={`/s/${skill.slug}/delete`}
+                  label="Delete"
+                  confirm={`Delete ${skill.slug}`}
+                  ghost
+                  icon={<TrashIcon />}
+                >
+                  Deleting removes {skill.slug} and all of its versions. It cannot be undone.
+                </ConfirmDelete>
+              </div>
             </>
           ) : null}
         </div>

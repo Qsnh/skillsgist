@@ -1227,6 +1227,36 @@
     background: #fef3f2;
   }
 
+  .cf-btn-ghost {
+    padding-inline: 12px;
+    background: transparent;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-btn-ghost .cf-icon {
+    color: var(--color-cf-muted);
+    transition: color 0.2s var(--ease-cf);
+  }
+
+  .cf-btn-ghost:hover {
+    background: var(--color-cf-paper-2);
+  }
+
+  .cf-btn-ghost:hover .cf-icon {
+    color: var(--color-cf-ink);
+  }
+
+  .cf-btn-ghost-danger,
+  .cf-btn-ghost-danger .cf-icon,
+  .cf-btn-ghost-danger:hover .cf-icon {
+    color: var(--color-cf-danger);
+  }
+
+  .cf-btn-ghost-danger:hover,
+  .cf-confirm[open] > .cf-btn-ghost-danger {
+    background: #fef3f2;
+  }
+
   .cf-btn-sm {
     height: 32px;
     padding-inline: 12px;
@@ -1433,12 +1463,20 @@
   }
 
   .cf-toolbar {
-    position: relative;
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
     margin-bottom: 32px;
+  }
+
+  .cf-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 8px;
+  }
+
+  .cf-toolbar-group + .cf-toolbar-group {
+    border-left: 1px solid var(--color-cf-line);
   }
 
   .cf-toolbar-end {
@@ -1896,6 +1934,23 @@
       min-height: 0;
       padding: 20px 18px 18px;
     }
+
+    .cf-toolbar {
+      display: grid;
+      grid-template-columns: max-content minmax(max-content, 1fr);
+      justify-items: start;
+    }
+
+    .cf-toolbar-end {
+      grid-column: 1 / -1;
+      justify-self: stretch;
+    }
+  }
+
+  @media (max-width: 359.98px) {
+    .cf-toolbar {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   @media (min-width: 1280px) {
@@ -1962,9 +2017,24 @@
       text-transform: uppercase;
       color: var(--color-cf-muted);
     }
+  }
 
-    .cf-toolbar-end {
-      margin-left: 0;
+  @media (max-width: 1023.98px) {
+    .cf-toolbar {
+      gap: 2px;
+      padding: 8px;
+    }
+
+    .cf-toolbar-group {
+      display: contents;
+    }
+
+    .cf-toolbar-group.cf-toolbar-end {
+      display: flex;
+      flex-basis: calc(100% + 16px);
+      margin: 6px -8px -8px;
+      border-top: 1px dashed var(--color-cf-line-strong);
+      border-left: 0;
     }
   }
 
@@ -1987,6 +2057,7 @@
     .cf-search,
     .cf-search-submit,
     .cf-command-copy,
+    .cf-btn-ghost .cf-icon,
     .cf-menu > summary .cf-icon {
       transition: none;
     }
