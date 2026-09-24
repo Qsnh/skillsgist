@@ -64,10 +64,10 @@ export async function publishBytes(
     await setVisibility(env.DB, existing.slug, opts.visibility);
   }
 
-  if (existing && unchanged) {
+  if (unchanged) {
     return {
-      slug: existing.slug,
-      version: existing.latest_version,
+      slug: latest.slug,
+      version: latest.version,
       digest: normalized.digest,
       unchanged: true,
       files: normalized.files,

@@ -16,6 +16,10 @@ function Visibility(props: { value: SkillRow["visibility"] }) {
   );
 }
 
+function installBase(origin: string, user: UserRow | null) {
+  return user ? `${origin}/i/${user.install_key}` : origin;
+}
+
 function SkillCell(props: { skill: SkillRow & { author: string } }) {
   const s = props.skill;
   return (
@@ -76,14 +80,12 @@ export function IndexPage(props: {
   q: string;
   origin: string;
 }) {
-  const address = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
+  const address = installBase(props.origin, props.user);
   const count = props.skills.length;
-  const fillWide = (3 - (count % 3)) % 3;
-  const fillMid = count % 2;
   return (
     <Layout title="Skills" user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
-        <div class="cf-hero-inner">
+        <div class="cf-hero-inner cf-hero-center">
           <h1 id="hero-title" class="cf-hero-title">
             {props.user ? "Install every skill with one command" : "Install public skills with one command"}
           </h1>
@@ -136,8 +138,6 @@ export function IndexPage(props: {
                 {props.skills.map((s) => (
                   <SkillCell skill={s} />
                 ))}
-                {fillWide ? <li class={`cf-cell-fill cf-fill-wide cf-span-${fillWide}`} aria-hidden="true" /> : null}
-                {fillMid ? <li class="cf-cell-fill cf-fill-mid" aria-hidden="true" /> : null}
               </ul>
             </div>
           )}
@@ -234,11 +234,10 @@ export function SkillPage(props: {
   const { skill, version } = props;
   const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
   const isLatest = version.version === skill.latest_version;
-  const base = props.user ? `${props.origin}/i/${props.user.install_key}` : props.origin;
-  const url = `${base}/.well-known/agent-skills/${skill.slug}`;
+  const url = `${installBase(props.origin, props.user)}/.well-known/agent-skills/${skill.slug}`;
   return (
     <Layout title={skill.slug} user={props.user} bare>
-      <section class="cf-hero cf-hero-compact" aria-labelledby="skill-title">
+      <section class="cf-hero" aria-labelledby="skill-title">
         <div class="cf-hero-inner cf-hero-start">
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{skill.slug}</h1>
           <p class="cf-hero-lede">{version.description}</p>
@@ -320,11 +319,12 @@ export function SkillPage(props: {
             <FoldFoot controls="skill-doc" />
           </article>
 
-          <aside class="cf-skill-aside">
+          <aside class="cf-stack-lg">
             <Panel
               title="Files"
               aside={<span class="cf-count">{files.length}</span>}
               foot={<FoldFoot controls="skill-files" />}
+              flush
             >
               <ul id="skill-files" class="cf-rows" data-fold>
                 {files.map((f) => (
@@ -339,6 +339,7 @@ export function SkillPage(props: {
               title="Versions"
               aside={<span class="cf-count">{props.versions.length}</span>}
               foot={<FoldFoot controls="skill-versions" />}
+              flush
             >
               <ul id="skill-versions" class="cf-rows" data-fold>
                 {props.versions.map((v) => {

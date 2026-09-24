@@ -213,13 +213,16 @@
     position: relative;
   }
 
-  .cf-menu > summary {
+  :is(.cf-menu, .cf-confirm) > summary {
     list-style: none;
-    padding-inline: 14px 10px;
   }
 
-  .cf-menu > summary::-webkit-details-marker {
+  :is(.cf-menu, .cf-confirm) > summary::-webkit-details-marker {
     display: none;
+  }
+
+  .cf-menu > summary {
+    padding-inline: 14px 10px;
   }
 
   .cf-menu[open] > summary {
@@ -241,17 +244,21 @@
     text-overflow: ellipsis;
   }
 
-  .cf-menu-panel {
+  .cf-menu-panel,
+  .cf-toolbar .cf-confirm-panel {
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
     z-index: 30;
-    min-width: 180px;
-    padding: 6px;
     border: 1px solid var(--color-cf-line);
     border-radius: 12px;
     background: #fff;
     box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22);
+  }
+
+  .cf-menu-panel {
+    min-width: 180px;
+    padding: 6px;
   }
 
   .cf-menu-item {
@@ -312,9 +319,12 @@
   .cf-hero-inner {
     display: flex;
     flex-direction: column;
+    margin-inline: auto;
+  }
+
+  .cf-hero-center {
     align-items: center;
     max-width: 920px;
-    margin-inline: auto;
     padding: 72px 24px 104px;
     text-align: center;
   }
@@ -337,16 +347,6 @@
     text-wrap: pretty;
   }
 
-  .cf-hero-lede a {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
-
-  .cf-hero-lede a:hover {
-    text-decoration-thickness: 2px;
-  }
-
   .cf-hero-lede code {
     font-family: var(--font-mono);
     font-size: 0.92em;
@@ -357,13 +357,16 @@
     align-items: flex-start;
     gap: 12px;
     width: 100%;
-    max-width: 820px;
-    margin-top: 36px;
     padding: 18px 16px 18px 22px;
-    border-radius: 12px;
     background: #fff;
     color: var(--color-cf-ink);
     text-align: left;
+  }
+
+  .cf-command-raised {
+    max-width: 820px;
+    margin-top: 36px;
+    border-radius: 12px;
     box-shadow:
       0 1px 2px rgb(60 12 0 / 0.12),
       0 18px 40px -16px rgb(60 12 0 / 0.5);
@@ -553,16 +556,19 @@
     color: var(--color-cf-ink-2);
   }
 
-  .cf-link {
-    font-size: 14px;
-    color: var(--color-cf-orange-ink);
+  :is(.cf-link, .cf-hero-lede a, .skill-doc a) {
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
 
-  .cf-link:hover {
+  :is(.cf-link, .cf-hero-lede a, .skill-doc a):hover {
     text-decoration-thickness: 2px;
+  }
+
+  .cf-link {
+    font-size: 14px;
+    color: var(--color-cf-orange-ink);
   }
 
   .cf-registry-sort {
@@ -604,12 +610,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     margin: 0 -1px -1px 0;
-  }
-
-  .cf-cell,
-  .cf-cell-fill {
-    border-right: 1px solid var(--color-cf-line);
-    border-bottom: 1px solid var(--color-cf-line);
+    background-image: radial-gradient(var(--color-cf-line-strong) 0.9px, transparent 1.3px);
+    background-size: 10px 10px;
+    background-color: var(--color-cf-paper);
   }
 
   .cf-cell {
@@ -619,6 +622,9 @@
     gap: 10px;
     min-height: 216px;
     padding: 24px 24px 20px;
+    border-right: 1px solid var(--color-cf-line);
+    border-bottom: 1px solid var(--color-cf-line);
+    background: #fff;
     transition: background-color 0.2s var(--ease-cf);
   }
 
@@ -727,13 +733,6 @@
   .cf-cell:hover .cf-cell-arrow {
     translate: 4px 0;
     color: var(--color-cf-orange-ink);
-  }
-
-  .cf-cell-fill {
-    display: none;
-    background-image: radial-gradient(var(--color-cf-line-strong) 0.9px, transparent 1.3px);
-    background-size: 10px 10px;
-    background-color: var(--color-cf-paper);
   }
 
   .cf-empty {
@@ -846,7 +845,6 @@
 
   .cf-head-compact {
     margin-bottom: 24px;
-    padding-inline: 20px;
   }
 
   .cf-head-compact .cf-head-title {
@@ -895,10 +893,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 20px;
-  }
-
-  .cf-panel-body:has(> .cf-rows) {
-    padding: 0;
   }
 
   .cf-stack {
@@ -1195,19 +1189,19 @@
     color: var(--color-cf-orange-ink);
   }
 
-  .cf-head-compact ~ :is(.cf-alert, .cf-done) {
-    margin-inline: 20px;
+  .cf-page-body {
+    --cf-gutter-inset: 20px;
   }
 
   .cf-narrow {
     --cf-gutter-inset: 0px;
   }
 
-  .cf-narrow > .cf-head {
+  :is(.cf-page-body, .cf-narrow) > .cf-head {
     padding-inline: var(--cf-gutter-inset);
   }
 
-  .cf-narrow > :is(.cf-alert, .cf-done) {
+  :is(.cf-page-body, .cf-narrow) > :is(.cf-alert, .cf-done) {
     margin-inline: var(--cf-gutter-inset);
   }
 
@@ -1224,12 +1218,9 @@
   }
 
   @media (max-width: 639.98px) {
+    .cf-page-body,
     .cf-narrow {
       --cf-gutter-inset: 18px;
-    }
-
-    .cf-head-compact ~ :is(.cf-alert, .cf-done) {
-      margin-inline: 18px;
     }
   }
 
@@ -1406,24 +1397,9 @@
     gap: 12px;
   }
 
-  .cf-inline-form {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-  }
-
   .cf-danger-zone {
     padding-top: 12px;
     border-top: 1px dashed var(--color-cf-line-strong);
-  }
-
-  .cf-confirm > summary {
-    list-style: none;
-  }
-
-  .cf-confirm > summary::-webkit-details-marker {
-    display: none;
   }
 
   .cf-confirm[open] > summary {
@@ -1447,27 +1423,15 @@
   }
 
   .cf-toolbar .cf-confirm-panel {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 8px);
-    z-index: 30;
     width: min(340px, 100%);
     margin-top: 0;
     padding: 14px;
-    border: 1px solid var(--color-cf-line);
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22);
   }
 
-  .cf-hero-compact .cf-hero-inner {
-    padding: 56px 24px 72px;
-  }
-
-  .cf-hero .cf-hero-start {
+  .cf-hero-start {
     align-items: flex-start;
     max-width: 1280px;
-    text-align: left;
+    padding: 56px 24px 72px;
   }
 
   .cf-hero-start .cf-hero-lede {
@@ -1475,7 +1439,7 @@
     margin-top: 14px;
   }
 
-  .cf-hero .cf-hero-start .cf-command {
+  .cf-hero-start .cf-command-raised {
     width: fit-content;
     max-width: 100%;
     margin-top: 28px;
@@ -1569,12 +1533,6 @@
     background: var(--color-cf-paper-2);
   }
 
-  .cf-skill-aside {
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-  }
-
   .cf-rows {
     display: flex;
     flex-direction: column;
@@ -1653,11 +1611,8 @@
   }
 
   .cf-command-flat {
-    max-width: none;
-    margin-top: 0;
     border: 1px solid var(--color-cf-line-strong);
     border-radius: 8px;
-    box-shadow: none;
   }
 
   .cf-command-flat .cf-command-prompt,
@@ -1758,13 +1713,6 @@
 
   .skill-doc a {
     color: var(--color-cf-orange-ink);
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
-
-  .skill-doc a:hover {
-    text-decoration-thickness: 2px;
   }
 
   .skill-doc code {
@@ -1847,10 +1795,6 @@
     .cf-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-
-    .cf-fill-mid {
-      display: block;
-    }
   }
 
   @media (min-width: 1024px) {
@@ -1860,16 +1804,6 @@
 
     .cf-skill-grid {
       grid-template-columns: minmax(0, 1fr) 340px;
-    }
-
-    .cf-fill-wide {
-      display: block;
-    }
-
-
-
-    .cf-span-2 {
-      grid-column: span 2;
     }
   }
 
@@ -1885,7 +1819,7 @@
       border-radius: 12px;
     }
 
-    .cf-hero-inner {
+    .cf-hero-center {
       padding: 56px 16px 96px;
     }
 
@@ -1894,8 +1828,11 @@
     }
 
     .cf-command {
-      margin-top: 28px;
       padding: 14px 16px;
+    }
+
+    .cf-command-raised {
+      margin-top: 28px;
     }
 
     .cf-command-prompt,
@@ -1937,15 +1874,11 @@
       font-size: 30px;
     }
 
-    .cf-head-compact {
-      padding-inline: 18px;
-    }
-
     .cf-head-compact .cf-head-title {
       font-size: 26px;
     }
 
-    .cf-hero-compact .cf-hero-inner {
+    .cf-hero-start {
       padding: 40px 16px 56px;
     }
 
@@ -2005,11 +1938,11 @@
   }
 
   @media (min-width: 1280px) {
-    .cf-hero-inner {
+    .cf-hero-center {
       max-width: 1008px;
     }
 
-    .cf-command,
+    .cf-command-raised,
     .cf-search {
       max-width: 960px;
     }
@@ -2049,13 +1982,13 @@
       border-bottom: 0;
     }
 
-    .cf-table td[data-label="Actions"] {
+    .cf-table .cf-table-actions {
       grid-template-columns: minmax(0, 1fr);
       gap: 10px;
       margin-top: 6px;
     }
 
-    .cf-table td[data-label="Actions"] .cf-input-sm {
+    .cf-table-actions .cf-input-sm {
       width: 100%;
     }
 

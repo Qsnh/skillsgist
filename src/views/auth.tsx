@@ -1,6 +1,8 @@
 import { Form } from "../csrf";
-import { Alert, Button, CodeBlock, ConfirmDelete, DATE, Field, Icon, Layout, PageHead, Panel, Select } from "./layout";
+import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow } from "../db/queries";
+
+const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 function AuthCard(props: { title: string; error?: string; children?: unknown }) {
   return (
@@ -56,8 +58,7 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
   return (
     <Layout title="Account" user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Account" />
-        <Alert message={props.error} />
+        <PageHead title="Account" error={props.error} />
 
         <div class="cf-stack-lg">
           <Panel title="Install every skill">
@@ -75,10 +76,7 @@ export function MePage(props: { user: UserRow; origin: string; newToken?: string
               <>
                 <CodeBlock prompt={false}>{props.newToken}</CodeBlock>
                 <p class="cf-notice">
-                  <Icon>
-                    <circle cx="8" cy="8" r="6" />
-                    <path d="M8 5v3.5M8 11h.01" />
-                  </Icon>
+                  <AlertIcon />
                   This token is shown once. Save it now.
                 </p>
               </>
@@ -129,6 +127,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
       <PageHead
         title="Users"
         compact
+        error={props.error}
         aside={
           <>
             <span class="cf-count">{props.users.length}</span>
@@ -136,7 +135,6 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
           </>
         }
       />
-      <Alert message={props.error} />
       <div class="cf-frame cf-table-frame">
         <table class="cf-table">
           <thead>
@@ -164,7 +162,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                   <td data-label="Last sign-in" class="cf-table-date">
                     {u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "—"}
                   </td>
-                  <td data-label="Actions">
+                  <td data-label="Actions" class="cf-table-actions">
                     <div class="cf-user-actions">
                       <div class="cf-actions">
                         {isSelf ? null : (
@@ -184,7 +182,7 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                           </Form>
                         ) : null}
                       </div>
-                      <Form action={`/admin/users/${u.id}/password`} class="cf-inline-form">
+                      <Form action={`/admin/users/${u.id}/password`} class="cf-actions">
                         <label class="sr-only" for={`pw-${u.id}`}>New password for {u.username}</label>
                         <input
                           id={`pw-${u.id}`}
@@ -233,8 +231,7 @@ export function NewUserPage(props: {
   return (
     <Layout title="Add a user" user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Add a user" />
-        <Alert message={props.error} />
+        <PageHead title="Add a user" error={props.error} />
         <Form action="/admin/users/new" class="cf-frame cf-form">
           <div class="cf-form-section">
             <div class="cf-stack cf-stack-form">

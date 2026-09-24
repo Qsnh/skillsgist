@@ -1,5 +1,5 @@
 import { marked } from "marked";
-import { parseFrontmatter } from "../skills/frontmatter";
+import { stripFrontmatter } from "../skills/frontmatter";
 
 const ALLOWED_TAGS = new Set([
   "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "del", "s",
@@ -65,5 +65,5 @@ export async function renderMarkdown(md: string): Promise<string> {
 export const RENDER_REVISION = 1;
 
 export function renderSkillMd(skillMd: string): Promise<string> {
-  return renderMarkdown(parseFrontmatter(skillMd).body);
+  return renderMarkdown(stripFrontmatter(skillMd));
 }

@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getSkill } from "../src/db/queries";
+import { getSkill, getVersion, updateVersionHtml } from "../src/db/queries";
 import { RENDER_REVISION } from "../src/render/markdown";
 import { env, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin } from "./helpers";
 
@@ -39,7 +39,7 @@ describe("GET /", () => {
 
   it("renders a hidden copy button instead of the select hint", async () => {
     const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
-    expect(html).toContain(`<div class="cf-command" data-copy="true">`);
+    expect(html).toContain(`<div class="cf-command cf-command-raised" data-copy="true">`);
     expect(html).toContain(`<button type="button" class="cf-command-copy" hidden="">`);
     expect(html).toContain(`<span class="cf-command-copy-label">Copy</span>`);
     expect(html).toContain(`<span class="cf-command-status sr-only" role="status"></span>`);
@@ -74,17 +74,13 @@ describe("GET /s/:slug", () => {
   it("re-renders html stored by an older renderer and saves it", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ?")
-      .bind("<hr>\n<h2>name: demo-skill</h2>", "demo-skill")
-      .run();
+    await updateVersionHtml(env.DB, "demo-skill", 1, "<hr>\n<h2>name: demo-skill</h2>", 0);
 
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
     expect(html).not.toContain("name: demo-skill</h2>");
     expect(html).toContain("Demo Heading");
 
-    const row = await env.DB.prepare("SELECT html, html_rev FROM versions WHERE slug = ? AND version = 1")
-      .bind("demo-skill")
-      .first<{ html: string; html_rev: number }>();
+    const row = await getVersion(env.DB, "demo-skill", 1);
     expect(row?.html_rev).toBe(RENDER_REVISION);
     expect(row?.html).toContain("Demo Heading");
   });
@@ -93,9 +89,7 @@ describe("GET /s/:slug", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     await publish(cookie, GOOD_MD.replace("Demo Heading", "Second Heading"), "public");
-    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ? AND version = 1")
-      .bind("<h2>stale</h2>", "demo-skill")
-      .run();
+    await updateVersionHtml(env.DB, "demo-skill", 1, "<h2>stale</h2>", 0);
 
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill?v=1`)).text();
     expect(html).not.toContain("stale");
@@ -105,9 +99,7 @@ describe("GET /s/:slug", () => {
   it("still serves a healed page when saving the re-rendered html fails", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    await env.DB.prepare("UPDATE versions SET html = ?, html_rev = 0 WHERE slug = ?")
-      .bind("<h2>stale</h2>", "demo-skill")
-      .run();
+    await updateVersionHtml(env.DB, "demo-skill", 1, "<h2>stale</h2>", 0);
     await env.DB.prepare(
       "CREATE TRIGGER reject_html_write BEFORE UPDATE OF html ON versions BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
     ).run();
@@ -126,9 +118,7 @@ describe("GET /s/:slug", () => {
   it("serves current html from storage without re-rendering", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    await env.DB.prepare("UPDATE versions SET html = ? WHERE slug = ?")
-      .bind("<p>stored-sentinel</p>", "demo-skill")
-      .run();
+    await updateVersionHtml(env.DB, "demo-skill", 1, "<p>stored-sentinel</p>", RENDER_REVISION);
 
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
     expect(html).toContain("stored-sentinel");
@@ -151,7 +141,7 @@ describe("GET /s/:slug", () => {
     for (const id of ["skill-files", "skill-versions"]) {
       expect(html).toContain(`<ul id="${id}" class="cf-rows" data-fold="true">`);
       expect(html).toContain(
-        `</div><footer class="cf-fold-foot" hidden=""><button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="${id}" aria-expanded="false">Show more</button></footer></section>`,
+        `</ul><footer class="cf-fold-foot" hidden=""><button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="${id}" aria-expanded="false">Show more</button></footer></section>`,
       );
     }
   });

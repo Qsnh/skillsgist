@@ -2,9 +2,10 @@ import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
+import { FLASH_COOKIE } from "../src/flash";
 import {
-  apiToken, env, follow, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin,
-  seedUser, setCookieFor,
+  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb,
+  seedAndLogin, seedUser,
 } from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
@@ -167,7 +168,7 @@ describe("/me", () => {
     const html = await shown.text();
     expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Your password has been changed\.<\/span><\/p>/);
     expect(html).not.toContain("cf-alert");
-    expect(setCookieFor(shown, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+    expect(flashCookie(shown)).toMatch(FLASH_CLEARED);
     const again = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
     expect(await again.text()).not.toContain("cf-done");
   });
@@ -178,7 +179,7 @@ describe("/me", () => {
       current: password,
       next: "another-long-password",
     });
-    const line = setCookieFor(res, "sg_flash");
+    const line = flashCookie(res);
     expect(line).toMatch(/Max-Age=60/i);
     expect(line).toMatch(/Path=\//i);
     expect(line).toMatch(/HttpOnly/i);
@@ -189,19 +190,19 @@ describe("/me", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
-    expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+    expect(flashCookie(res)).toBeUndefined();
     expect(await res.text()).not.toContain("cf-done");
   });
 
   it("does not render a signed session value planted as a flash", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const planted = cookie.replace(/^sg_session=/, "sg_flash=");
+    const planted = cookie.replace(/^sg_session=/, `${FLASH_COOKIE}=`);
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).not.toContain("cf-done");
     expect(html).not.toContain("&quot;uid&quot;");
-    expect(setCookieFor(res, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+    expect(flashCookie(res)).toMatch(FLASH_CLEARED);
   });
 
   it("does not show one session's flash in another session", async () => {
@@ -211,21 +212,21 @@ describe("/me", () => {
       current: alice.password,
       next: "another-long-password",
     });
-    const flashed = setCookieFor(res, "sg_flash")?.split(";")[0];
+    const flashed = flashCookie(res)?.split(";")[0];
     expect(flashed).toBeDefined();
     const shown = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${bob.cookie}; ${flashed}` } });
     expect(shown.status).toBe(200);
     const html = await shown.text();
     expect(html).not.toContain("cf-done");
     expect(html).not.toContain("Your password has been changed.");
-    expect(setCookieFor(shown, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+    expect(flashCookie(shown)).toMatch(FLASH_CLEARED);
   });
 
   it("ignores and clears a flash cookie it did not sign", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const forged = [
-      "sg_flash=Visit%20evil.example",
-      `sg_flash=${encodeURIComponent(`Visit evil.example.${"A".repeat(43)}=`)}`,
+      `${FLASH_COOKIE}=Visit%20evil.example`,
+      `${FLASH_COOKIE}=${encodeURIComponent(`Visit evil.example.${"A".repeat(43)}=`)}`,
     ];
     for (const planted of forged) {
       const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: `${cookie}; ${planted}` } });
@@ -233,7 +234,7 @@ describe("/me", () => {
       const html = await res.text();
       expect(html).not.toContain("cf-done");
       expect(html).not.toContain("evil.example");
-      expect(setCookieFor(res, "sg_flash")).toMatch(/^sg_flash=;.*Max-Age=0/i);
+      expect(flashCookie(res)).toMatch(FLASH_CLEARED);
     }
   });
 
@@ -244,13 +245,13 @@ describe("/me", () => {
       next: "another-long-password",
     });
     expect(wrong.status).toBe(400);
-    expect(setCookieFor(wrong, "sg_flash")).toBeUndefined();
+    expect(flashCookie(wrong)).toBeUndefined();
     const wrongHtml = await wrong.text();
     expect(wrongHtml).toContain("Current password is incorrect");
     expect(wrongHtml).not.toContain("cf-done");
     const short = await postForm("/me/password", cookie, { current: password, next: "short" });
     expect(short.status).toBe(400);
-    expect(setCookieFor(short, "sg_flash")).toBeUndefined();
+    expect(flashCookie(short)).toBeUndefined();
     expect(await short.text()).not.toContain("cf-done");
   });
 });
@@ -434,7 +435,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/${target.user.id}/${path}`, cookie, body);
       expect(res.status).toBe(403);
-      expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+      expect(flashCookie(res)).toBeUndefined();
     }
   });
 
@@ -443,7 +444,7 @@ describe("/admin/users/:id/*", () => {
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/does-not-exist/${path}`, cookie, body);
       expect(res.status).toBe(404);
-      expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+      expect(flashCookie(res)).toBeUndefined();
     }
   });
 
@@ -473,7 +474,7 @@ describe("/admin/users/:id/*", () => {
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/password`, cookie, { password: "short" });
     expect(res.status).toBe(400);
-    expect(setCookieFor(res, "sg_flash")).toBeUndefined();
+    expect(flashCookie(res)).toBeUndefined();
     const html = await res.text();
     expect(html).toContain("Password must be at least 12 characters");
     expect(html).not.toContain("cf-done");

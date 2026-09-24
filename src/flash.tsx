@@ -1,6 +1,6 @@
 import { deleteCookie, getCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { createContext } from "hono/jsx";
-import { constantTimeEqual, sessionCsrf } from "./auth";
+import { constantTimeEqual, cookieOptions, sessionCsrf } from "./auth";
 import type { Ctx } from "./auth";
 
 export const FLASH_COOKIE = "sg_flash";
@@ -10,13 +10,7 @@ export const FlashContext = createContext<string | undefined>(undefined);
 export async function flash(c: Ctx, message: string): Promise<void> {
   const csrf = await sessionCsrf(c);
   if (!csrf) return;
-  await setSignedCookie(c, FLASH_COOKIE, `${csrf}:${message}`, c.env.SESSION_SECRET, {
-    httpOnly: true,
-    secure: new URL(c.req.url).protocol === "https:",
-    sameSite: "Lax",
-    path: "/",
-    maxAge: 60,
-  });
+  await setSignedCookie(c, FLASH_COOKIE, `${csrf}:${message}`, c.env.SESSION_SECRET, cookieOptions(c, 60));
 }
 
 export async function takeFlash(c: Ctx): Promise<string | undefined> {

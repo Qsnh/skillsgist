@@ -35,7 +35,6 @@ skillsRoutes.get("/s/:slug", async (c) => {
 
   if (version.html_rev < RENDER_REVISION) {
     version.html = await renderSkillMd(version.skill_md);
-    version.html_rev = RENDER_REVISION;
     try {
       await updateVersionHtml(c.env.DB, slug, version.version, version.html, RENDER_REVISION);
     } catch (err) {

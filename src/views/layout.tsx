@@ -4,8 +4,6 @@ import { Form } from "../csrf";
 import type { UserRow } from "../db/queries";
 import { FlashContext } from "../flash";
 
-export const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-
 export function Icon(props: { children?: unknown }) {
   return (
     <svg
@@ -86,13 +84,9 @@ export function Layout(props: {
               )}
             </nav>
           </header>
-          {props.bare ? (
-            <main id="main" class="cf-main">{props.children}</main>
-          ) : (
-            <main id="main" class="cf-main">
-              <div class="cf-page cf-guides cf-page-body">{props.children}</div>
-            </main>
-          )}
+          <main id="main" class="cf-main">
+            {props.bare ? props.children : <div class="cf-page cf-guides cf-page-body">{props.children}</div>}
+          </main>
           <footer class="cf-footer">
             <div class="cf-footer-inner">
               <p>
@@ -110,7 +104,13 @@ export function Layout(props: {
   );
 }
 
-export function PageHead(props: { title: unknown; aside?: unknown; compact?: boolean; children?: unknown }) {
+export function PageHead(props: {
+  title: unknown;
+  aside?: unknown;
+  compact?: boolean;
+  error?: string;
+  children?: unknown;
+}) {
   const flashed = useContext(FlashContext);
   return (
     <>
@@ -122,20 +122,27 @@ export function PageHead(props: { title: unknown; aside?: unknown; compact?: boo
         {props.children ? <div class="cf-head-lede">{props.children}</div> : null}
       </header>
       <Done message={flashed} />
+      <Alert message={props.error} />
     </>
   );
 }
 
-export function Panel(props: { title?: unknown; aside?: unknown; foot?: unknown; class?: string; children?: unknown }) {
+export function Panel(props: {
+  title?: unknown;
+  aside?: unknown;
+  foot?: unknown;
+  flush?: boolean;
+  children?: unknown;
+}) {
   return (
-    <section class={`cf-frame cf-panel ${props.class ?? ""}`}>
+    <section class="cf-frame cf-panel">
       {props.title ? (
         <header class="cf-panel-head">
           <h2 class="cf-panel-title">{props.title}</h2>
           {props.aside}
         </header>
       ) : null}
-      <div class="cf-panel-body">{props.children}</div>
+      {props.flush ? props.children : <div class="cf-panel-body">{props.children}</div>}
       {props.foot}
     </section>
   );
@@ -199,15 +206,13 @@ export function ConfirmDelete(props: {
   size?: "sm";
   ghost?: boolean;
   icon?: unknown;
-  class?: string;
   name?: string;
   children?: unknown;
 }) {
-  const classes = ["cf-confirm", props.class].filter(Boolean).join(" ");
   const variant = props.ghost ? "cf-btn-ghost cf-btn-ghost-danger" : "cf-btn-danger";
   const summary = ["cf-btn", variant, props.size ? "cf-btn-sm" : ""].filter(Boolean).join(" ");
   return (
-    <details class={classes} name={props.name}>
+    <details class="cf-confirm" name={props.name}>
       <summary class={summary}>
         {props.icon}
         {props.label}
@@ -222,14 +227,20 @@ export function ConfirmDelete(props: {
   );
 }
 
+export function AlertIcon() {
+  return (
+    <Icon>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 5v3.5M8 11h.01" />
+    </Icon>
+  );
+}
+
 export function Alert(props: { message?: string }) {
   if (!props.message) return null;
   return (
     <p class="cf-alert" role="alert">
-      <Icon>
-        <circle cx="8" cy="8" r="6" />
-        <path d="M8 5v3.5M8 11h.01" />
-      </Icon>
+      <AlertIcon />
       <span>{props.message}</span>
     </p>
   );
@@ -250,7 +261,7 @@ export function Done(props: { message?: string }) {
 
 export function CodeBlock(props: { prompt?: boolean; raised?: boolean; children?: unknown }) {
   return (
-    <div class={props.raised ? "cf-command" : "cf-command cf-command-flat"} data-copy>
+    <div class={props.raised ? "cf-command cf-command-raised" : "cf-command cf-command-flat"} data-copy>
       {props.prompt === false ? null : <span class="cf-command-prompt" aria-hidden="true">$</span>}
       <code class="cf-command-text">{props.children}</code>
       <button type="button" class="cf-command-copy" hidden>

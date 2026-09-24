@@ -1,11 +1,11 @@
 import { Form } from "../csrf";
-import { Alert, Button, Layout, PageHead } from "./layout";
+import { Button, Layout, PageHead } from "./layout";
 import type { UserRow } from "../db/queries";
 
-function FilePicker(props: { label?: string; hint: unknown }) {
+function FilePicker(props: { label: string; hint: unknown }) {
   return (
     <label class="cf-field">
-      {props.label ? <span class="cf-label">{props.label}</span> : null}
+      <span class="cf-label">{props.label}</span>
       <input type="file" name="file" accept=".zip,.tar.gz,.tgz,.md" class="cf-file" />
       <span class="cf-hint">{props.hint}</span>
     </label>
@@ -26,8 +26,7 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
   return (
     <Layout title="Publish a skill" user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Publish a skill" />
-        <Alert message={props.error} />
+        <PageHead title="Publish a skill" error={props.error} />
         <Form action="/new" enctype="multipart/form-data" class="cf-frame cf-form">
           <div class="cf-form-section">
             <FilePicker
@@ -74,12 +73,11 @@ export function EditSkillPage(props: {
   return (
     <Layout title={`Edit ${props.slug}`} user={props.user}>
       <div class="cf-narrow cf-narrow-wide">
-        <PageHead title={`Edit ${props.slug}`}>
+        <PageHead title={`Edit ${props.slug}`} error={props.error}>
           Saving publishes a new version; the old ones stay. To replace the whole archive (say, because you changed
           files other than SKILL.md), use{" "}
           <a href={`/s/${props.slug}/upload`} class="cf-link">Upload an archive</a>.
         </PageHead>
-        <Alert message={props.error} />
         <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="cf-frame cf-form">
           <header class="cf-panel-head">
             <span class="cf-chip">SKILL.md</span>
@@ -114,11 +112,10 @@ export function UploadVersionPage(props: { user: UserRow; slug: string; error?: 
   return (
     <Layout title={`Upload a new version · ${props.slug}`} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title={`Upload a new version: ${props.slug}`}>
+        <PageHead title={`Upload a new version: ${props.slug}`} error={props.error}>
           Whole-archive replacement: the new version is exactly what this archive contains; the old ones stay. To change
           only SKILL.md, use <a href={`/s/${props.slug}/edit`} class="cf-link">Edit</a>.
         </PageHead>
-        <Alert message={props.error} />
         <Form action={`/s/${props.slug}/upload`} enctype="multipart/form-data" class="cf-frame cf-form">
           <div class="cf-form-section">
             <FilePicker
