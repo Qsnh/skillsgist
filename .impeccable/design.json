@@ -752,7 +752,7 @@
       },
       {
         "name": "The Dashed Gutter Rule",
-        "body": "The edges of the content column are drawn as 1px dashed rules (5px on, 5px off, Hairline Strong). They line up with the frames' outer edges. On every page the guided section grows to fill the main column, so the gutters run from under the nav or panel down to the footer.",
+        "body": "The edges of the content column are drawn as 1px dashed rules (5px on, 5px off, Hairline Strong). They line up with the frames' outer edges. On every page the guided section grows to fill the main column, so the gutters run from under the nav or panel down to the footer. Only square frames sit on a gutter. Wherever a column meets the gutters (always on Users, below 808px for the 760px column and below 1008px for the 960px column), everything above its first frame, the page head and any Alert or Done line, is inset 20px on both sides (18px below 640px), the compact head's inset, so the title, the message and the text inside the frames share one edge.",
         "section": "layout"
       },
       {
