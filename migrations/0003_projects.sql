@@ -29,7 +29,7 @@ CREATE TABLE memberships (
 );
 
 INSERT INTO memberships (project, user_id, role, install_key, created_at)
-SELECT 'default', id, role, install_key, CAST(strftime('%s', 'now') AS INTEGER) * 1000 FROM users;
+SELECT 'default', id, 'member', install_key, CAST(strftime('%s', 'now') AS INTEGER) * 1000 FROM users;
 
 CREATE TABLE skills_next (
   id             TEXT PRIMARY KEY,

@@ -280,6 +280,22 @@ describe("project membership", () => {
   });
 });
 
+describe("a demoted instance admin", () => {
+  beforeEach(resetDb);
+
+  it("loses project-admin power over Default once demoted", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const second = await seedAndLogin({ username: "second-admin", role: "admin" });
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    await publish(bob.cookie, GOOD_MD, "private");
+
+    expect((await postForm(`/admin/users/${second.user.id}/role`, root.cookie, { role: "member" })).status).toBe(302);
+
+    expect((await postForm("/p/default/s/demo-skill/visibility", second.cookie)).status).toBe(403);
+    expect((await postForm(`/p/default/members/${bob.user.id}/remove`, second.cookie)).status).toBe(403);
+  });
+});
+
 describe("deleting a project", () => {
   beforeEach(resetDb);
 

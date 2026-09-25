@@ -77,7 +77,7 @@ export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow;
   await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
   const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
   if (project !== null) {
-    await addMembership(env.DB, { project, userId: id, role: opts.projectRole ?? role, installKey: randomHex(16) });
+    await addMembership(env.DB, { project, userId: id, role: opts.projectRole ?? "member", installKey: randomHex(16) });
   }
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");

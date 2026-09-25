@@ -32,7 +32,7 @@ describe("/setup", () => {
     )
       .bind(user!.id)
       .first<{ role: string; install_key: string }>();
-    expect(membership?.role).toBe("admin");
+    expect(membership?.role).toBe("member");
     expect(membership?.install_key).toMatch(/^[a-f0-9]{32}$/);
   });
 

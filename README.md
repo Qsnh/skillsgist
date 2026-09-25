@@ -217,7 +217,7 @@ git merge upstream/main    # the first time, Git may ask for --allow-unrelated-h
 git push
 ```
 
-**Upgrading to projects.** Migration `0003_projects` puts every existing skill into a project named Default, at the address `default`, and makes every existing account a member of it, admins as project admins, each keeping the install key it had. Install commands already in use keep working and install the same skills, `PUT /api/skills/<name>` keeps publishing into it, and old `/s/<name>` links redirect to `/p/default/s/<name>`. Accounts created after the upgrade are in no project until someone adds them.
+**Upgrading to projects.** Migration `0003_projects` puts every existing skill into a project named Default, at the address `default`, and makes every existing account a member of it, each keeping the install key it had (instance admins keep managing everything through their instance role). Install commands already in use keep working and install the same skills, `PUT /api/skills/<name>` keeps publishing into it, and old `/s/<name>` links redirect to `/p/default/s/<name>`. Accounts created after the upgrade are in no project until someone adds them.
 
 ## How it works
 

@@ -75,12 +75,12 @@ describe("accounts, projects and memberships", () => {
     expect(await q.getViewerByApiTokenHash(env.DB, "hash-2")).toBeNull();
   });
 
-  it("makes the first admin a project admin of the default project, once", async () => {
+  it("makes the first admin a member of the default project, once", async () => {
     const first = { id: "u1", username: "root", passwordHash: "h", installKey: "k1" };
     expect(await q.createFirstAdmin(env.DB, first)).toBe(true);
     expect(await q.createFirstAdmin(env.DB, { ...first, id: "u2", username: "late", installKey: "k2" })).toBe(false);
     expect(await q.getMembershipByInstallKey(env.DB, "k1")).toMatchObject({
-      project: "default", user_id: "u1", role: "admin",
+      project: "default", user_id: "u1", role: "member",
     });
     expect(await q.getMembershipByInstallKey(env.DB, "k2")).toBeNull();
   });

@@ -123,7 +123,7 @@ export async function createFirstAdmin(
     db
       .prepare(
         `INSERT INTO memberships (project, user_id, role, install_key, created_at)
-         SELECT slug, ?, 'admin', ?, ? FROM projects
+         SELECT slug, ?, 'member', ?, ? FROM projects
          WHERE slug = ? AND EXISTS (SELECT 1 FROM users WHERE id = ?)`,
       )
       .bind(input.id, input.installKey, now, DEFAULT_PROJECT, input.id),

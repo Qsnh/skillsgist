@@ -216,8 +216,8 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
                             name="delete-user"
                           >
                             Deleting reassigns this user's skills and their published versions' author records to you.
-                            To keep the author records, use "Demote to member" plus "Rotate install keys" instead of
-                            deleting.
+                            To keep the author records, remove this user from their projects and reset their
+                            password instead of deleting.
                           </ConfirmDelete>
                         </div>
                       )}

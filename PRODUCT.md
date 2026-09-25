@@ -57,7 +57,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 - **API tokens never travel in a URL.** `/api/*` reads only `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into making an API call on a user's behalf. The web forms take the other path: a session-bound CSRF token attached automatically.
 - Content-Security-Policy on every HTML response: `default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 - The last remaining admin can never be demoted or deleted.
-- Deleting a user reassigns the skills they own and the author records on their versions to the admin performing the delete, because neither column may be null. Original authorship is lost. Withdrawing access without that cost means removing the person from their projects, or rotating their install keys.
+- Deleting a user reassigns the skills they own and the author records on their versions to the admin performing the delete, because neither column may be null. Original authorship is lost. Withdrawing access without that cost means removing the person from their projects and resetting their password.
 - Project language is English throughout — code, identifiers, documentation, commit messages, and UI text.
 
 **Undecided**

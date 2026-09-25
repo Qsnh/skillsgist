@@ -63,9 +63,9 @@ describe("migration 0003 on an instance that already has data", () => {
     ]);
   });
 
-  it("makes every account a member of the default project with the install key it had", async () => {
+  it("makes every account a member of the default project with the install key it had, regardless of its instance role", async () => {
     expect(await rows("SELECT project, user_id, role, install_key FROM memberships ORDER BY user_id")).toEqual([
-      { project: "default", user_id: "u1", role: "admin", install_key: "key-root" },
+      { project: "default", user_id: "u1", role: "member", install_key: "key-root" },
       { project: "default", user_id: "u2", role: "member", install_key: "key-bob" },
     ]);
   });
