@@ -177,6 +177,25 @@ try {
   if (!installKey) throw new Error("could not read the install key");
   log(`install key: ${installKey.slice(0, 8)}…`);
 
+  const downloadsOf = async (slug) => {
+    const html = await (await fetch(`${ORIGIN}/s/${slug}`, { headers: { Cookie: cookie } })).text();
+    const meta = /<p class="cf-hero-meta">([\s\S]*?)<\/p>/.exec(html)?.[1] ?? "";
+    const match = /([\d,]+) downloads?/.exec(meta);
+    if (!match) throw new Error(`/s/${slug} shows no download count`);
+    return Number(match[1].replaceAll(",", ""));
+  };
+
+  const settledDownloadsOf = async (slug) => {
+    let last = await downloadsOf(slug);
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      const now = await downloadsOf(slug);
+      if (now === last) return now;
+      last = now;
+    }
+    return last;
+  };
+
   // 3. Publish a private skill (wrapped.zip: SKILL.md sits inside demo-skill/,
   // which also exercises stripping the outer wrapper directory)
   const publishFixture = async (name, contentType, query = "") => {
@@ -241,6 +260,8 @@ try {
   log("digest verified");
 
   // 5. Install with the real npx skills into an isolated HOME, so the machine's own skills directory stays untouched
+  const demoBefore = await settledDownloadsOf("demo-skill");
+  const otherBefore = await settledDownloadsOf("other-skill");
   const home = await installTo(`${ORIGIN}/i/${installKey}`, ["-s", "demo-skill"]);
 
   const installed = findFile(home, join("demo-skill", "SKILL.md"));
@@ -258,12 +279,28 @@ try {
   expectInstalled(home, ["demo-skill"], "-s demo-skill");
   log(`installed: ${installed}`);
 
+  const demoAfter = await settledDownloadsOf("demo-skill");
+  const otherAfter = await settledDownloadsOf("other-skill");
+  if (demoAfter - demoBefore !== 1) {
+    throw new Error(`one install of demo-skill should count one download, counted ${demoAfter - demoBefore}`);
+  }
+  log(`whole-index install with -s demo-skill counted demo-skill +1, other-skill +${otherAfter - otherBefore}`);
+
   // 6. Keyed single-skill install address. The index holds both demo-skill and
   // other-skill at this point, so this assertion really does prove "narrow to
   // the slug in the path" works.
+  const demoBeforeSingle = await settledDownloadsOf("demo-skill");
+  const otherBeforeSingle = await settledDownloadsOf("other-skill");
   const home2 = await installTo(`${ORIGIN}/i/${installKey}/.well-known/agent-skills/demo-skill`);
   expectInstalled(home2, ["demo-skill"], "keyed single-skill install address");
-  log("keyed single-skill install path passed");
+  const demoAfterSingle = await settledDownloadsOf("demo-skill");
+  const otherAfterSingle = await settledDownloadsOf("other-skill");
+  if (demoAfterSingle - demoBeforeSingle !== 1 || otherAfterSingle !== otherBeforeSingle) {
+    throw new Error(
+      `the single-skill address should count demo-skill +1 and other-skill +0, counted +${demoAfterSingle - demoBeforeSingle} and +${otherAfterSingle - otherBeforeSingle}`,
+    );
+  }
+  log("keyed single-skill install path passed and counted exactly one download");
 
   // 7. The anonymous single-install address for a public skill — the one /s/:slug
   // shows a signed-out visitor. First confirm demo-skill does not appear in the
