@@ -14,7 +14,6 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 ## Why skillsgist
 
 - **Private by default.** A new skill is visible only to accounts on your instance. Making one public is a deliberate switch on that one skill.
-- **The stock CLI is the client.** skillsgist serves the skills.sh discovery protocol (`/.well-known/agent-skills/index.json`) directly. `npm run verify:cli` checks this end to end against the real `npx skills` binary.
 - **Your infrastructure, nearly free.** One Worker, one D1 database and one R2 bucket. The default limits fit the Workers Free plan.
 - **Managed from the browser.** Publishing, editing, versions, visibility and accounts are all web pages. There is no config file to maintain.
 
