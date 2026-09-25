@@ -601,3 +601,12 @@ export async function listProjectSkills(
     .all<Pick<SkillRow, "slug" | "visibility">>();
   return results;
 }
+
+export async function projectsWithSkillNamed(db: D1Database, slug: string): Promise<string[]> {
+  const { results } = await db.prepare("SELECT project FROM skills WHERE slug = ?").bind(slug).all<{ project: string }>();
+  return results.map((r) => r.project);
+}
+
+export async function moveSkill(db: D1Database, project: string, slug: string, target: string): Promise<void> {
+  await db.prepare("UPDATE skills SET project = ? WHERE project = ? AND slug = ?").bind(target, project, slug).run();
+}

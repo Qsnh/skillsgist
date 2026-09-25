@@ -1428,6 +1428,22 @@
     padding: 14px;
   }
 
+  .cf-move {
+    position: relative;
+  }
+
+  .cf-move[open] > summary {
+    border-color: transparent;
+    background: var(--color-cf-paper-2);
+  }
+
+  .cf-toolbar .cf-move .cf-confirm-panel {
+    left: 0;
+    right: auto;
+    width: 300px;
+    max-width: calc(100vw - 48px);
+  }
+
   .cf-hero-start {
     align-items: flex-start;
     max-width: 1280px;

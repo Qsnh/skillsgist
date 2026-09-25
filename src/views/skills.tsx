@@ -1,7 +1,7 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { skillPath } from "../paths";
-import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel } from "./layout";
+import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
@@ -267,6 +267,41 @@ function TrashIcon() {
   );
 }
 
+function MoveIcon() {
+  return (
+    <Icon>
+      <path d="M2.5 8h8M7.5 4.5L11 8l-3.5 3.5M13.5 3v10" />
+    </Icon>
+  );
+}
+
+function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; name: string }> }) {
+  return (
+    <details class="cf-confirm cf-move">
+      <summary class="cf-btn cf-btn-ghost">
+        <MoveIcon />
+        Move
+      </summary>
+      <div class="cf-confirm-panel">
+        <Form action={`${skillPath(props.skill)}/move`} class="cf-stack cf-stack-form">
+          <Select label="Move to project" name="project">
+            {props.targets.map((p) => (
+              <option value={p.slug}>{p.name}</option>
+            ))}
+          </Select>
+          <p class="cf-hint">
+            Install keys for {props.skill.project_name} stop reaching {props.skill.slug} at once, keys for the new
+            project start to, and its page moves to the new project's address.
+          </p>
+          <div>
+            <Button size="sm">Move {props.skill.slug}</Button>
+          </div>
+        </Form>
+      </div>
+    </details>
+  );
+}
+
 export function SkillPage(props: {
   user: Viewer | null;
   skill: ListedSkill;
@@ -274,6 +309,7 @@ export function SkillPage(props: {
   versions: VersionSummary[];
   origin: string;
   canManage: boolean;
+  moveTargets: Array<{ slug: string; name: string }>;
 }) {
   const { skill, version } = props;
   const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
@@ -332,19 +368,22 @@ export function SkillPage(props: {
                   Upload an archive
                 </a>
               </div>
-              <Form action={`${path}/visibility`} class="cf-toolbar-group">
-                {skill.visibility === "public" ? (
-                  <Button variant="ghost">
-                    <LockIcon />
-                    Make private
-                  </Button>
-                ) : (
-                  <Button variant="ghost">
-                    <GlobeIcon />
-                    Make public
-                  </Button>
-                )}
-              </Form>
+              <div class="cf-toolbar-group">
+                <Form action={`${path}/visibility`}>
+                  {skill.visibility === "public" ? (
+                    <Button variant="ghost">
+                      <LockIcon />
+                      Make private
+                    </Button>
+                  ) : (
+                    <Button variant="ghost">
+                      <GlobeIcon />
+                      Make public
+                    </Button>
+                  )}
+                </Form>
+                {props.moveTargets.length > 0 ? <MoveSkill skill={skill} targets={props.moveTargets} /> : null}
+              </div>
               <div class="cf-toolbar-group cf-toolbar-end">
                 <ConfirmDelete
                   action={`${path}/delete`}

@@ -58,6 +58,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /p/:project/s/:slug/edit": ({ slug }) => `/p/default/s/${slug}/edit`,
   "POST /p/:project/s/:slug/upload": ({ slug }) => `/p/default/s/${slug}/upload`,
   "POST /p/:project/s/:slug/visibility": ({ slug }) => `/p/default/s/${slug}/visibility`,
+  "POST /p/:project/s/:slug/move": ({ slug }) => `/p/default/s/${slug}/move`,
   "POST /p/:project/s/:slug/delete": ({ slug }) => `/p/default/s/${slug}/delete`,
 };
 

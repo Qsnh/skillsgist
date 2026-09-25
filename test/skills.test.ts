@@ -1,5 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { randomHex } from "../src/auth";
 import { addMembership, getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
@@ -491,5 +492,99 @@ describe("project visibility", () => {
     expect((await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: alice.cookie } })).status).toBe(404);
     expect((await postForm("/p/default/s/demo-skill/delete", alice.cookie)).status).toBe(404);
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+  });
+});
+
+describe("moving a skill", () => {
+  beforeEach(resetDb);
+
+  const inTwoProjects = async (username = "alice") => {
+    await seedProject("team-b", "Team B");
+    const login = await seedAndLogin({ username, role: "member" });
+    await addMembership(env.DB, { project: "team-b", userId: login.user.id, role: "member", installKey: randomHex(16) });
+    return login;
+  };
+  const indexNames = async (key: string) =>
+    (
+      await (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).json<{
+        skills: Array<{ name: string }>;
+      }>()
+    ).skills.map((s) => s.name);
+
+  it("moves a skill with its versions and downloads, and the keys follow it", async () => {
+    const alice = await inTwoProjects();
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    await publish(alice.cookie, `${GOOD_MD}\nv2\n`, "private", "default");
+    await incrementDownloads(env.DB, "default", "demo-skill");
+
+    const res = await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/p/team-b/s/demo-skill");
+    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).toMatchObject({ latest_version: 2, download_count: 1 });
+    expect((await SELF.fetch(`${ORIGIN}/p/team-b/s/demo-skill/v/1/download`, { headers: { Cookie: alice.cookie } })).status).toBe(200);
+    expect(await indexNames(await installKey(alice.user.id))).toEqual([]);
+    expect(await indexNames(await installKey(alice.user.id, "team-b"))).toEqual(["demo-skill"]);
+  });
+
+  it("offers the other projects without a skill of that name in a Move control", async () => {
+    const alice = await inTwoProjects();
+    await seedProject("team-c", "Team C");
+    await addMembership(env.DB, { project: "team-c", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-c" });
+    await publish(bob.cookie, GOOD_MD, "private");
+
+    const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: alice.cookie } })).text();
+    const block = /<details class="cf-confirm cf-move">[\s\S]*?<\/details>/.exec(html)?.[0] ?? "";
+    expect(block).toContain('action="/p/default/s/demo-skill/move"');
+    expect([...block.matchAll(/<option value="([^"]+)">([^<]*)<\/option>/g)].map((m) => [m[1], m[2]])).toEqual([
+      ["team-b", "Team B"],
+    ]);
+  });
+
+  it("shows no Move control when there is nowhere to move to", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: alice.cookie } })).text();
+    expect(html).not.toContain("cf-move");
+  });
+
+  it("refuses a project that already has a skill of that name", async () => {
+    const alice = await inTwoProjects();
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    await publish(alice.cookie, GOOD_MD, "private", "team-b");
+    const res = await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toBe("Team B already has a skill named demo-skill");
+    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+  });
+
+  it("refuses a project the mover cannot publish to, or one that does not exist", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    for (const project of ["team-b", "nope"]) {
+      expect((await postForm("/p/default/s/demo-skill/move", alice.cookie, { project })).status, project).toBe(403);
+    }
+    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+  });
+
+  it("refuses someone who cannot manage the skill", async () => {
+    const alice = await inTwoProjects();
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    await addMembership(env.DB, { project: "team-b", userId: bob.user.id, role: "member", installKey: randomHex(16) });
+    expect((await postForm("/p/default/s/demo-skill/move", bob.cookie, { project: "team-b" })).status).toBe(403);
+    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+  });
+
+  it("lets an instance admin in no project move a skill into any project", async () => {
+    await seedProject("team-b", "Team B");
+    const root = await seedAndLogin({ username: "root", role: "admin", project: null });
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    expect((await postForm("/p/default/s/demo-skill/move", root.cookie, { project: "team-b" })).status).toBe(302);
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).not.toBeNull();
   });
 });

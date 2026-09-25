@@ -1,10 +1,12 @@
 import { Hono } from "hono";
-import { canManage, canView, currentUser, requireManagedSkill, requireUser, skillScope } from "../auth";
+import {
+  canManage, canPublishTo, canView, currentUser, publishableProjects, requireManagedSkill, requireUser, skillScope,
+} from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
-  DEFAULT_PROJECT, deleteSkill, getArtifactByVersion, getSkillWithAuthor, getVersion, listSkills, listVersions,
-  setVisibility, updateVersionHtml,
+  DEFAULT_PROJECT, deleteSkill, getArtifactByVersion, getProject, getSkill, getSkillWithAuthor, getVersion, listSkills,
+  listVersions, moveSkill, projectsWithSkillNamed, setVisibility, updateVersionHtml,
 } from "../db/queries";
 import { skillPath } from "../paths";
 import { RENDER_REVISION, renderSkillMd } from "../render/markdown";
@@ -46,6 +48,16 @@ skillsRoutes.get("/p/:project/s/:slug", async (c) => {
     }
   }
 
+  const manage = user ? canManage(user, skill) : false;
+  let moveTargets: Array<{ slug: string; name: string }> = [];
+  if (user && manage) {
+    const [projects, taken] = await Promise.all([
+      publishableProjects(c.env.DB, user),
+      projectsWithSkillNamed(c.env.DB, slug),
+    ]);
+    moveTargets = projects.filter((p) => !taken.includes(p.slug));
+  }
+
   return page(
     c,
     <SkillPage
@@ -54,7 +66,8 @@ skillsRoutes.get("/p/:project/s/:slug", async (c) => {
       version={version}
       versions={versions}
       origin={new URL(c.req.url).origin}
-      canManage={user ? canManage(user, skill) : false}
+      canManage={manage}
+      moveTargets={moveTargets}
     />,
   );
 });
@@ -86,6 +99,22 @@ skillsRoutes.post("/p/:project/s/:slug/visibility", requireUser, async (c) => {
   const { skill } = guard;
   await setVisibility(c.env.DB, skill.project, skill.slug, skill.visibility === "public" ? "private" : "public");
   return c.redirect(skillPath(skill), 302);
+});
+
+skillsRoutes.post("/p/:project/s/:slug/move", requireUser, async (c) => {
+  const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "move");
+  if (!guard.ok) return guard.response;
+  const { skill } = guard;
+  const body = await c.req.parseBody();
+  const target = await getProject(c.env.DB, typeof body.project === "string" ? body.project : "");
+  if (!target || !canPublishTo(c.get("user"), target.slug)) {
+    return c.text("You cannot move a skill into that project", 403);
+  }
+  if (await getSkill(c.env.DB, target.slug, skill.slug)) {
+    return c.text(`${target.name} already has a skill named ${skill.slug}`, 409);
+  }
+  await moveSkill(c.env.DB, skill.project, skill.slug, target.slug);
+  return c.redirect(skillPath({ project: target.slug, slug: skill.slug }), 302);
 });
 
 skillsRoutes.post("/p/:project/s/:slug/delete", requireUser, async (c) => {
