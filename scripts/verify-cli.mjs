@@ -173,15 +173,29 @@ try {
   const token = /sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0];
   if (!token) throw new Error("could not generate an api token");
 
-  const installKey = /\/i\/([a-f0-9]{32})/.exec(meHtml)?.[1];
-  if (!installKey) throw new Error("could not read the install key");
+  const projectKey = async (project) => {
+    const html = await (await fetch(`${ORIGIN}/p/${project}`, { headers: { Cookie: cookie } })).text();
+    const key = /\/i\/([a-f0-9]{32})/.exec(html)?.[1];
+    if (!key) throw new Error(`could not read the install key for project ${project}`);
+    return key;
+  };
+
+  const postPage = (path, fields) =>
+    fetch(`${ORIGIN}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, Origin: ORIGIN },
+      body: new URLSearchParams({ ...fields, _csrf: csrf }),
+      redirect: "manual",
+    });
+
+  const installKey = await projectKey("default");
   log(`install key: ${installKey.slice(0, 8)}…`);
 
   const downloadCounts = async () => {
     const html = await (await fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
     return Object.fromEntries(
       ["demo-skill", "other-skill"].map((slug) => {
-        const meta = new RegExp(`class="cf-cell-link">${slug}</a>[\\s\\S]*?<p class="cf-cell-meta">([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
+        const meta = new RegExp(`href="/p/default/s/${slug}" class="cf-cell-link">${slug}</a>[\\s\\S]*?<p class="cf-cell-meta">([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
         const match = /([\d,]+) downloads?/.exec(meta);
         if (!match) throw new Error(`/ shows no download count for ${slug}`);
         return [slug, Number(match[1].replaceAll(",", ""))];
@@ -240,8 +254,8 @@ try {
   // with only one skill published, "narrow by slug" could be entirely broken and
   // still come up green — which is exactly how the bug where a per-skill address
   // installed every skill went unnoticed.
-  const publishMarkdown = async (name, description, visibility) => {
-    const res = await fetch(`${ORIGIN}/api/skills/${name}?visibility=${visibility}`, {
+  const publishMarkdown = async (name, description, visibility, project = "default") => {
+    const res = await fetch(`${ORIGIN}/api/projects/${project}/skills/${name}?visibility=${visibility}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
       body: `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`,
@@ -330,6 +344,47 @@ try {
   const home3 = await installTo(`${ORIGIN}/.well-known/agent-skills/demo-skill`);
   expectInstalled(home3, ["demo-skill"], "anonymous single-skill install address");
   log("anonymous single-skill install path passed");
+
+  const home3b = await installTo(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
+  expectInstalled(home3b, ["demo-skill"], "project public single-skill install address");
+  log("project public single-skill install path passed");
+
+  const created = await postPage("/projects/new", { name: "Verify other", slug: "verify-other" });
+  if (created.status !== 302 && created.status !== 400) {
+    throw new Error(`/projects/new returned ${created.status}`);
+  }
+  const otherHtml = await (await fetch(`${ORIGIN}/p/verify-other`, { headers: { Cookie: cookie } })).text();
+  const verifierId = /<option value="([a-f0-9]{16})">verifier<\/option>/.exec(otherHtml)?.[1];
+  if (verifierId) {
+    const joined = await postPage("/p/verify-other/members", { user: verifierId, role: "admin" });
+    if (joined.status !== 302) throw new Error(`adding verifier to verify-other returned ${joined.status}`);
+  }
+  const otherKey = await projectKey("verify-other");
+  await publishMarkdown("demo-skill", "The verify-other copy of demo-skill.", "private", "verify-other");
+  log("published a second demo-skill (private) into project verify-other");
+
+  const keyedSkills = async (key) =>
+    (await (await fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).json()).skills;
+  const ours = (await keyedSkills(installKey)).find((s) => s.name === "demo-skill");
+  const otherSkills = await keyedSkills(otherKey);
+  if (otherSkills.length !== 1 || otherSkills[0].name !== "demo-skill") {
+    throw new Error(`verify-other's key should list only its demo-skill, got: ${otherSkills.map((s) => s.name).join(", ")}`);
+  }
+  if (!ours || ours.digest === otherSkills[0].digest) {
+    throw new Error("the two projects' demo-skill should be two different skills");
+  }
+  const crossed = await fetch(otherSkills[0].url.replace(otherKey, installKey));
+  if (crossed.status !== 404) {
+    throw new Error(`the default project's key downloaded verify-other's demo-skill (${crossed.status})`);
+  }
+
+  const home4 = await installTo(`${ORIGIN}/i/${otherKey}`);
+  expectInstalled(home4, ["demo-skill"], "verify-other's install key");
+  const otherInstalled = findFile(home4, join("demo-skill", "SKILL.md"));
+  if (!otherInstalled || !readFileSync(otherInstalled, "utf8").includes("The verify-other copy of demo-skill.")) {
+    throw new Error("verify-other's install key installed the wrong demo-skill");
+  }
+  log("project-scoped install keys passed");
 
   log("all contract checks passed");
   exitCode = 0;
