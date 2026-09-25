@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
+  clearSession, hashPassword, membershipIn, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
   startSession, verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
@@ -8,8 +8,8 @@ import { page } from "../csrf";
 import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
-  getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
-  updateUserRole,
+  getUserByUsername, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updateInstallKey,
+  updatePassword, updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
@@ -75,8 +75,11 @@ usersRoutes.get("/me", requireUser, async (c) =>
   page(c, <MePage user={c.get("user")} origin={new URL(c.req.url).origin} />),
 );
 
-usersRoutes.post("/me/install-key", requireUser, async (c) => {
-  await updateInstallKey(c.env.DB, c.get("user").id, randomHex(16));
+usersRoutes.post("/me/install-key/:project", requireUser, async (c) => {
+  const user = c.get("user");
+  const project = c.req.param("project");
+  if (!membershipIn(user, project)) return c.notFound();
+  await updateInstallKey(c.env.DB, project, user.id, randomHex(16));
   return c.redirect("/me", 302);
 });
 
@@ -135,7 +138,6 @@ usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
     username,
     passwordHash: await hashPassword(password),
     role,
-    installKey: randomHex(16),
   });
   return c.redirect("/admin/users", 302);
 });
@@ -188,8 +190,8 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
 usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
-  await flash(c, `Install key rotated for ${guard.target.username}. The old install command no longer works.`);
+  await rotateInstallKeys(c.env.DB, guard.target.id, () => randomHex(16));
+  await flash(c, `Install keys rotated for ${guard.target.username}. The old install commands no longer work.`);
   return c.redirect("/admin/users", 302);
 });
 

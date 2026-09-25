@@ -1,6 +1,7 @@
 import { Form } from "../csrf";
-import { Button, Layout, PageHead } from "./layout";
-import type { UserRow } from "../db/queries";
+import { skillPath } from "../paths";
+import { Button, Layout, PageHead, Select } from "./layout";
+import type { SkillRow, UserRow } from "../db/queries";
 
 function FilePicker(props: { label: string; hint: unknown }) {
   return (
@@ -22,42 +23,67 @@ function VisibilityChoice(props: { value: "private" | "public"; title: string; d
   );
 }
 
-export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: string }) {
+export function NewSkillPage(props: {
+  user: UserRow;
+  projects: Array<{ slug: string; name: string }>;
+  project?: string;
+  error?: string;
+  markdown?: string;
+}) {
   return (
     <Layout title="Publish a skill" user={props.user}>
       <div class="cf-narrow">
         <PageHead title="Publish a skill" error={props.error} />
-        <Form action="/new" enctype="multipart/form-data" class="cf-frame cf-form">
-          <div class="cf-form-section">
-            <FilePicker
-              label="Upload an archive"
-              hint=".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum."
-            />
-          </div>
-          <div class="cf-form-section">
-            <label class="cf-field">
-              <span class="cf-label">Or paste SKILL.md directly</span>
-              <textarea
-                name="markdown"
-                rows={16}
-                class="cf-input cf-textarea"
-                placeholder={"---\nname: my-skill\ndescription: One sentence on what this skill does\n---\n\n# Body"}
-              >
-                {props.markdown ?? ""}
-              </textarea>
-            </label>
-          </div>
-          <fieldset class="cf-form-section cf-fieldset">
-            <legend class="cf-label">Visibility</legend>
-            <div class="cf-choices">
-              <VisibilityChoice value="private" title="Private" detail="Visible to signed-in users only" checked />
-              <VisibilityChoice value="public" title="Public" detail="Anyone can see and install it" />
+        {props.projects.length === 0 ? (
+          <div class="cf-frame">
+            <div class="cf-empty">
+              <p class="cf-empty-title">You are not in a project yet.</p>
+              <p class="cf-empty-body">
+                Every skill belongs to a project, and only a project's members can publish to it. Ask an admin to add
+                you to one.
+              </p>
             </div>
-          </fieldset>
-          <div class="cf-form-foot">
-            <Button>Publish</Button>
           </div>
-        </Form>
+        ) : (
+          <Form action="/new" enctype="multipart/form-data" class="cf-frame cf-form">
+            <div class="cf-form-section">
+              <FilePicker
+                label="Upload an archive"
+                hint=".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum."
+              />
+            </div>
+            <div class="cf-form-section">
+              <label class="cf-field">
+                <span class="cf-label">Or paste SKILL.md directly</span>
+                <textarea
+                  name="markdown"
+                  rows={16}
+                  class="cf-input cf-textarea"
+                  placeholder={"---\nname: my-skill\ndescription: One sentence on what this skill does\n---\n\n# Body"}
+                >
+                  {props.markdown ?? ""}
+                </textarea>
+              </label>
+            </div>
+            <div class="cf-form-section">
+              <Select label="Project" name="project">
+                {props.projects.map((p) => (
+                  <option value={p.slug} selected={p.slug === props.project}>{p.name}</option>
+                ))}
+              </Select>
+            </div>
+            <fieldset class="cf-form-section cf-fieldset">
+              <legend class="cf-label">Visibility</legend>
+              <div class="cf-choices">
+                <VisibilityChoice value="private" title="Private" detail="Visible to the project's members only" checked />
+                <VisibilityChoice value="public" title="Public" detail="Anyone can see and install it" />
+              </div>
+            </fieldset>
+            <div class="cf-form-foot">
+              <Button>Publish</Button>
+            </div>
+          </Form>
+        )}
       </div>
     </Layout>
   );
@@ -65,20 +91,20 @@ export function NewSkillPage(props: { user: UserRow; error?: string; markdown?: 
 
 export function EditSkillPage(props: {
   user: UserRow;
-  slug: string;
+  skill: Pick<SkillRow, "project" | "slug">;
   markdown: string;
   files: string[];
   error?: string;
 }) {
   return (
-    <Layout title={`Edit ${props.slug}`} user={props.user}>
+    <Layout title={`Edit ${props.skill.slug}`} user={props.user}>
       <div class="cf-narrow cf-narrow-wide">
-        <PageHead title={`Edit ${props.slug}`} error={props.error}>
+        <PageHead title={`Edit ${props.skill.slug}`} error={props.error}>
           Saving publishes a new version; the old ones stay. To replace the whole archive (say, because you changed
           files other than SKILL.md), use{" "}
-          <a href={`/s/${props.slug}/upload`} class="cf-link">Upload an archive</a>.
+          <a href={`${skillPath(props.skill)}/upload`} class="cf-link">Upload an archive</a>.
         </PageHead>
-        <Form action={`/s/${props.slug}/edit`} enctype="multipart/form-data" class="cf-frame cf-form">
+        <Form action={`${skillPath(props.skill)}/edit`} enctype="multipart/form-data" class="cf-frame cf-form">
           <header class="cf-panel-head">
             <span class="cf-chip">SKILL.md</span>
           </header>
@@ -100,7 +126,7 @@ export function EditSkillPage(props: {
           ) : null}
           <div class="cf-form-foot">
             <Button>Save as a new version</Button>
-            <a href={`/s/${props.slug}`} class="cf-btn cf-btn-outline">Cancel</a>
+            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">Cancel</a>
           </div>
         </Form>
       </div>
@@ -108,29 +134,29 @@ export function EditSkillPage(props: {
   );
 }
 
-export function UploadVersionPage(props: { user: UserRow; slug: string; error?: string }) {
+export function UploadVersionPage(props: { user: UserRow; skill: Pick<SkillRow, "project" | "slug">; error?: string }) {
   return (
-    <Layout title={`Upload a new version · ${props.slug}`} user={props.user}>
+    <Layout title={`Upload a new version · ${props.skill.slug}`} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title={`Upload a new version: ${props.slug}`} error={props.error}>
+        <PageHead title={`Upload a new version: ${props.skill.slug}`} error={props.error}>
           Whole-archive replacement: the new version is exactly what this archive contains; the old ones stay. To change
-          only SKILL.md, use <a href={`/s/${props.slug}/edit`} class="cf-link">Edit</a>.
+          only SKILL.md, use <a href={`${skillPath(props.skill)}/edit`} class="cf-link">Edit</a>.
         </PageHead>
-        <Form action={`/s/${props.slug}/upload`} enctype="multipart/form-data" class="cf-frame cf-form">
+        <Form action={`${skillPath(props.skill)}/upload`} enctype="multipart/form-data" class="cf-frame cf-form">
           <div class="cf-form-section">
             <FilePicker
               label="Archive"
               hint={
                 <>
                   .zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper
-                  directory, and the name field in that SKILL.md must still be {props.slug}. 2 MB maximum.
+                  directory, and the name field in that SKILL.md must still be {props.skill.slug}. 2 MB maximum.
                 </>
               }
             />
           </div>
           <div class="cf-form-foot">
             <Button>Publish as a new version</Button>
-            <a href={`/s/${props.slug}`} class="cf-btn cf-btn-outline">Cancel</a>
+            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">Cancel</a>
           </div>
         </Form>
       </div>

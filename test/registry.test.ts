@@ -4,7 +4,7 @@ import { setVisibility } from "../src/db/queries";
 import { buildIndex } from "../src/registry";
 import type { IndexSource } from "../src/registry";
 import {
-  env, GOOD_MD, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb, seedAndLogin,
+  env, GOOD_MD, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb, seedAndLogin, seedProject,
 } from "./helpers";
 
 const NAME_RE = /^[a-z0-9-]+$/;
@@ -89,20 +89,19 @@ describe("registry index", () => {
     expect(res.status).toBe(200);
   });
 
-  it("includes private skills for a valid install key", async () => {
+  it("includes the project's private skills for a valid install key", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     await publish(cookie, OTHER_MD, "private");
+    const key = await installKey(user.id);
 
-    const res = await SELF.fetch(
-      `${ORIGIN}/i/${user.install_key}/.well-known/agent-skills/index.json`,
-    );
+    const res = await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`);
     expect(res.status).toBe(200);
     const body = await res.json<{ skills: Record<string, unknown>[] }>();
     expect(body.skills.map((s) => s.name).sort()).toEqual(["demo-skill", "other-skill"]);
     for (const entry of body.skills) {
       assertValidEntry(entry);
-      expect(entry.url as string).toContain(`/i/${user.install_key}/`);
+      expect(entry.url as string).toContain(`/i/${key}/`);
     }
   });
 
@@ -124,7 +123,7 @@ describe("registry index", () => {
     await publish(cookie, OTHER_MD, "private");
 
     const res = await SELF.fetch(
-      `${ORIGIN}/i/${user.install_key}/.well-known/agent-skills/other-skill/.well-known/agent-skills/index.json`,
+      `${ORIGIN}/i/${await installKey(user.id)}/.well-known/agent-skills/other-skill/.well-known/agent-skills/index.json`,
     );
     expect(res.status).toBe(200);
     expect(await names(res)).toEqual(["other-skill"]);
@@ -205,7 +204,7 @@ describe("registry index", () => {
   it("does not leak a skill after it is made private again", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    await setVisibility(env.DB, "demo-skill", "private");
+    await setVisibility(env.DB, "default", "demo-skill", "private");
     const res = await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/index.json`);
     const body = await res.json<{ skills: unknown[] }>();
     expect(body.skills).toEqual([]);
@@ -238,8 +237,9 @@ describe("artifact download", () => {
   it("refuses public access to a private artifact", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, OTHER_MD, "private");
+    const key = await installKey(user.id);
     const index = await (
-      await SELF.fetch(`${ORIGIN}/i/${user.install_key}/.well-known/agent-skills/index.json`)
+      await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)
     ).json<{ skills: Array<{ url: string; digest: string }> }>();
     const entry = index.skills[0];
 
@@ -247,8 +247,8 @@ describe("artifact download", () => {
     expect(viaKey.status).toBe(200);
     expect(viaKey.headers.get("Cache-Control")).toBe("private, no-store");
 
-    const withoutKey = entry.url.replace(`/i/${user.install_key}`, "");
-    expect((await SELF.fetch(withoutKey)).status).toBe(404);
+    expect((await SELF.fetch(entry.url.replace(`/i/${key}`, ""))).status).toBe(404);
+    expect((await SELF.fetch(entry.url.replace(`/i/${key}`, "/p/default"))).status).toBe(404);
   });
 
   it("returns 404 for a digest that does not match any version", async () => {
@@ -256,5 +256,103 @@ describe("artifact download", () => {
     await publish(cookie, GOOD_MD, "public");
     const res = await SELF.fetch(`${ORIGIN}/d/demo-skill/${"0".repeat(64)}.zip`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("project install addresses", () => {
+  beforeEach(resetDb);
+
+  const indexAt = async (base: string) => {
+    const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/agent-skills/index.json`);
+    expect(res.status).toBe(200);
+    return (await res.json<{ skills: Array<{ name: string; url: string; digest: string }> }>()).skills;
+  };
+  const names = async (base: string) => (await indexAt(base)).map((s) => s.name);
+
+  async function twoProjects() {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    return { alice, bob };
+  }
+
+  it("limits an install key to its own project, public skills included", async () => {
+    const { alice, bob } = await twoProjects();
+    await publish(alice.cookie, GOOD_MD, "private");
+    await publish(bob.cookie, OTHER_MD, "public");
+
+    expect(await names(`/i/${await installKey(alice.user.id)}`)).toEqual(["demo-skill"]);
+    expect(await names(`/i/${await installKey(bob.user.id, "team-b")}`)).toEqual(["other-skill"]);
+    expect(await names(`/i/${await installKey(alice.user.id)}/.well-known/agent-skills/other-skill`)).toEqual([]);
+  });
+
+  it("refuses a keyed download of another project's skill, private or public", async () => {
+    const { alice, bob } = await twoProjects();
+    await publish(bob.cookie, OTHER_MD, "private");
+    const bobKey = await installKey(bob.user.id, "team-b");
+    const url = (await indexAt(`/i/${bobKey}`))[0].url;
+    const crossed = url.replace(bobKey, await installKey(alice.user.id));
+
+    expect((await SELF.fetch(url)).status).toBe(200);
+    expect((await SELF.fetch(crossed)).status).toBe(404);
+    await setVisibility(env.DB, "team-b", "other-skill", "public");
+    expect((await SELF.fetch(crossed)).status).toBe(404);
+  });
+
+  it("stops a key as soon as its membership is gone", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "private");
+    const key = await installKey(user.id);
+    const url = (await indexAt(`/i/${key}`))[0].url;
+    await env.DB.prepare("DELETE FROM memberships WHERE user_id = ?").bind(user.id).run();
+
+    expect((await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status).toBe(404);
+    expect((await SELF.fetch(url)).status).toBe(404);
+  });
+
+  it("serves each project's public skills at /p/<project>, under either alias", async () => {
+    const { alice, bob } = await twoProjects();
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(alice.cookie, OTHER_MD, "private");
+    await publish(bob.cookie, OTHER_MD, "public");
+
+    expect(await names("/p/default")).toEqual(["demo-skill"]);
+    expect(await names("/p/team-b")).toEqual(["other-skill"]);
+    const alias = await SELF.fetch(`${ORIGIN}/p/team-b/.well-known/skills/index.json`);
+    expect((await alias.json<{ skills: Array<{ name: string }> }>()).skills.map((s) => s.name)).toEqual(["other-skill"]);
+    expect(await names("/p/team-b/.well-known/agent-skills/other-skill")).toEqual(["other-skill"]);
+    expect(await names("/p/default/.well-known/agent-skills/other-skill")).toEqual([]);
+    expect(await names("/p/no-such-project")).toEqual([]);
+  });
+
+  it("downloads a project's public artifact but not a private one", async () => {
+    const { alice } = await twoProjects();
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(alice.cookie, OTHER_MD, "private");
+    const entry = (await indexAt("/p/default"))[0];
+    expect(entry.url).toBe(`${ORIGIN}/p/default/d/demo-skill/${entry.digest.slice("sha256:".length)}.zip`);
+    const res = await SELF.fetch(entry.url);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=300");
+
+    const keyed = (await indexAt(`/i/${await installKey(alice.user.id)}`)).find((s) => s.name === "other-skill")!;
+    const hex = keyed.digest.slice("sha256:".length);
+    expect((await SELF.fetch(`${ORIGIN}/p/default/d/other-skill/${hex}.zip`)).status).toBe(404);
+  });
+
+  it("keeps two public skills with the same name apart, and leaves the name out of the root index", async () => {
+    const { alice, bob } = await twoProjects();
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(bob.cookie, GOOD_MD.replace("# Demo", "# Team B demo"), "public");
+    await publish(bob.cookie, OTHER_MD, "public");
+
+    const ours = (await indexAt("/p/default"))[0];
+    const theirs = (await indexAt("/p/team-b")).find((s) => s.name === "demo-skill")!;
+    expect(ours.digest).not.toBe(theirs.digest);
+    expect(await names("")).toEqual(["other-skill"]);
+    expect(await names("/.well-known/agent-skills/demo-skill")).toEqual([]);
+
+    await setVisibility(env.DB, "team-b", "demo-skill", "private");
+    expect(await names("")).toEqual(["demo-skill", "other-skill"]);
   });
 });

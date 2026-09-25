@@ -1,9 +1,10 @@
 import { Hono } from "hono";
-import { requireManagedSkill, requireUser, userFromApiToken } from "../auth";
-import type { AppEnv } from "../auth";
+import { publishableProjects, requireManagedSkill, requireUser, userFromApiToken } from "../auth";
+import type { AppEnv, Ctx } from "../auth";
 import { API_PREFIX, page } from "../csrf";
-import { getVersion } from "../db/queries";
-import type { VersionRow } from "../db/queries";
+import { DEFAULT_PROJECT, getVersion } from "../db/queries";
+import type { VersionRow, Viewer } from "../db/queries";
+import { skillPath } from "../paths";
 import { ForbiddenError, publishBytes, repackWithSkillMd, unchangedError } from "../publish";
 import { UploadError } from "../skills/normalize";
 import { EditSkillPage, NewSkillPage, UploadVersionPage } from "../views/publish";
@@ -40,49 +41,70 @@ async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array>
   throw new UploadError("Upload an archive, or paste SKILL.md into the text box");
 }
 
-publishRoutes.get("/new", requireUser, async (c) => page(c, <NewSkillPage user={c.get("user")} />));
+function chosenProject(user: Viewer, value: unknown): string {
+  if (typeof value === "string" && value !== "") return value;
+  if (user.memberships.length === 1) return user.memberships[0].project;
+  throw new UploadError(
+    user.memberships.length === 0
+      ? "You are not in a project yet, so there is nowhere to publish. Ask an admin to add you to one."
+      : "Choose which project this skill goes into",
+  );
+}
+
+const projectsFor = (c: Ctx) => publishableProjects(c.env.DB, c.get("user"));
+
+publishRoutes.get("/new", requireUser, async (c) =>
+  page(c, <NewSkillPage user={c.get("user")} projects={await projectsFor(c)} />),
+);
 
 publishRoutes.post("/new", requireUser, async (c) => {
   const user = c.get("user");
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : undefined;
+  const selected = typeof body.project === "string" ? body.project : undefined;
   try {
     const bytes = await bytesFromForm(body);
     const result = await publishBytes(c.env, user, bytes, {
+      project: chosenProject(user, body.project),
       visibility: visibilityOf(body.visibility),
       rejectUnchanged: true,
     });
-    return c.redirect(`/s/${result.slug}`, 302);
+    return c.redirect(skillPath(result), 302);
   } catch (err) {
     const failure = publishFailure(err);
     if (!failure) throw err;
-    return page(c, <NewSkillPage user={user} error={failure.message} markdown={markdown} />, failure.status);
+    return page(
+      c,
+      <NewSkillPage
+        user={user}
+        projects={await projectsFor(c)}
+        project={selected}
+        error={failure.message}
+        markdown={markdown}
+      />,
+      failure.status,
+    );
   }
 });
 
-publishRoutes.get("/s/:slug/edit", requireUser, async (c) => {
-  const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "edit");
+publishRoutes.get("/p/:project/s/:slug/edit", requireUser, async (c) => {
+  const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "edit");
   if (!guard.ok) return guard.response;
-  const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
+  const { skill } = guard;
+  const latest = await getVersion(c.env.DB, skill.project, skill.slug, skill.latest_version);
   if (!latest) return c.notFound();
   return page(
     c,
-    <EditSkillPage
-      user={c.get("user")}
-      slug={slug}
-      markdown={latest.skill_md}
-      files={siblingPaths(latest)}
-    />,
+    <EditSkillPage user={c.get("user")} skill={skill} markdown={latest.skill_md} files={siblingPaths(latest)} />,
   );
 });
 
-publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
+publishRoutes.post("/p/:project/s/:slug/edit", requireUser, async (c) => {
   const user = c.get("user");
-  const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "edit");
+  const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "edit");
   if (!guard.ok) return guard.response;
-  const latest = await getVersion(c.env.DB, slug, guard.skill.latest_version);
+  const { skill } = guard;
+  const latest = await getVersion(c.env.DB, skill.project, skill.slug, skill.latest_version);
   if (!latest) return c.notFound();
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
@@ -92,8 +114,8 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
     if (text === withLf(latest.skill_md).trim()) throw unchangedError(latest);
     // This page can only change SKILL.md; the other files come from the previous version's archive.
     const bytes = await repackWithSkillMd(c.env, latest, `${text}\n`);
-    await publishBytes(c.env, user, bytes, { expectedSlug: slug, rejectUnchanged: true });
-    return c.redirect(`/s/${slug}`, 302);
+    await publishBytes(c.env, user, bytes, { project: skill.project, expectedSlug: skill.slug, rejectUnchanged: true });
+    return c.redirect(skillPath(skill), 302);
   } catch (err) {
     const failure = publishFailure(err);
     if (!failure) throw err;
@@ -101,7 +123,7 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
       c,
       <EditSkillPage
         user={user}
-        slug={slug}
+        skill={skill}
         markdown={markdown}
         files={siblingPaths(latest)}
         error={failure.message}
@@ -111,18 +133,17 @@ publishRoutes.post("/s/:slug/edit", requireUser, async (c) => {
   }
 });
 
-publishRoutes.get("/s/:slug/upload", requireUser, async (c) => {
-  const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "update");
+publishRoutes.get("/p/:project/s/:slug/upload", requireUser, async (c) => {
+  const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "update");
   if (!guard.ok) return guard.response;
-  return page(c, <UploadVersionPage user={c.get("user")} slug={slug} />);
+  return page(c, <UploadVersionPage user={c.get("user")} skill={guard.skill} />);
 });
 
-publishRoutes.post("/s/:slug/upload", requireUser, async (c) => {
+publishRoutes.post("/p/:project/s/:slug/upload", requireUser, async (c) => {
   const user = c.get("user");
-  const slug = c.req.param("slug");
-  const guard = await requireManagedSkill(c, slug, "update");
+  const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "update");
   if (!guard.ok) return guard.response;
+  const { skill } = guard;
   const body = await c.req.parseBody();
   try {
     const file = body.file;
@@ -130,22 +151,22 @@ publishRoutes.post("/s/:slug/upload", requireUser, async (c) => {
       throw new UploadError("Choose an archive");
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
-    await publishBytes(c.env, user, bytes, { expectedSlug: slug, rejectUnchanged: true });
-    return c.redirect(`/s/${slug}`, 302);
+    await publishBytes(c.env, user, bytes, { project: skill.project, expectedSlug: skill.slug, rejectUnchanged: true });
+    return c.redirect(skillPath(skill), 302);
   } catch (err) {
     const failure = publishFailure(err);
     if (!failure) throw err;
-    return page(c, <UploadVersionPage user={user} slug={slug} error={failure.message} />, failure.status);
+    return page(c, <UploadVersionPage user={user} skill={skill} error={failure.message} />, failure.status);
   }
 });
 
-publishRoutes.put(`${API_PREFIX}skills/:slug`, async (c) => {
+async function publishFromApi(c: Ctx, project: string, slug: string): Promise<Response> {
   const user = await userFromApiToken(c);
   if (!user) return c.notFound();
-  const slug = c.req.param("slug");
   const bytes = new Uint8Array(await c.req.arrayBuffer());
   try {
     const result = await publishBytes(c.env, user, bytes, {
+      project,
       expectedSlug: slug,
       visibility: visibilityOf(c.req.query("visibility")),
     });
@@ -155,4 +176,10 @@ publishRoutes.put(`${API_PREFIX}skills/:slug`, async (c) => {
     if (!failure) throw err;
     return c.json({ error: failure.code, message: failure.message }, failure.status);
   }
-});
+}
+
+publishRoutes.put(`${API_PREFIX}projects/:project/skills/:slug`, (c) =>
+  publishFromApi(c, c.req.param("project"), c.req.param("slug")),
+);
+
+publishRoutes.put(`${API_PREFIX}skills/:slug`, (c) => publishFromApi(c, DEFAULT_PROJECT, c.req.param("slug")));

@@ -2,8 +2,8 @@ import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { CookieOptions } from "hono/utils/cookie";
 import { decodeBase64, encodeBase64 } from "hono/utils/encode";
-import { getSkill, getUserById } from "./db/queries";
-import type { SkillRow, UserRow } from "./db/queries";
+import { getSkill, getViewer, getViewerByApiTokenHash, listProjects } from "./db/queries";
+import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
 import { sha256Hex, toHex } from "./hash";
 import type { Env } from "./types";
 
@@ -17,7 +17,7 @@ import type { Env } from "./types";
 export interface AppEnv {
   Bindings: Env;
   Variables: {
-    user: UserRow;
+    user: Viewer;
     session: Promise<SessionPayload | null>;
   };
 }
@@ -140,10 +140,10 @@ async function loadSession(c: Ctx): Promise<SessionPayload | null> {
   return { uid: payload.uid, exp: payload.exp, csrf: payload.csrf };
 }
 
-export async function currentUser(c: Ctx): Promise<UserRow | null> {
+export async function currentUser(c: Ctx): Promise<Viewer | null> {
   const session = await readSession(c);
   if (!session) return null;
-  return await getUserById(c.env.DB, session.uid);
+  return await getViewer(c.env.DB, session.uid);
 }
 
 /** The current session's CSRF token, or null when there is no usable session. */
@@ -151,30 +151,48 @@ export async function sessionCsrf(c: Ctx): Promise<string | null> {
   return (await readSession(c))?.csrf ?? null;
 }
 
-export async function userFromApiToken(c: Ctx): Promise<UserRow | null> {
+export async function userFromApiToken(c: Ctx): Promise<Viewer | null> {
   const header = c.req.header("Authorization");
   if (!header?.startsWith("Bearer ")) return null;
   const token = header.slice(7).trim();
   if (!token) return null;
-  const hash = await sha256Hex(token);
-  return await c.env.DB.prepare("SELECT * FROM users WHERE api_token_hash = ?")
-    .bind(hash)
-    .first<UserRow>();
+  return await getViewerByApiTokenHash(c.env.DB, await sha256Hex(token));
 }
 
-export function canManage(user: UserRow, skill: SkillRow): boolean {
-  return user.role === "admin" || user.id === skill.owner_id;
+export function membershipIn(viewer: Viewer, project: string): Membership | undefined {
+  return viewer.memberships.find((m) => m.project === project);
 }
 
-/**
- * Who may see a skill at all. Private skills are visible to any signed-in
- * user (spec §6). One expression, so tightening this later — to owner and
- * admins only, say — is a single edit rather than a hunt through the routes.
- * The SQL equivalent is `listSkills`/`listPublishedForIndex`'s
- * `includePrivate`, which callers derive from the same `user !== null`.
- */
-export function canView(user: UserRow | null, skill: Pick<SkillRow, "visibility">): boolean {
-  return skill.visibility === "public" || user !== null;
+export function canManageProject(viewer: Viewer, project: string): boolean {
+  return viewer.role === "admin" || membershipIn(viewer, project)?.role === "admin";
+}
+
+export function canPublishTo(viewer: Viewer, project: string): boolean {
+  return viewer.role === "admin" || membershipIn(viewer, project) !== undefined;
+}
+
+export function canView(viewer: Viewer | null, skill: Pick<SkillRow, "visibility" | "project">): boolean {
+  if (skill.visibility === "public") return true;
+  return viewer !== null && canPublishTo(viewer, skill.project);
+}
+
+export function canManage(viewer: Viewer, skill: Pick<SkillRow, "project" | "owner_id">): boolean {
+  if (canManageProject(viewer, skill.project)) return true;
+  return skill.owner_id === viewer.id && membershipIn(viewer, skill.project) !== undefined;
+}
+
+export function skillScope(viewer: Viewer | null): SkillScope {
+  if (viewer === null) return { kind: "public" };
+  if (viewer.role === "admin") return { kind: "all" };
+  return { kind: "member", userId: viewer.id };
+}
+
+export async function publishableProjects(
+  db: D1Database,
+  viewer: Viewer,
+): Promise<Array<{ slug: string; name: string }>> {
+  if (viewer.role === "admin") return listProjects(db);
+  return viewer.memberships.map((m) => ({ slug: m.project, name: m.project_name }));
 }
 
 /**
@@ -204,12 +222,14 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
  */
 export async function requireManagedSkill(
   c: Ctx,
+  project: string,
   slug: string,
   action: string,
 ): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
-  const skill = await getSkill(c.env.DB, slug);
-  if (!skill) return { ok: false, response: await c.notFound() };
-  if (!canManage(c.get("user"), skill)) {
+  const user = c.get("user");
+  const skill = await getSkill(c.env.DB, project, slug);
+  if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
+  if (!canManage(user, skill)) {
     return { ok: false, response: c.text(`You are not allowed to ${action} this skill`, 403) };
   }
   return { ok: true, skill };

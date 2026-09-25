@@ -1,17 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  canManage, hashPassword, PBKDF2_ITERATIONS, randomHex, verifyPassword,
+  canManage, canManageProject, canPublishTo, canView, hashPassword, PBKDF2_ITERATIONS, randomHex, skillScope,
+  verifyPassword,
 } from "../src/auth";
 import { sha256Hex } from "../src/hash";
-import type { SkillRow, UserRow } from "../src/db/queries";
+import type { Membership, SkillRow, Viewer } from "../src/db/queries";
 
-const user = (over: Partial<UserRow> = {}): UserRow => ({
+const viewer = (over: Partial<Viewer> = {}): Viewer => ({
   id: "u1", username: "alice", password_hash: "h", role: "member",
-  install_key: "k", api_token_hash: null, created_at: 0, last_login_at: null, ...over,
+  api_token_hash: null, created_at: 0, last_login_at: null, memberships: [], ...over,
+});
+
+const member = (project: string, role: "admin" | "member" = "member"): Membership => ({
+  project, project_name: project, user_id: "u1", role, install_key: "k", created_at: 0,
 });
 
 const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
-  slug: "demo", description: "d", visibility: "private", owner_id: "u1",
+  id: "s1", project: "default", slug: "demo", description: "d", visibility: "private", owner_id: "u1",
   latest_version: 1, download_count: 0, created_at: 0, updated_at: 0, ...over,
 });
 
@@ -63,16 +68,70 @@ describe("sha256Hex", () => {
   });
 });
 
+describe("canView", () => {
+  it("shows a public skill to everyone, in its project or not", () => {
+    expect(canView(null, skill({ visibility: "public" }))).toBe(true);
+    expect(canView(viewer({ memberships: [member("other")] }), skill({ visibility: "public" }))).toBe(true);
+  });
+
+  it("shows a private skill to its project's members only", () => {
+    expect(canView(null, skill())).toBe(false);
+    expect(canView(viewer({ memberships: [member("default")] }), skill())).toBe(true);
+    expect(canView(viewer({ memberships: [member("other")] }), skill())).toBe(false);
+    expect(canView(viewer(), skill())).toBe(false);
+  });
+
+  it("shows an instance admin every private skill", () => {
+    expect(canView(viewer({ role: "admin" }), skill())).toBe(true);
+  });
+
+  it("does not mistake an inherited property name for a membership", () => {
+    expect(canView(viewer(), skill({ project: "constructor" }))).toBe(false);
+  });
+});
+
 describe("canManage", () => {
-  it("lets an owner manage their own skill", () => {
-    expect(canManage(user({ id: "u1" }), skill({ owner_id: "u1" }))).toBe(true);
+  it("lets an owner manage their skill while they are in its project", () => {
+    expect(canManage(viewer({ memberships: [member("default")] }), skill())).toBe(true);
   });
 
-  it("stops a member managing someone else's skill", () => {
-    expect(canManage(user({ id: "u2" }), skill({ owner_id: "u1" }))).toBe(false);
+  it("stops an owner who is no longer in the project", () => {
+    expect(canManage(viewer(), skill())).toBe(false);
   });
 
-  it("lets an admin manage anything", () => {
-    expect(canManage(user({ id: "u2", role: "admin" }), skill({ owner_id: "u1" }))).toBe(true);
+  it("stops a project member managing someone else's skill", () => {
+    expect(canManage(viewer({ id: "u2", memberships: [member("default")] }), skill())).toBe(false);
+  });
+
+  it("lets a project admin manage every skill in that project and no other", () => {
+    const lead = viewer({ id: "u2", memberships: [member("default", "admin")] });
+    expect(canManage(lead, skill())).toBe(true);
+    expect(canManage(lead, skill({ project: "other" }))).toBe(false);
+  });
+
+  it("lets an instance admin manage anything", () => {
+    expect(canManage(viewer({ id: "u2", role: "admin" }), skill({ project: "other" }))).toBe(true);
+  });
+});
+
+describe("canManageProject and canPublishTo", () => {
+  it("lets project admins and instance admins manage a project", () => {
+    expect(canManageProject(viewer({ memberships: [member("default", "admin")] }), "default")).toBe(true);
+    expect(canManageProject(viewer({ memberships: [member("default")] }), "default")).toBe(false);
+    expect(canManageProject(viewer({ role: "admin" }), "default")).toBe(true);
+  });
+
+  it("lets every member, and instance admins, publish to a project", () => {
+    expect(canPublishTo(viewer({ memberships: [member("default")] }), "default")).toBe(true);
+    expect(canPublishTo(viewer({ memberships: [member("default")] }), "other")).toBe(false);
+    expect(canPublishTo(viewer({ role: "admin" }), "other")).toBe(true);
+  });
+});
+
+describe("skillScope", () => {
+  it("maps each kind of viewer to the rows it may list", () => {
+    expect(skillScope(null)).toEqual({ kind: "public" });
+    expect(skillScope(viewer({ role: "admin" }))).toEqual({ kind: "all" });
+    expect(skillScope(viewer())).toEqual({ kind: "member", userId: "u1" });
   });
 });

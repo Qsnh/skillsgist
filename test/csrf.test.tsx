@@ -9,7 +9,7 @@ import { getSkill, getUserById } from "../src/db/queries";
 import app from "../src/index";
 import { Layout } from "../src/views/layout";
 import {
-  csrfFor, env as bindings, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb,
+  csrfFor, env as bindings, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown, resetDb,
   seedAndLogin, seedUser,
 } from "./helpers";
 import type { Env } from "../src/types";
@@ -26,6 +26,7 @@ const env = bindings as typeof bindings & { SESSION_SECRET: string };
 const EXEMPT = new Set([
   // Bearer-authenticated; never reads the session cookie. See
   // "an /api/* route cannot be authenticated by a session cookie" below.
+  "PUT /api/projects/:project/skills/:slug",
   "PUT /api/skills/:slug",
   // No session exists yet, so there is no session-bound token to send.
   // Covered by the Origin / Sec-Fetch-Site layer only — see TOKENLESS_PATHS.
@@ -37,7 +38,7 @@ const EXEMPT = new Set([
 // below can actually fire a tokenless request at each one.
 const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => string> = {
   "POST /logout": () => "/logout",
-  "POST /me/install-key": () => "/me/install-key",
+  "POST /me/install-key/:project": () => "/me/install-key/default",
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
@@ -48,10 +49,10 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /admin/users/:id/api-token/revoke": ({ userId }) => `/admin/users/${userId}/api-token/revoke`,
   "POST /admin/users/:id/delete": ({ userId }) => `/admin/users/${userId}/delete`,
   "POST /new": () => "/new",
-  "POST /s/:slug/edit": ({ slug }) => `/s/${slug}/edit`,
-  "POST /s/:slug/upload": ({ slug }) => `/s/${slug}/upload`,
-  "POST /s/:slug/visibility": ({ slug }) => `/s/${slug}/visibility`,
-  "POST /s/:slug/delete": ({ slug }) => `/s/${slug}/delete`,
+  "POST /p/:project/s/:slug/edit": ({ slug }) => `/p/default/s/${slug}/edit`,
+  "POST /p/:project/s/:slug/upload": ({ slug }) => `/p/default/s/${slug}/upload`,
+  "POST /p/:project/s/:slug/visibility": ({ slug }) => `/p/default/s/${slug}/visibility`,
+  "POST /p/:project/s/:slug/delete": ({ slug }) => `/p/default/s/${slug}/delete`,
 };
 
 // Read-only routes. Listed exhaustively rather than pattern-matched, because
@@ -67,7 +68,12 @@ const READ_ONLY_GETS = new Set([
   // The CLI's single-install fallback of appending another .well-known layer to the whole URL. Read-only: returns the narrowed index.
   "GET /.well-known/agent-skills/*",
   "GET /.well-known/skills/*",
+  "GET /p/:project/.well-known/agent-skills/index.json",
+  "GET /p/:project/.well-known/skills/index.json",
+  "GET /p/:project/.well-known/agent-skills/*",
+  "GET /p/:project/.well-known/skills/*",
   "GET /d/:slug/:file",
+  "GET /p/:project/d/:slug/:file",
   "GET /i/:key/d/:slug/:file",
   "GET /i/:key/*",
   "GET /setup",
@@ -76,12 +82,13 @@ const READ_ONLY_GETS = new Set([
   "GET /admin/users",
   "GET /admin/users/new",
   "GET /new",
-  "GET /s/:slug/edit",
-  "GET /s/:slug/upload",
+  "GET /p/:project/s/:slug/edit",
+  "GET /p/:project/s/:slug/upload",
   "GET /",
   "GET /s/:slug",
-  "GET /s/:slug/download",
-  "GET /s/:slug/v/:version/download",
+  "GET /p/:project/s/:slug",
+  "GET /p/:project/s/:slug/download",
+  "GET /p/:project/s/:slug/v/:version/download",
 ]);
 
 // `app.routes` is flattened across every sub-app mounted with `.route()`;
@@ -116,6 +123,7 @@ describe("token layer", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publishMarkdown(cookie, GOOD_MD, "private");
     const { user: target } = await seedUser({ username: "bob", role: "member" });
+    const bobKey = await installKey(target.id);
 
     for (const [key, toPath] of Object.entries(PROTECTED)) {
       const path = toPath({ userId: target.id, slug: "demo-skill" });
@@ -136,13 +144,13 @@ describe("token layer", () => {
     // (no role change, no key rotation, no delete) and the skill still exists.
     const bobAfter = await getUserById(env.DB, target.id);
     expect(bobAfter?.role).toBe("member");
-    expect(bobAfter?.install_key).toBe(target.install_key);
-    expect(await getSkill(env.DB, "demo-skill")).not.toBeNull();
+    expect(await installKey(target.id)).toBe(bobKey);
+    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
   });
 
   it("accepts a request carrying the session's token", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postForm("/me/install-key", cookie);
+    const res = await postForm("/me/install-key/default", cookie);
     expect(res.status).toBe(302);
   });
 
@@ -154,7 +162,7 @@ describe("token layer", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const body = new URLSearchParams();
     if (token !== undefined) body.set("_csrf", token);
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key`, {
+    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: cookie },
       body,
@@ -170,7 +178,7 @@ describe("token layer", () => {
     const bobCookie = await login("bob", bob.password);
     const bobToken = await csrfFor(bobCookie);
 
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key`, {
+    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: aliceCookie },
       body: new URLSearchParams({ _csrf: bobToken }),
@@ -185,7 +193,7 @@ describe("token layer", () => {
   it("rejects a text/plain body, which carries no parseable token", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key`, {
+    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
       method: "POST",
       headers: { "Content-Type": "text/plain", Origin: ORIGIN, Cookie: cookie },
       body: `_csrf=${token}`,
@@ -201,7 +209,7 @@ describe("Origin / Sec-Fetch-Site layer", () => {
   const postWith = async (headers: Record<string, string>) => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
-    return SELF.fetch(`${ORIGIN}/me/install-key`, {
+    return SELF.fetch(`${ORIGIN}/me/install-key/default`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, ...headers },
       body: new URLSearchParams({ _csrf: token }),
@@ -359,8 +367,8 @@ describe("rendered forms", () => {
     await publishMarkdown(cookie, GOOD_MD, "private");
 
     for (const path of [
-      "/", "/s/demo-skill", "/me", "/admin/users", "/admin/users/new", "/new", "/s/demo-skill/edit",
-      "/s/demo-skill/upload",
+      "/", "/p/default/s/demo-skill", "/me", "/admin/users", "/admin/users/new", "/new", "/p/default/s/demo-skill/edit",
+      "/p/default/s/demo-skill/upload",
     ]) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
       const forms = postFormsIn(html);

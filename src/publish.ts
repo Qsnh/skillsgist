@@ -1,5 +1,6 @@
-import { getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
-import type { UserRow, VersionRow } from "./db/queries";
+import { canManage, canPublishTo, randomHex } from "./auth";
+import { getProject, getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
+import type { VersionRow, Viewer } from "./db/queries";
 import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
@@ -21,6 +22,7 @@ export function unchangedError(latest: VersionRow): UploadError {
 }
 
 export interface PublishOutcome {
+  project: string;
   slug: string;
   version: number;
   digest: string;
@@ -30,9 +32,9 @@ export interface PublishOutcome {
 
 export async function publishBytes(
   env: Env,
-  user: UserRow,
+  user: Viewer,
   bytes: Uint8Array,
-  opts: { expectedSlug?: string; visibility?: "public" | "private"; rejectUnchanged?: boolean } = {},
+  opts: { project: string; expectedSlug?: string; visibility?: "public" | "private"; rejectUnchanged?: boolean },
 ): Promise<PublishOutcome> {
   const normalized = await normalizeUpload(bytes);
 
@@ -42,12 +44,16 @@ export async function publishBytes(
     );
   }
 
-  const existing = await getSkill(env.DB, normalized.name);
-  if (existing && user.role !== "admin" && existing.owner_id !== user.id) {
+  if (!canPublishTo(user, opts.project) || !(await getProject(env.DB, opts.project))) {
+    throw new ForbiddenError(`There is no project named ${opts.project} that you can publish to`);
+  }
+
+  const existing = await getSkill(env.DB, opts.project, normalized.name);
+  if (existing && !canManage(user, existing)) {
     throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
   }
 
-  const latest = existing ? await getVersion(env.DB, existing.slug, existing.latest_version) : null;
+  const latest = existing ? await getVersion(env.DB, existing.project, existing.slug, existing.latest_version) : null;
   const unchanged = latest !== null && latest.digest === normalized.digest;
 
   if (unchanged) {
@@ -61,11 +67,12 @@ export async function publishBytes(
   }
 
   if (existing && opts.visibility !== undefined) {
-    await setVisibility(env.DB, existing.slug, opts.visibility);
+    await setVisibility(env.DB, existing.project, existing.slug, opts.visibility);
   }
 
   if (unchanged) {
     return {
+      project: latest.project,
       slug: latest.slug,
       version: latest.version,
       digest: normalized.digest,
@@ -76,6 +83,8 @@ export async function publishBytes(
 
   const html = await renderSkillMd(normalized.skillMd);
   const { version, r2Key } = await insertVersion(env.DB, {
+    skillId: existing?.id ?? randomHex(8),
+    project: opts.project,
     slug: normalized.name,
     digest: normalized.digest,
     size: normalized.zip.byteLength,
@@ -94,6 +103,7 @@ export async function publishBytes(
   });
 
   return {
+    project: opts.project,
     slug: normalized.name,
     version,
     digest: normalized.digest,

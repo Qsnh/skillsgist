@@ -1,11 +1,11 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
-import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
+import { addMembership, countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import {
-  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, login, ORIGIN, postForm, publishMarkdown, resetDb,
-  seedAndLogin, seedUser,
+  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown,
+  resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
@@ -27,7 +27,13 @@ describe("/setup", () => {
     expect(res.headers.get("Set-Cookie")).toContain("sg_session=");
     const user = await getUserByUsername(env.DB, "root");
     expect(user?.role).toBe("admin");
-    expect(user?.install_key).toMatch(/^[a-f0-9]{32}$/);
+    const membership = await env.DB.prepare(
+      "SELECT role, install_key FROM memberships WHERE project = 'default' AND user_id = ?",
+    )
+      .bind(user!.id)
+      .first<{ role: string; install_key: string }>();
+    expect(membership?.role).toBe("admin");
+    expect(membership?.install_key).toMatch(/^[a-f0-9]{32}$/);
   });
 
   it("rejects passwords shorter than 12 characters", async () => {
@@ -110,14 +116,14 @@ describe("/me", () => {
     const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
     const html = await res.text();
     expect(html).toContain(`npx skills add`);
-    expect(html).toContain(`/i/${user.install_key}`);
+    expect(html).toContain(`/i/${await installKey(user.id)}`);
   });
 
   it("puts exactly the install command inside the copyable element", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
     const text = /<code class="cf-command-text">([^<]*)<\/code>/.exec(html)?.[1];
-    expect(text).toBe(`npx skills add ${ORIGIN}/i/${user.install_key}`);
+    expect(text).toBe(`npx skills add ${ORIGIN}/i/${await installKey(user.id)}`);
   });
 
   it("gives the one-time api token its own copy button", async () => {
@@ -127,12 +133,48 @@ describe("/me", () => {
     expect(html).toMatch(/<code class="cf-command-text">sgt_[a-f0-9]{32}<\/code>/);
   });
 
-  it("rotates the install key", async () => {
+  it("shows one install command per project, labelled with its name", async () => {
+    await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postForm("/me/install-key", cookie);
+    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    const commands = [...html.matchAll(/<code class="cf-command-text">([^<]*)<\/code>/g)].map((m) => m[1]);
+    expect(commands).toEqual([
+      `npx skills add ${ORIGIN}/i/${await installKey(user.id)}`,
+      `npx skills add ${ORIGIN}/i/${"b".repeat(32)}`,
+    ]);
+    expect([...html.matchAll(/<p class="cf-key-project">([^<]*)<\/p>/g)].map((m) => m[1])).toEqual(["Default", "Team B"]);
+    expect(html).toContain('action="/me/install-key/default"');
+    expect(html).toContain('action="/me/install-key/team-b"');
+  });
+
+  it("tells a user in no project that they have no install key", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice", project: null });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    expect(html).toContain("You are not in a project yet, so you have no install keys. Ask an admin to add you to one.");
+    expect(html).not.toContain("npx skills add");
+  });
+
+  it("resets one project's install key and leaves the others alone", async () => {
+    await seedProject("team-b", "Team B");
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    const before = await installKey(user.id);
+
+    const res = await postForm("/me/install-key/default", cookie);
     expect(res.status).toBe(302);
-    const after = await getUserByUsername(env.DB, "alice");
-    expect(after?.install_key).not.toBe(user.install_key);
+    expect(res.headers.get("Location")).toBe("/me");
+    const after = await installKey(user.id);
+    expect(after).toMatch(/^[a-f0-9]{32}$/);
+    expect(after).not.toBe(before);
+    expect(await installKey(user.id, "team-b")).toBe("b".repeat(32));
+  });
+
+  it("404s a reset for a project the user is not in", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    expect((await postForm("/me/install-key/team-b", cookie)).status).toBe(404);
+    expect((await postForm("/me/install-key/nope", cookie)).status).toBe(404);
   });
 
   it("issues an api token once and stores only its hash", async () => {
@@ -276,6 +318,10 @@ describe("/admin/users", () => {
     expect(res.headers.get("Location")).toBe("/admin/users");
     const carol = await getUserByUsername(env.DB, "carol");
     expect(carol?.role).toBe("member");
+    const joined = await env.DB.prepare("SELECT COUNT(*) AS n FROM memberships WHERE user_id = ?")
+      .bind(carol!.id)
+      .first<{ n: number }>();
+    expect(joined?.n).toBe(0);
   });
 
   it("links to the add-user page instead of embedding the form", async () => {
@@ -529,7 +575,7 @@ describe("/admin/users/:id/*", () => {
       const res = await postForm(`/admin/users/${root.id}/delete`, rootCookie);
       expect(res.status).toBe(400);
       expect(await getUserByUsername(env.DB, "root")).not.toBeNull();
-      expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(root.id);
+      expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(root.id);
     });
 
     it("refuses to let an admin demote themselves even when a second admin exists", async () => {
@@ -551,37 +597,34 @@ describe("/admin/users/:id/*", () => {
       const res = await postForm(`/admin/users/${root.id}/delete`, secondCookie);
       expect(res.status).toBe(302);
       expect(await getUserByUsername(env.DB, "root")).toBeNull();
-      expect((await getSkill(env.DB, "demo-skill"))?.owner_id).toBe(second.user.id);
+      expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(second.user.id);
     });
   });
 
-  // The immediate revocation lever: install_key is a plaintext capability
-  // granting read access to every private skill, and rotating it must
-  // invalidate the old one at the exact endpoint the CLI uses.
-  it("rotating a member's install key revokes the old one and enables the new one", async () => {
+  it("rotating a member's install keys revokes every old one and enables the new ones", async () => {
+    await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "dave", role: "member" });
-    const oldKey = target.user.install_key;
-
-    const before = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
-    expect(before.status).toBe(200);
+    await addMembership(env.DB, { project: "team-b", userId: target.user.id, role: "member", installKey: "b".repeat(32) });
+    const keys = () => Promise.all([installKey(target.user.id), installKey(target.user.id, "team-b")]);
+    const index = (key: string) => SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`);
+    const oldKeys = await keys();
+    for (const key of oldKeys) expect((await index(key)).status).toBe(200);
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
     const html = await (await follow(res, cookie)).text();
     expect(html).toMatch(
-      /<p class="cf-done" role="status">[\s\S]*?Install key rotated for dave\. The old install command no longer works\.<\/span><\/p>/,
+      /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old install commands no longer work\.<\/span><\/p>/,
     );
 
-    const afterOld = await SELF.fetch(`${ORIGIN}/i/${oldKey}/.well-known/agent-skills/index.json`);
-    expect(afterOld.status).toBe(404);
-
-    const updated = await getUserByUsername(env.DB, "dave");
-    expect(updated?.install_key).not.toBe(oldKey);
-    const afterNew = await SELF.fetch(
-      `${ORIGIN}/i/${updated!.install_key}/.well-known/agent-skills/index.json`,
-    );
-    expect(afterNew.status).toBe(200);
+    for (const key of oldKeys) expect((await index(key)).status).toBe(404);
+    const newKeys = await keys();
+    expect(newKeys[0]).not.toBe(newKeys[1]);
+    for (const key of newKeys) {
+      expect(oldKeys).not.toContain(key);
+      expect((await index(key)).status).toBe(200);
+    }
   });
 
   it("reassigns owned skills and version authorship to the acting admin on delete, and keeps the skill downloadable", async () => {
@@ -595,12 +638,12 @@ describe("/admin/users/:id/*", () => {
     expect(res.status).toBe(302);
 
     expect(await getUserByUsername(env.DB, "erin")).toBeNull();
-    const skill = await getSkill(env.DB, "demo-skill");
+    const skill = await getSkill(env.DB, "default", "demo-skill");
     expect(skill?.owner_id).toBe(root.id);
-    const version = await getVersion(env.DB, "demo-skill", 1);
+    const version = await getVersion(env.DB, "default", "demo-skill", 1);
     expect(version?.author_id).toBe(root.id);
 
-    const download = await SELF.fetch(`${ORIGIN}/s/demo-skill/download`, { headers: { Cookie: rootCookie } });
+    const download = await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill/download`, { headers: { Cookie: rootCookie } });
     expect(download.status).toBe(200);
   });
 });

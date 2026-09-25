@@ -1,6 +1,8 @@
+import { membershipIn } from "../auth";
 import { Form } from "../csrf";
+import { skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel } from "./layout";
-import type { SkillRow, UserRow, VersionRow, VersionSummary } from "../db/queries";
+import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
   return props.value === "public" ? (
@@ -16,28 +18,25 @@ function Visibility(props: { value: SkillRow["visibility"] }) {
   );
 }
 
-function installBase(origin: string, user: UserRow | null) {
-  return user ? `${origin}/i/${user.install_key}` : origin;
-}
-
 const COUNT = new Intl.NumberFormat("en-US");
 
 function Downloads(props: { count: number }) {
   return <span>{`${COUNT.format(props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
 }
 
-function SkillCell(props: { skill: SkillRow & { author: string }; showDownloads: boolean }) {
+function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
   const s = props.skill;
   return (
     <li class="cf-cell">
       <div class="cf-cell-head">
         <h3 class="cf-cell-title">
-          <a href={`/s/${s.slug}`} class="cf-cell-link">{s.slug}</a>
+          <a href={skillPath(s)} class="cf-cell-link">{s.slug}</a>
         </h3>
         <Visibility value={s.visibility} />
       </div>
       <p class="cf-cell-desc">{s.description}</p>
       <p class="cf-cell-meta">
+        <span>{s.project_name}</span>
         <span>{s.author}</span>
         {props.showDownloads ? <Downloads count={s.download_count} /> : null}
         <span class="cf-cell-arrow">
@@ -50,7 +49,7 @@ function SkillCell(props: { skill: SkillRow & { author: string }; showDownloads:
   );
 }
 
-function EmptyRegistry(props: { user: UserRow | null; q: string }) {
+function EmptyRegistry(props: { user: Viewer | null; q: string }) {
   if (props.q) {
     return (
       <div class="cf-empty">
@@ -81,33 +80,71 @@ function EmptyRegistry(props: { user: UserRow | null; q: string }) {
   );
 }
 
+function heroTitle(user: Viewer | null): string {
+  const count = user?.memberships.length ?? 0;
+  if (count === 0) return "Install public skills with one command";
+  return count === 1 ? "Install your project's skills with one command" : "Install a project's skills with one command";
+}
+
+function HeroLede(props: { user: Viewer | null }) {
+  if (!props.user) {
+    return (
+      <p class="cf-hero-lede">
+        This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Public skills need no key.{" "}
+        <a href="/login">Sign in</a> to see the private ones.
+      </p>
+    );
+  }
+  const memberships = props.user.memberships;
+  if (memberships.length === 0) {
+    return (
+      <p class="cf-hero-lede">
+        You are not in a project yet, so you have no install key. Public skills install with the address below.
+      </p>
+    );
+  }
+  return (
+    <p class="cf-hero-lede">
+      {memberships.length === 1
+        ? `The address carries your install key for ${memberships[0].project_name}, so its private skills come along.`
+        : "Each address carries your install key for one project and installs only that project's skills."}{" "}
+      A key can only install; reset it from <a href="/me">your account</a> if it leaks.
+    </p>
+  );
+}
+
+function HeroCommands(props: { user: Viewer | null; origin: string }) {
+  const memberships = props.user?.memberships ?? [];
+  if (memberships.length === 0) return <CodeBlock raised>npx skills add {props.origin}</CodeBlock>;
+  if (memberships.length === 1) {
+    return <CodeBlock raised>npx skills add {`${props.origin}/i/${memberships[0].install_key}`}</CodeBlock>;
+  }
+  return (
+    <ul class="cf-hero-commands">
+      {memberships.map((m) => (
+        <li class="cf-hero-command">
+          <span class="cf-hero-command-project">{m.project_name}</span>
+          <CodeBlock raised>npx skills add {`${props.origin}/i/${m.install_key}`}</CodeBlock>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function IndexPage(props: {
-  user: UserRow | null;
-  skills: Array<SkillRow & { author: string }>;
+  user: Viewer | null;
+  skills: ListedSkill[];
   q: string;
   origin: string;
 }) {
-  const address = installBase(props.origin, props.user);
   const count = props.skills.length;
   return (
     <Layout title="Skills" user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
         <div class="cf-hero-inner cf-hero-center">
-          <h1 id="hero-title" class="cf-hero-title">
-            {props.user ? "Install every skill with one command" : "Install public skills with one command"}
-          </h1>
-          {props.user ? (
-            <p class="cf-hero-lede">
-              The address carries your install key, so private skills come along. The key can only install; reset it
-              from <a href="/me">your account</a> if it leaks.
-            </p>
-          ) : (
-            <p class="cf-hero-lede">
-              This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Public skills need no key.{" "}
-              <a href="/login">Sign in</a> to see the private ones.
-            </p>
-          )}
-          <CodeBlock raised>npx skills add {address}</CodeBlock>
+          <h1 id="hero-title" class="cf-hero-title">{heroTitle(props.user)}</h1>
+          <HeroLede user={props.user} />
+          <HeroCommands user={props.user} origin={props.origin} />
           <form method="get" action="/" class="cf-search" role="search">
             <Icon>
               <circle cx="7" cy="7" r="4.5" />
@@ -231,8 +268,8 @@ function TrashIcon() {
 }
 
 export function SkillPage(props: {
-  user: UserRow | null;
-  skill: SkillRow & { author: string };
+  user: Viewer | null;
+  skill: ListedSkill;
   version: VersionRow;
   versions: VersionSummary[];
   origin: string;
@@ -241,7 +278,13 @@ export function SkillPage(props: {
   const { skill, version } = props;
   const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
   const isLatest = version.version === skill.latest_version;
-  const url = `${installBase(props.origin, props.user)}/.well-known/agent-skills/${skill.slug}`;
+  const path = skillPath(skill);
+  const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
+  const base = membership
+    ? `${props.origin}/i/${membership.install_key}`
+    : skill.visibility === "public"
+      ? `${props.origin}/p/${skill.project}`
+      : null;
   return (
     <Layout title={skill.slug} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
@@ -249,23 +292,30 @@ export function SkillPage(props: {
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{skill.slug}</h1>
           <p class="cf-hero-lede">{version.description}</p>
           <p class="cf-hero-meta">
+            <a href={`/p/${skill.project}`} class="cf-hero-project">{skill.project_name}</a>
             <span>{skill.author}</span>
             <Visibility value={skill.visibility} />
             {props.user ? <Downloads count={skill.download_count} /> : null}
           </p>
-          <CodeBlock raised>npx skills add {url}</CodeBlock>
-          {props.user ? (
-            <p class="cf-hero-note">This command carries your install key, so it can install private skills.</p>
+          {base ? <CodeBlock raised>npx skills add {`${base}/.well-known/agent-skills/${skill.slug}`}</CodeBlock> : null}
+          {membership ? (
+            <p class="cf-hero-note">
+              This command carries your install key for {skill.project_name}, so it can install private skills.
+            </p>
           ) : skill.visibility === "public" ? (
             <p class="cf-hero-note">This is the public address. Anyone can use it.</p>
-          ) : null}
+          ) : (
+            <p class="cf-hero-note">
+              You are not a member of {skill.project_name}, so you have no install key for this skill.
+            </p>
+          )}
         </div>
       </section>
 
       <div class="cf-page cf-guides cf-skill-body">
         <div class="cf-frame cf-toolbar">
           <div class="cf-toolbar-group">
-            <a href={`/s/${skill.slug}/download`} class="cf-btn cf-btn-ghost">
+            <a href={`${path}/download`} class="cf-btn cf-btn-ghost">
               <DownloadIcon />
               Download zip
             </a>
@@ -273,16 +323,16 @@ export function SkillPage(props: {
           {props.canManage ? (
             <>
               <div class="cf-toolbar-group">
-                <a href={`/s/${skill.slug}/edit`} class="cf-btn cf-btn-ghost">
+                <a href={`${path}/edit`} class="cf-btn cf-btn-ghost">
                   <EditIcon />
                   Edit SKILL.md
                 </a>
-                <a href={`/s/${skill.slug}/upload`} class="cf-btn cf-btn-ghost">
+                <a href={`${path}/upload`} class="cf-btn cf-btn-ghost">
                   <UploadIcon />
                   Upload an archive
                 </a>
               </div>
-              <Form action={`/s/${skill.slug}/visibility`} class="cf-toolbar-group">
+              <Form action={`${path}/visibility`} class="cf-toolbar-group">
                 {skill.visibility === "public" ? (
                   <Button variant="ghost">
                     <LockIcon />
@@ -297,7 +347,7 @@ export function SkillPage(props: {
               </Form>
               <div class="cf-toolbar-group cf-toolbar-end">
                 <ConfirmDelete
-                  action={`/s/${skill.slug}/delete`}
+                  action={`${path}/delete`}
                   label="Delete"
                   confirm={`Delete ${skill.slug}`}
                   ghost
@@ -319,7 +369,7 @@ export function SkillPage(props: {
               ) : (
                 <span class="cf-panel-meta">
                   Viewing v{version.version}.{" "}
-                  <a href={`/s/${skill.slug}`} class="cf-link">Go to the latest, v{skill.latest_version}</a>
+                  <a href={path} class="cf-link">Go to the latest, v{skill.latest_version}</a>
                 </span>
               )}
             </header>
@@ -356,7 +406,7 @@ export function SkillPage(props: {
                   return (
                     <li class={current ? "cf-row cf-row-current" : "cf-row"}>
                       <a
-                        href={`/s/${skill.slug}?v=${v.version}`}
+                        href={`${path}?v=${v.version}`}
                         class="cf-row-main cf-row-version"
                         aria-current={current ? "page" : undefined}
                       >
@@ -364,7 +414,7 @@ export function SkillPage(props: {
                       </a>
                       <time class="cf-row-meta" datetime={at.toISOString()}>{STAMP.format(at)}</time>
                       <a
-                        href={`/s/${skill.slug}/v/${v.version}/download`}
+                        href={`${path}/v/${v.version}/download`}
                         class="cf-icon-link"
                         aria-label={`Download v${v.version}`}
                       >

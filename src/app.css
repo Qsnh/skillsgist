@@ -1473,6 +1473,57 @@
     color: var(--color-cf-ember);
   }
 
+  .cf-hero-project {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .cf-hero-project:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .cf-hero-commands {
+    display: grid;
+    gap: 18px;
+    width: 100%;
+    max-width: 820px;
+    margin-top: 36px;
+    text-align: left;
+  }
+
+  .cf-hero-command {
+    display: grid;
+    gap: 8px;
+  }
+
+  .cf-hero-command-project {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--color-cf-ember);
+  }
+
+  .cf-hero-commands .cf-command-raised {
+    margin-top: 0;
+  }
+
+  .cf-key {
+    display: grid;
+    gap: 10px;
+  }
+
+  .cf-key + .cf-key {
+    padding-top: 14px;
+    border-top: 1px solid var(--color-cf-line);
+  }
+
+  .cf-key-project {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
   .cf-skill-body {
     padding-block: 32px 112px;
   }
