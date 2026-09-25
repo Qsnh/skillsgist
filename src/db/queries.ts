@@ -496,3 +496,108 @@ export function getPublicArtifact(db: D1Database, slug: string, digest: string):
     .bind(slug, digest)
     .first<ArtifactRef>();
 }
+
+export interface ProjectSummary extends ProjectRow {
+  skills: number;
+  members: number;
+  role: "admin" | "member" | null;
+}
+
+export async function listProjectSummaries(db: D1Database, userId: string, all: boolean): Promise<ProjectSummary[]> {
+  const where = all ? "" : "WHERE EXISTS (SELECT 1 FROM memberships m WHERE m.project = p.slug AND m.user_id = ?1)";
+  const { results } = await db
+    .prepare(
+      `SELECT p.slug, p.name, p.created_at,
+              (SELECT COUNT(*) FROM skills s WHERE s.project = p.slug) AS skills,
+              (SELECT COUNT(*) FROM memberships m WHERE m.project = p.slug) AS members,
+              (SELECT m.role FROM memberships m WHERE m.project = p.slug AND m.user_id = ?1) AS role
+       FROM projects p ${where}
+       ORDER BY p.name`,
+    )
+    .bind(userId)
+    .all<ProjectSummary>();
+  return results;
+}
+
+export async function projectNameTaken(db: D1Database, name: string, except: string | null): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT 1 AS taken FROM projects WHERE name = ?1 AND (?2 IS NULL OR slug <> ?2)")
+    .bind(name, except)
+    .first<{ taken: number }>();
+  return row !== null;
+}
+
+export async function renameProject(db: D1Database, slug: string, name: string): Promise<void> {
+  await db.prepare("UPDATE projects SET name = ? WHERE slug = ?").bind(name, slug).run();
+}
+
+export async function deleteProject(db: D1Database, slug: string): Promise<boolean> {
+  const [, project] = await db.batch([
+    db
+      .prepare("DELETE FROM memberships WHERE project = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
+      .bind(slug),
+    db
+      .prepare("DELETE FROM projects WHERE slug = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
+      .bind(slug),
+  ]);
+  return project.meta.changes === 1;
+}
+
+export type Member = Pick<MembershipRow, "user_id" | "role"> & { username: string };
+
+const MEMBER_SQL =
+  "SELECT m.user_id, m.role, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?";
+
+export async function listMembers(db: D1Database, project: string): Promise<Member[]> {
+  const { results } = await db.prepare(`${MEMBER_SQL} ORDER BY u.username`).bind(project).all<Member>();
+  return results;
+}
+
+export function getMember(db: D1Database, project: string, userId: string): Promise<Member | null> {
+  return db.prepare(`${MEMBER_SQL} AND m.user_id = ?`).bind(project, userId).first<Member>();
+}
+
+export async function listNonMembers(
+  db: D1Database,
+  project: string,
+): Promise<Array<Pick<UserRow, "id" | "username">>> {
+  const { results } = await db
+    .prepare(
+      `SELECT u.id, u.username FROM users u
+       WHERE NOT EXISTS (SELECT 1 FROM memberships m WHERE m.project = ? AND m.user_id = u.id)
+       ORDER BY u.username`,
+    )
+    .bind(project)
+    .all<Pick<UserRow, "id" | "username">>();
+  return results;
+}
+
+export async function updateMembershipRole(
+  db: D1Database,
+  project: string,
+  userId: string,
+  role: "admin" | "member",
+): Promise<void> {
+  await db
+    .prepare("UPDATE memberships SET role = ? WHERE project = ? AND user_id = ?")
+    .bind(role, project, userId)
+    .run();
+}
+
+export async function deleteMembership(db: D1Database, project: string, userId: string): Promise<void> {
+  await db.prepare("DELETE FROM memberships WHERE project = ? AND user_id = ?").bind(project, userId).run();
+}
+
+export async function listProjectSkills(
+  db: D1Database,
+  project: string,
+  publicOnly: boolean,
+): Promise<Array<Pick<SkillRow, "slug" | "visibility">>> {
+  const { results } = await db
+    .prepare(
+      `SELECT slug, visibility FROM skills WHERE project = ?${publicOnly ? " AND visibility = 'public'" : ""} ORDER BY slug`,
+    )
+    .bind(project)
+    .all<Pick<SkillRow, "slug" | "visibility">>();
+  return results;
+}

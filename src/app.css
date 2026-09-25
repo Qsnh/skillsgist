@@ -1524,6 +1524,11 @@
     font-weight: 500;
   }
 
+  .cf-member {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
   .cf-skill-body {
     padding-block: 32px 112px;
   }

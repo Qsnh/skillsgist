@@ -49,6 +49,12 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /admin/users/:id/api-token/revoke": ({ userId }) => `/admin/users/${userId}/api-token/revoke`,
   "POST /admin/users/:id/delete": ({ userId }) => `/admin/users/${userId}/delete`,
   "POST /new": () => "/new",
+  "POST /projects/new": () => "/projects/new",
+  "POST /p/:project/rename": () => "/p/default/rename",
+  "POST /p/:project/members": () => "/p/default/members",
+  "POST /p/:project/members/:userId/role": ({ userId }) => `/p/default/members/${userId}/role`,
+  "POST /p/:project/members/:userId/remove": ({ userId }) => `/p/default/members/${userId}/remove`,
+  "POST /p/:project/delete": () => "/p/default/delete",
   "POST /p/:project/s/:slug/edit": ({ slug }) => `/p/default/s/${slug}/edit`,
   "POST /p/:project/s/:slug/upload": ({ slug }) => `/p/default/s/${slug}/upload`,
   "POST /p/:project/s/:slug/visibility": ({ slug }) => `/p/default/s/${slug}/visibility`,
@@ -82,6 +88,9 @@ const READ_ONLY_GETS = new Set([
   "GET /admin/users",
   "GET /admin/users/new",
   "GET /new",
+  "GET /projects",
+  "GET /projects/new",
+  "GET /p/:project",
   "GET /p/:project/s/:slug/edit",
   "GET /p/:project/s/:slug/upload",
   "GET /",
@@ -368,7 +377,7 @@ describe("rendered forms", () => {
 
     for (const path of [
       "/", "/p/default/s/demo-skill", "/me", "/admin/users", "/admin/users/new", "/new", "/p/default/s/demo-skill/edit",
-      "/p/default/s/demo-skill/upload",
+      "/p/default/s/demo-skill/upload", "/projects", "/projects/new", "/p/default",
     ]) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
       const forms = postFormsIn(html);

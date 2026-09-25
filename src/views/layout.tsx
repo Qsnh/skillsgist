@@ -38,6 +38,7 @@ function AccountMenu(props: { user: UserRow }) {
       </summary>
       <div class="cf-menu-panel">
         <a href="/me" class="cf-menu-item">Account</a>
+        <a href="/projects" class="cf-menu-item">Projects</a>
         {props.user.role === "admin" ? <a href="/admin/users" class="cf-menu-item">Users</a> : null}
         <Form action="/logout">
           <button type="submit" class="cf-menu-item">Sign out</button>

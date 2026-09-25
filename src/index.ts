@@ -3,6 +3,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
 import { API_PREFIX, csrfToken } from "./csrf";
+import { projectsRoutes } from "./routes/projects";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
 import { skillsRoutes } from "./routes/skills";
@@ -27,6 +28,7 @@ app.get("/healthz", (c) => c.text("ok"));
 app.route("/", registryRoutes);
 app.route("/", usersRoutes);
 app.route("/", publishRoutes);
+app.route("/", projectsRoutes);
 app.route("/", skillsRoutes);
 
 app.onError((err, c) => {

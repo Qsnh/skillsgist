@@ -49,7 +49,7 @@ export function LoginPage(props: { error?: string }) {
   );
 }
 
-function RoleLabel(props: { role: UserRow["role"] }) {
+export function RoleLabel(props: { role: UserRow["role"] }) {
   return <span class={props.role === "admin" ? "cf-vis cf-vis-public" : "cf-vis cf-vis-private"}>{props.role}</span>;
 }
 
