@@ -24,7 +24,6 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 - Edit `SKILL.md` in the browser while the skill's other files carry over unchanged
 - Immutable, numbered versions; every version stays viewable and downloadable, and republishing an older version's content rolls back
 - Content-addressed artifacts, so the CLI can verify every download against its digest
-- A download count on every skill, shown to signed-in users. Each archive the CLI or a browser downloads adds one; index fetches and page views do not. `npx skills add` pointed at a whole index downloads every skill it lists, even the ones it does not install, so each of them counts once
 - Rendered `SKILL.md` pages with a file list and version history
 - Search across skill names, descriptions and body text
 - Per-user install keys that can only install, and API tokens for publishing from CI
@@ -216,7 +215,7 @@ flowchart LR
   worker --> r2[("R2<br/>one zip per version")]
 ```
 
-The Worker renders every page on the server and serves the discovery index the CLI reads. D1 holds accounts, skills, versions, download counts and the search text. R2 holds one zip per version, addressed by the digest the index hands to the CLI.
+The Worker renders every page on the server and serves the discovery index the CLI reads. D1 holds accounts, skills, versions and the search text. R2 holds one zip per version, addressed by the digest the index hands to the CLI.
 
 ```
 src/
