@@ -70,4 +70,43 @@ describe("queries", () => {
     expect(keys).toEqual(["skills/demo/1.zip"]);
     expect(await q.getSkill(env.DB, "demo")).toBeNull();
   });
+
+  it("counts downloads without touching updated_at", async () => {
+    await seedU1();
+    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
+    const before = await q.getSkill(env.DB, "demo");
+    expect(before?.download_count).toBe(0);
+
+    await q.incrementDownloads(env.DB, "demo");
+    await q.incrementDownloads(env.DB, "demo");
+
+    const after = await q.getSkill(env.DB, "demo");
+    expect(after?.download_count).toBe(2);
+    expect(after?.updated_at).toBe(before?.updated_at);
+  });
+
+  it("keeps the download count when a new version is published", async () => {
+    await seedU1();
+    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
+    await q.incrementDownloads(env.DB, "demo");
+    await q.insertVersion(env.DB, {
+      ...base, slug: "demo", authorId: "u1", visibility: "private",
+      digest: "sha256:" + "b".repeat(64),
+    });
+    expect((await q.getSkill(env.DB, "demo"))?.download_count).toBe(1);
+  });
+
+  it("starts from zero when a deleted skill is published again", async () => {
+    await seedU1();
+    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
+    await q.incrementDownloads(env.DB, "demo");
+    await q.deleteSkill(env.DB, "demo");
+    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
+    expect((await q.getSkill(env.DB, "demo"))?.download_count).toBe(0);
+  });
+
+  it("ignores a download for a slug that does not exist", async () => {
+    await expect(q.incrementDownloads(env.DB, "gone")).resolves.toBeUndefined();
+    expect(await q.getSkill(env.DB, "gone")).toBeNull();
+  });
 });
