@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zipAttachment } from "../artifact";
+import { serveDownload } from "../artifact";
 import { canManage, canView, currentUser, requireManagedSkill, requireUser } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
@@ -63,7 +63,7 @@ async function download(c: Ctx, slug: string, versionNumber: number | null) {
   const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return c.notFound();
 
-  return zipAttachment(object, slug, artifact.visibility === "public");
+  return serveDownload(c, object, slug, artifact.visibility === "public");
 }
 
 skillsRoutes.get("/s/:slug/download", (c) => download(c, c.req.param("slug"), null));

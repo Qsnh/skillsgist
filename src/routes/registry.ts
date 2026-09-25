@@ -1,9 +1,8 @@
 import { Hono } from "hono";
-import { digestFromArtifactFile, zipAttachment } from "../artifact";
+import { digestFromArtifactFile, serveDownload } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
 import { getArtifactByDigest, getUserByInstallKey, listPublishedForIndex } from "../db/queries";
 import { buildIndex } from "../registry";
-import type { Env } from "../types";
 
 export const registryRoutes = new Hono<AppEnv>();
 
@@ -21,7 +20,7 @@ function indexResponse(body: unknown): Response {
 }
 
 async function serveArtifact(
-  env: Env,
+  c: Ctx,
   slug: string,
   file: string,
   visible: "public" | "any",
@@ -29,14 +28,14 @@ async function serveArtifact(
   const digest = digestFromArtifactFile(file);
   if (!digest) return notFound();
 
-  const artifact = await getArtifactByDigest(env.DB, slug, digest);
+  const artifact = await getArtifactByDigest(c.env.DB, slug, digest);
   if (!artifact) return notFound();
   if (visible === "public" && artifact.visibility !== "public") return notFound();
 
-  const object = await env.BUCKET.get(artifact.r2_key);
+  const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return notFound();
 
-  return zipAttachment(object, slug, visible === "public");
+  return serveDownload(c, object, slug, visible === "public");
 }
 
 // Each index path minus its trailing `/index.json`, used to register the
@@ -85,13 +84,13 @@ for (const suffix of INDEX_SUFFIXES) {
 }
 
 registryRoutes.get("/d/:slug/:file", async (c) =>
-  serveArtifact(c.env, c.req.param("slug"), c.req.param("file"), "public"),
+  serveArtifact(c, c.req.param("slug"), c.req.param("file"), "public"),
 );
 
 registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
   const user = await getUserByInstallKey(c.env.DB, c.req.param("key"));
   if (!user) return c.notFound();
-  return serveArtifact(c.env, c.req.param("slug"), c.req.param("file"), "any");
+  return serveArtifact(c, c.req.param("slug"), c.req.param("file"), "any");
 });
 
 for (const prefix of INDEX_PREFIXES) {

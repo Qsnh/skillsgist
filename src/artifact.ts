@@ -1,3 +1,6 @@
+import type { Ctx } from "./auth";
+import { incrementDownloads } from "./db/queries";
+
 export const DIGEST_PREFIX = "sha256:";
 
 const ARTIFACT_FILE_RE = /^([a-f0-9]{64})\.zip$/;
@@ -13,7 +16,12 @@ export function digestFromArtifactFile(file: string): string | null {
   return match ? `${DIGEST_PREFIX}${match[1]}` : null;
 }
 
-export function zipAttachment(object: R2ObjectBody, slug: string, cacheable: boolean): Response {
+export function serveDownload(c: Ctx, object: R2ObjectBody, slug: string, cacheable: boolean): Response {
+  if (c.req.method === "GET") {
+    c.executionCtx.waitUntil(
+      incrementDownloads(c.env.DB, slug).catch((err) => console.error("download count write failed", err)),
+    );
+  }
   return new Response(object.body, {
     headers: {
       "Content-Type": "application/zip",
