@@ -715,6 +715,21 @@ describe("the project select on /new", () => {
     expect(await optionsOn(root.cookie)).toEqual([["default", "Default"], ["team-b", "Team B"]]);
   });
 
+  it("shows a disabled placeholder selected when a member in several projects has not chosen one yet", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    const html = await (await SELF.fetch(`${ORIGIN}/new`, { headers: { Cookie: alice.cookie } })).text();
+    expect(html).toContain('<option value="" disabled="" selected="">Choose a project</option>');
+  });
+
+  it("shows no placeholder when a member is in exactly one project", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    const html = await (await SELF.fetch(`${ORIGIN}/new`, { headers: { Cookie: alice.cookie } })).text();
+    expect(html).not.toContain("Choose a project");
+    expect(html).toContain('<option value="default">Default</option>');
+  });
+
   it("publishes into the chosen project and lands on the skill there", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });

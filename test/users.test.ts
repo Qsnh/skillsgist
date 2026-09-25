@@ -148,10 +148,19 @@ describe("/me", () => {
     expect(html).toContain('action="/me/install-key/team-b"');
   });
 
-  it("tells a user in no project that they have no install key", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice", project: null });
+  it("tells a member in no project that they have no install key", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice", role: "member", project: null });
     const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
     expect(html).toContain("You are not in a project yet, so you have no install keys. Ask an admin to add you to one.");
+    expect(html).not.toContain("npx skills add");
+  });
+
+  it("tells an instance admin in no project to add themselves to one instead", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
+    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    expect(html).toContain(
+      "You are not in a project yet, so you have no install keys. Add yourself to a project from its page to get one.",
+    );
     expect(html).not.toContain("npx skills add");
   });
 
@@ -401,6 +410,9 @@ describe("/admin/users/new", () => {
     expect(html).toContain('name="username"');
     expect(html).toContain('<a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>');
     expect(html).not.toContain('<option value="admin" selected="">');
+    expect(html).toContain(
+      "New accounts start in no project. Add them to a project from its page to give them access to its private skills.",
+    );
   });
 
   it("re-renders itself with the error and the typed values on a short password", async () => {

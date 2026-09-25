@@ -22,7 +22,11 @@ skillsRoutes.get("/", async (c) => {
   return page(c, <IndexPage user={user} skills={skills} q={q} origin={new URL(c.req.url).origin} />);
 });
 
-skillsRoutes.get("/s/:slug", (c) => c.redirect(skillPath({ project: DEFAULT_PROJECT, slug: c.req.param("slug") }), 301));
+skillsRoutes.get("/s/:slug", (c) => {
+  const slug = encodeURIComponent(c.req.param("slug"));
+  const query = new URL(c.req.url).search;
+  return c.redirect(`${skillPath({ project: DEFAULT_PROJECT, slug })}${query}`, 301);
+});
 
 skillsRoutes.get("/p/:project/s/:slug", async (c) => {
   const user = await currentUser(c);

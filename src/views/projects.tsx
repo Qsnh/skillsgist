@@ -1,5 +1,6 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
+import { DEFAULT_PROJECT } from "../db/queries";
 import type { Member, ProjectRow, ProjectSummary, SkillRow, UserRow, Viewer } from "../db/queries";
 import { skillPath } from "../paths";
 import { RoleLabel } from "./auth";
@@ -271,6 +272,9 @@ export function ProjectPage(props: {
                 >
                   Deleting removes {project.name} and every membership in it. Its members' install keys for it stop
                   working at once.
+                  {project.slug === DEFAULT_PROJECT
+                    ? " The old PUT /api/skills/<name> address and /s/<name> links publish into and point at this project, and stop working once it is deleted."
+                    : null}
                 </ConfirmDelete>
               ) : (
                 <p class="cf-hint">A project that still has skills cannot be deleted. Move or delete its skills first.</p>

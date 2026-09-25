@@ -285,6 +285,18 @@ describe("GET /p/:project/s/:slug", () => {
     expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill");
   });
 
+  it("keeps the original query string across the legacy redirect", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/s/demo-skill?v=2`, { redirect: "manual" });
+    expect(res.status).toBe(301);
+    expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill?v=2");
+  });
+
+  it("encodes an unsafe slug in the legacy redirect instead of erroring", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/s/a%0d%0ab`, { redirect: "manual" });
+    expect(res.status).toBe(301);
+    expect(res.headers.get("Location")).toBe("/p/default/s/a%0D%0Ab");
+  });
+
   it("hides a private skill from anonymous visitors", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, OTHER_MD, "private");

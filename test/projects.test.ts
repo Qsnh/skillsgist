@@ -299,6 +299,21 @@ describe("a demoted instance admin", () => {
 describe("deleting a project", () => {
   beforeEach(resetDb);
 
+  it("warns that deleting Default breaks the legacy bare-origin addresses", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await get("/p/default", cookie)).text();
+    expect(html).toContain(
+      "The old PUT /api/skills/&lt;name&gt; address and /s/&lt;name&gt; links publish into and point at this project, and stop working once it is deleted.",
+    );
+  });
+
+  it("does not warn about bare-origin addresses when deleting a non-default project", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await get("/p/team-b", cookie)).text();
+    expect(html).not.toContain("PUT /api/skills");
+  });
+
   it("refuses while the project has skills", async () => {
     const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publish(cookie, GOOD_MD, "private");

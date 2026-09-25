@@ -67,6 +67,9 @@ export function NewSkillPage(props: {
             </div>
             <div class="cf-form-section">
               <Select label="Project" name="project">
+                {props.projects.length > 1 ? (
+                  <option value="" disabled selected={!props.project}>Choose a project</option>
+                ) : null}
                 {props.projects.map((p) => (
                   <option value={p.slug} selected={p.slug === props.project}>{p.name}</option>
                 ))}

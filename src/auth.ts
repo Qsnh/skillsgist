@@ -212,14 +212,6 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
-/**
- * Load the skill named by `slug` and check the signed-in user may manage it.
- * Use behind `requireUser`, which is what puts the user on the context.
- *
- * `slug` is passed in rather than read off `c`: these helpers take the
- * pattern-less `Ctx`, where `c.req.param()` types as `string | undefined`,
- * and the caller has the value already.
- */
 export async function requireManagedSkill(
   c: Ctx,
   project: string,
