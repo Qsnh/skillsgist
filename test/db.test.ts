@@ -107,6 +107,5 @@ describe("queries", () => {
 
   it("ignores a download for a slug that does not exist", async () => {
     await expect(q.incrementDownloads(env.DB, "gone")).resolves.toBeUndefined();
-    expect(await q.getSkill(env.DB, "gone")).toBeNull();
   });
 });

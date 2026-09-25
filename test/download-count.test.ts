@@ -23,13 +23,15 @@ const downloads = async (slug: string) => (await getSkill(env.DB, slug))?.downlo
 describe("download counting", () => {
   beforeEach(resetDb);
 
-  it("counts a CLI download of a public skill", async () => {
+  it("counts a CLI download of a public skill, and only that skill", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
+    await publish(cookie, OTHER_MD, "public");
     const path = await artifactPath("/.well-known/agent-skills/index.json", "demo-skill");
 
     expect((await settle(path)).status).toBe(200);
     expect(await downloads("demo-skill")).toBe(1);
+    expect(await downloads("other-skill")).toBe(0);
   });
 
   it("counts a keyed CLI download of a private skill", async () => {
@@ -48,16 +50,6 @@ describe("download counting", () => {
     expect((await settle("/s/demo-skill/download")).status).toBe(200);
     expect((await settle("/s/demo-skill/v/1/download")).status).toBe(200);
     expect(await downloads("demo-skill")).toBe(2);
-  });
-
-  it("counts only the skill that was downloaded", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
-    await publish(cookie, OTHER_MD, "public");
-
-    await settle(await artifactPath("/.well-known/agent-skills/index.json", "demo-skill"));
-    expect(await downloads("demo-skill")).toBe(1);
-    expect(await downloads("other-skill")).toBe(0);
   });
 
   it("does not count index fetches or page views", async () => {

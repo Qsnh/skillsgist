@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { serveDownload } from "../artifact";
 import { canManage, canView, currentUser, requireManagedSkill, requireUser } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
@@ -9,6 +8,7 @@ import {
 } from "../db/queries";
 import { RENDER_REVISION, renderSkillMd } from "../render/markdown";
 import { IndexPage, SkillPage } from "../views/skills";
+import { serveDownload } from "./download";
 
 export const skillsRoutes = new Hono<AppEnv>();
 

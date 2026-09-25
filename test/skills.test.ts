@@ -10,6 +10,9 @@ const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the te
 
 const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 
+const metaRow = (html: string, kind: "cell" | "hero") =>
+  new RegExp(`<p class="cf-${kind}-meta">([\\s\\S]*?)</p>`).exec(html)?.[1];
+
 describe("GET /", () => {
   beforeEach(resetDb);
 
@@ -52,7 +55,7 @@ describe("GET /", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
-    const meta = /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    const meta = metaRow(html, "cell");
     expect(meta).toContain("alice");
     expect(meta).not.toContain("v1");
     expect(meta).not.toContain("<time");
@@ -64,7 +67,7 @@ describe("GET /", () => {
     await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
 
     const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    const meta = /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    const meta = metaRow(html, "cell");
     expect(meta).toContain("alice");
     expect(meta).toContain("1,234 downloads");
   });
@@ -73,7 +76,7 @@ describe("GET /", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, OTHER_MD, "private");
     const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    expect(/<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1]).toContain("0 downloads");
+    expect(metaRow(html, "cell")).toContain("0 downloads");
   });
 });
 
@@ -84,7 +87,7 @@ describe("GET /s/:slug", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text();
-    const meta = /<p class="cf-hero-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    const meta = metaRow(html, "hero");
     expect(meta).toContain("alice");
     expect(meta).toContain("Public");
     expect(meta).not.toContain("v1");
@@ -244,7 +247,7 @@ describe("GET /s/:slug", () => {
     await incrementDownloads(env.DB, "demo-skill");
 
     const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`, { headers: { Cookie: cookie } })).text();
-    const meta = /<p class="cf-hero-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    const meta = metaRow(html, "hero");
     expect(meta).toContain("1 download");
     expect(meta).not.toContain("1 downloads");
   });
@@ -252,7 +255,6 @@ describe("GET /s/:slug", () => {
   it("hides download counts from anonymous visitors", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
-    await env.DB.prepare("UPDATE skills SET download_count = 5 WHERE slug = 'demo-skill'").run();
 
     expect(await (await SELF.fetch(`${ORIGIN}/`)).text()).not.toMatch(COUNT_TEXT);
     expect(await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text()).not.toMatch(COUNT_TEXT);

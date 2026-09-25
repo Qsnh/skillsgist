@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { digestFromArtifactFile, serveDownload } from "../artifact";
+import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
 import { getArtifactByDigest, getUserByInstallKey, listPublishedForIndex } from "../db/queries";
 import { buildIndex } from "../registry";
+import { serveDownload } from "./download";
 
 export const registryRoutes = new Hono<AppEnv>();
 
