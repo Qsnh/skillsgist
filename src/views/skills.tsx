@@ -20,7 +20,13 @@ function installBase(origin: string, user: UserRow | null) {
   return user ? `${origin}/i/${user.install_key}` : origin;
 }
 
-function SkillCell(props: { skill: SkillRow & { author: string } }) {
+const COUNT = new Intl.NumberFormat("en-US");
+
+function Downloads(props: { count: number }) {
+  return <span>{`${COUNT.format(props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
+}
+
+function SkillCell(props: { skill: SkillRow & { author: string }; showDownloads: boolean }) {
   const s = props.skill;
   return (
     <li class="cf-cell">
@@ -33,6 +39,7 @@ function SkillCell(props: { skill: SkillRow & { author: string } }) {
       <p class="cf-cell-desc">{s.description}</p>
       <p class="cf-cell-meta">
         <span>{s.author}</span>
+        {props.showDownloads ? <Downloads count={s.download_count} /> : null}
         <span class="cf-cell-arrow">
           <Icon>
             <path d="M3 8h10M9 4l4 4-4 4" />
@@ -136,7 +143,7 @@ export function IndexPage(props: {
             <div class="cf-grid-clip">
               <ul class="cf-grid">
                 {props.skills.map((s) => (
-                  <SkillCell skill={s} />
+                  <SkillCell skill={s} showDownloads={props.user !== null} />
                 ))}
               </ul>
             </div>
@@ -244,6 +251,7 @@ export function SkillPage(props: {
           <p class="cf-hero-meta">
             <span>{skill.author}</span>
             <Visibility value={skill.visibility} />
+            {props.user ? <Downloads count={skill.download_count} /> : null}
           </p>
           <CodeBlock raised>npx skills add {url}</CodeBlock>
           {props.user ? (

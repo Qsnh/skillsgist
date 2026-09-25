@@ -1,12 +1,14 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getSkill, getVersion, updateVersionHtml } from "../src/db/queries";
+import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
 import { RENDER_REVISION } from "../src/render/markdown";
 import { env, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin } from "./helpers";
 
 // This file asserts the rendered body reaches the page, so it wants a heading
 // it can look for — the shared GOOD_MD's is just "# Demo".
 const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo Heading\n";
+
+const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 
 describe("GET /", () => {
   beforeEach(resetDb);
@@ -54,6 +56,24 @@ describe("GET /", () => {
     expect(meta).toContain("alice");
     expect(meta).not.toContain("v1");
     expect(meta).not.toContain("<time");
+  });
+
+  it("shows a grouped download count in a cell's meta row to a signed-in user", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
+
+    const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
+    const meta = /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    expect(meta).toContain("alice");
+    expect(meta).toContain("1,234 downloads");
+  });
+
+  it("shows zero downloads for a skill nobody has downloaded", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, OTHER_MD, "private");
+    const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
+    expect(/<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1]).toContain("0 downloads");
   });
 });
 
@@ -216,6 +236,26 @@ describe("GET /s/:slug", () => {
 
   it("returns 404 for an unknown slug", async () => {
     expect((await SELF.fetch(`${ORIGIN}/s/nope`)).status).toBe(404);
+  });
+
+  it("shows the download count in the hero meta to a signed-in user, singular for one", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "private");
+    await incrementDownloads(env.DB, "demo-skill");
+
+    const html = await (await SELF.fetch(`${ORIGIN}/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+    const meta = /<p class="cf-hero-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+    expect(meta).toContain("1 download");
+    expect(meta).not.toContain("1 downloads");
+  });
+
+  it("hides download counts from anonymous visitors", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    await env.DB.prepare("UPDATE skills SET download_count = 5 WHERE slug = 'demo-skill'").run();
+
+    expect(await (await SELF.fetch(`${ORIGIN}/`)).text()).not.toMatch(COUNT_TEXT);
+    expect(await (await SELF.fetch(`${ORIGIN}/s/demo-skill`)).text()).not.toMatch(COUNT_TEXT);
   });
 });
 
