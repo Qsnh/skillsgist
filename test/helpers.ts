@@ -1,6 +1,6 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
-import { createUser, getUserByUsername } from "../src/db/queries";
+import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 
@@ -52,24 +52,33 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM memberships"),
     env.DB.prepare("DELETE FROM versions"),
     env.DB.prepare("DELETE FROM skills"),
     env.DB.prepare("DELETE FROM users"),
+    env.DB.prepare("DELETE FROM projects"),
+    env.DB.prepare("INSERT INTO projects (slug, name, created_at) VALUES (?, 'Default', 0)").bind(DEFAULT_PROJECT),
   ]);
 }
 
-export async function seedUser(
-  opts: { username?: string; role?: "admin" | "member"; password?: string } = {},
-): Promise<{ user: UserRow; password: string }> {
+export interface SeedOptions {
+  username?: string;
+  role?: "admin" | "member";
+  password?: string;
+  project?: string | null;
+  projectRole?: "admin" | "member";
+}
+
+export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow; password: string }> {
   const username = opts.username ?? "alice";
   const password = opts.password ?? "a-very-long-password";
-  await createUser(env.DB, {
-    id: randomHex(8),
-    username,
-    passwordHash: await hashPassword(password),
-    role: opts.role ?? "admin",
-    installKey: randomHex(16),
-  });
+  const role = opts.role ?? "admin";
+  const id = randomHex(8);
+  await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
+  const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
+  if (project !== null) {
+    await addMembership(env.DB, { project, userId: id, role: opts.projectRole ?? role, installKey: randomHex(16) });
+  }
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
@@ -80,7 +89,7 @@ export async function seedUser(
  * between the two halves and silently log in as somebody else.
  */
 export async function seedAndLogin(
-  opts: { username?: string; role?: "admin" | "member"; password?: string } = {},
+  opts: SeedOptions = {},
 ): Promise<{ user: UserRow; password: string; cookie: string }> {
   const { user, password } = await seedUser(opts);
   return { user, password, cookie: await login(user.username, password) };
@@ -154,8 +163,9 @@ export async function publishMarkdown(
   cookie: string,
   markdown: string,
   visibility: "public" | "private",
+  project?: string,
 ): Promise<void> {
-  const res = await postMultipart("/new", cookie, { markdown, visibility });
+  const res = await postMultipart("/new", cookie, { markdown, visibility, ...(project ? { project } : {}) });
   if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
 }
 
@@ -169,7 +179,7 @@ export async function apiToken(cookie: string): Promise<string> {
 
 /** Seed a user, log them in, and mint an API token for them. */
 export async function seedAndToken(
-  opts: { username?: string; role?: "admin" | "member" } = {},
+  opts: SeedOptions = {},
 ): Promise<{ user: UserRow; cookie: string; token: string }> {
   const { user, cookie } = await seedAndLogin(opts);
   return { user, cookie, token: await apiToken(cookie) };
@@ -189,4 +199,14 @@ export async function follow(res: Response, cookie: string): Promise<Response> {
     headers: { Cookie: flashed ? `${cookie}; ${flashed}` : cookie },
     redirect: "manual",
   });
+}
+
+export const seedProject = (slug: string, name: string = slug) => createProject(env.DB, { slug, name });
+
+export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
+  const row = await env.DB.prepare("SELECT install_key FROM memberships WHERE project = ? AND user_id = ?")
+    .bind(project, userId)
+    .first<{ install_key: string }>();
+  if (!row) throw new Error(`${userId} is not a member of ${project}`);
+  return row.install_key;
 }
