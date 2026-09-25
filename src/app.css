@@ -1545,6 +1545,10 @@
     row-gap: 8px;
   }
 
+  .cf-member .cf-row-main {
+    min-width: max-content;
+  }
+
   .cf-skill-body {
     padding-block: 32px 112px;
   }
@@ -2091,6 +2095,10 @@
       margin: 6px -8px -8px;
       border-top: 1px dashed var(--color-cf-line-strong);
       border-left: 0;
+    }
+
+    .cf-move {
+      position: static;
     }
   }
 
