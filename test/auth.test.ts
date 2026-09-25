@@ -12,7 +12,7 @@ const user = (over: Partial<UserRow> = {}): UserRow => ({
 
 const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
   slug: "demo", description: "d", visibility: "private", owner_id: "u1",
-  latest_version: 1, created_at: 0, updated_at: 0, ...over,
+  latest_version: 1, download_count: 0, created_at: 0, updated_at: 0, ...over,
 });
 
 describe("password hashing", () => {

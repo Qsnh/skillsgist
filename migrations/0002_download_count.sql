@@ -1,0 +1,1 @@
+ALTER TABLE skills ADD COLUMN download_count INTEGER NOT NULL DEFAULT 0;

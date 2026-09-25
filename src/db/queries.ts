@@ -15,6 +15,7 @@ export interface SkillRow {
   visibility: "public" | "private";
   owner_id: string;
   latest_version: number;
+  download_count: number;
   created_at: number;
   updated_at: number;
 }
@@ -256,6 +257,13 @@ export async function setVisibility(
   await db
     .prepare("UPDATE skills SET visibility = ?, updated_at = ? WHERE slug = ?")
     .bind(visibility, Date.now(), slug)
+    .run();
+}
+
+export async function incrementDownloads(db: D1Database, slug: string): Promise<void> {
+  await db
+    .prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = ?")
+    .bind(slug)
     .run();
 }
 
