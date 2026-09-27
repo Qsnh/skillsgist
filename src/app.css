@@ -1339,6 +1339,10 @@
     padding: 32px;
   }
 
+  .cf-auth-mark {
+    margin-bottom: 20px;
+  }
+
   .cf-auth-title {
     margin-bottom: 24px;
     font-size: 28px;

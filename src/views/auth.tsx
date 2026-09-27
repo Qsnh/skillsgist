@@ -9,6 +9,7 @@ function AuthCard(props: { title: string; error?: string; children?: unknown }) 
   return (
     <div class="cf-auth">
       <div class="cf-frame cf-auth-card">
+        <img src="/logo.png" width="48" height="48" alt="" class="cf-auth-mark" />
         <h1 class="cf-auth-title">{props.title}</h1>
         <Alert message={props.error} />
         {props.children}
