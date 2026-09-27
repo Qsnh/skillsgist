@@ -5,6 +5,7 @@ import { decodeBase64, encodeBase64 } from "hono/utils/encode";
 import { getSkill, getViewer, getViewerByApiTokenHash, listProjects } from "./db/queries";
 import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
 import { sha256Hex, toHex } from "./hash";
+import { messages } from "./i18n";
 import type { Env } from "./types";
 
 /**
@@ -235,7 +236,7 @@ export async function requireManagedSkill(
 export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   const user = await currentUser(c);
   if (!user) return c.redirect("/login", 302);
-  if (user.role !== "admin") return c.text("Admins only", 403);
+  if (user.role !== "admin") return c.text(messages(c).users.adminsOnly, 403);
   c.set("user", user);
   return next();
 };

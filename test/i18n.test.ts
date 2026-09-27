@@ -7,7 +7,7 @@ import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { GOOD_MD, ORIGIN, resetDb, seedAndLogin, seedWithSkills } from "./helpers";
+import { follow, GOOD_MD, ORIGIN, postForm, resetDb, seedAndLogin, seedUser, seedWithSkills } from "./helpers";
 
 const fetchIn = (path: string, headers: Record<string, string> = {}) =>
   SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
@@ -128,5 +128,47 @@ describe("dates, counts and script labels", () => {
     const { cookie } = await seedAndLogin({ role: "admin" });
     const html = await htmlIn("/admin/users", { Cookie: withLang(cookie, "zh-CN") });
     expect(html).toMatch(/\d{4}年\d{1,2}月\d{1,2}日/);
+  });
+});
+
+describe("sign-in, account and user administration", () => {
+  beforeEach(resetDb);
+
+  it("renders sign-in in Japanese and refuses a bad password in Japanese", async () => {
+    await seedUser({ username: "alice" });
+    expect(await htmlIn("/login", { "Accept-Language": "ja" })).toContain(ja.common.username);
+    const res = await SELF.fetch(`${ORIGIN}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, "Accept-Language": "ja" },
+      body: new URLSearchParams({ username: "alice", password: "wrong-password-123" }),
+      redirect: "manual",
+    });
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain(ja.auth.badCredentials);
+  });
+
+  it("carries a Chinese flash message through the cookie", async () => {
+    const { cookie, password } = await seedAndLogin({ username: "alice" });
+    const zh = withLang(cookie, "zh-CN");
+    const res = await postForm("/me/password", zh, { current: password, next: "another-long-password" });
+    expect(res.status).toBe(302);
+    expect(await (await follow(res, zh)).text()).toContain(zhCN.auth.passwordChanged);
+  });
+
+  it("labels an account's settings page and roles in Chinese", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: bob } = await seedUser({ username: "bob", role: "member" });
+    const html = await htmlIn(`/admin/users/${bob.id}`, { Cookie: withLang(cookie, "zh-CN") });
+    expect(html).toContain(zhCN.users.settingsTitle("bob"));
+    expect(html).toContain(`<span class="cf-vis cf-vis-private">${zhCN.common.roles.member}</span>`);
+    expect(html).toContain(zhCN.users.promote);
+    expect(html).toContain(zhCN.users.installKeysHint("bob", 1));
+  });
+
+  it("refuses a member at an admin page in Japanese", async () => {
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const res = await fetchIn("/admin/users", { Cookie: withLang(cookie, "ja") });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(ja.users.adminsOnly);
   });
 });
