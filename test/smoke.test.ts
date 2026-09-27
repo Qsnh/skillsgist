@@ -26,7 +26,7 @@ it("does not set a CSP header on a JSON response", async () => {
 // Quirks mode would change the box model out from under Tailwind (see
 // src/views/layout.tsx). Every page goes through the same Layout, so
 // asserting one is enough to pin it.
-it("renders pages through the shared Layout: a doctype, same-origin deferred scripts, no Registry tag or discovery link", async () => {
+it("renders pages through the shared Layout: a doctype, same-origin deferred scripts, the mark, no Registry tag or discovery link", async () => {
   const html = await (await get("/login")).text();
   expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="en">/);
   expect(html).toContain(`<script src="/copy.js" defer=""></script>`);
@@ -34,4 +34,18 @@ it("renders pages through the shared Layout: a doctype, same-origin deferred scr
   expect(html).not.toContain(`<span class="cf-tag cf-nav-tag">`);
   expect(html).not.toContain("Public discovery index");
   expect(html).toContain(`<a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>`);
+  expect(html).toContain(`<link rel="icon" type="image/png" href="/favicon.png"/>`);
+  expect(html).toContain(`<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>`);
+  expect(html).toContain(
+    `<a href="/" class="cf-wordmark"><img src="/logo.png" width="24" height="24" alt="" class="cf-wordmark-mark"/>skillsgist</a>`,
+  );
+  expect(html).toContain(
+    `<a href="/" class="cf-footer-mark"><img src="/logo.png" width="18" height="18" alt="" class="cf-wordmark-mark"/>skillsgist</a>`,
+  );
+  expect(html).toContain(`<meta property="og:title" content="Sign in · skillsgist"/>`);
+  expect(html).toContain(`<meta property="og:image" content="http://localhost/og.png"/>`);
+  expect(html).toContain(`<meta name="twitter:card" content="summary_large_image"/>`);
+  expect(html).toContain(
+    `<img src="/logo.png" width="48" height="48" alt="" class="cf-auth-mark"/><h1 class="cf-auth-title">Sign in</h1>`,
+  );
 });

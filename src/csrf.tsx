@@ -9,6 +9,8 @@ import { FlashContext, takeFlash } from "./flash";
 
 const CsrfContext = createContext<string>("");
 
+export const OriginContext = createContext<string>("");
+
 export function CsrfField() {
   const token = useContext(CsrfContext);
   if (!token) {
@@ -38,9 +40,11 @@ export async function page(
 ): Promise<Response> {
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
   return c.html(
-    <CsrfContext.Provider value={token ?? ""}>
-      <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
-    </CsrfContext.Provider>,
+    <OriginContext.Provider value={new URL(c.req.url).origin}>
+      <CsrfContext.Provider value={token ?? ""}>
+        <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
+      </CsrfContext.Provider>
+    </OriginContext.Provider>,
     status,
   );
 }

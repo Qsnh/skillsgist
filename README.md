@@ -1,3 +1,5 @@
+<img src="docs/images/logo.png" width="72" height="72" alt="">
+
 # skillsgist
 
 A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.
@@ -31,7 +33,7 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 - Admin and member roles for the instance and for each project, with account and project administration in the browser
 - Server-rendered pages that work without JavaScript, under a strict Content-Security-Policy
 
-![A skill page: the install command for one skill, actions, the rendered SKILL.md, its files and its versions](docs/images/skill.png)
+![A skill page: the install command for one skill, actions, the rendered SKILL.md, its details and its files](docs/images/skill.png)
 
 ## Deploy
 
