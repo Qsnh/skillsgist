@@ -24,19 +24,22 @@ function Downloads(props: { count: number }) {
   return <span>{`${COUNT.format(props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
 }
 
-function SkillCell(props: { skill: ListedSkill; showDownloads: boolean; showProject: boolean }) {
+function fullName(skill: ListedSkill) {
+  return `${skill.project_name}/${skill.slug}`;
+}
+
+function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
   const s = props.skill;
   return (
     <li class="cf-cell">
       <div class="cf-cell-head">
         <h3 class="cf-cell-title">
-          <a href={skillPath(s)} class="cf-cell-link">{s.slug}</a>
+          <a href={skillPath(s)} class="cf-cell-link">{fullName(s)}</a>
         </h3>
         <Visibility value={s.visibility} />
       </div>
       <p class="cf-cell-desc">{s.description}</p>
       <p class="cf-cell-meta">
-        {props.showProject ? <span>{s.project_name}</span> : null}
         <span>{s.author}</span>
         {props.showDownloads ? <Downloads count={s.download_count} /> : null}
         <span class="cf-cell-arrow">
@@ -131,7 +134,6 @@ export function SkillRegistry(props: {
   q: string;
   clearHref: string;
   showDownloads: boolean;
-  showProject: boolean;
   empty: unknown;
 }) {
   const count = props.skills.length;
@@ -152,7 +154,7 @@ export function SkillRegistry(props: {
           <div class="cf-grid-clip">
             <ul class="cf-grid">
               {props.skills.map((s) => (
-                <SkillCell skill={s} showDownloads={props.showDownloads} showProject={props.showProject} />
+                <SkillCell skill={s} showDownloads={props.showDownloads} />
               ))}
             </ul>
           </div>
@@ -182,7 +184,6 @@ export function IndexPage(props: {
         q={props.q}
         clearHref="/"
         showDownloads={props.user !== null}
-        showProject
         empty={<EmptyRegistry user={props.user} q={props.q} />}
       />
     </Layout>
@@ -320,10 +321,10 @@ export function SkillPage(props: {
       ? `${props.origin}/p/${skill.project}`
       : null;
   return (
-    <Layout title={skill.slug} user={props.user} bare>
+    <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
         <div class="cf-hero-inner cf-hero-start">
-          <h1 id="skill-title" class="cf-hero-title cf-skill-title">{skill.slug}</h1>
+          <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
           <p class="cf-hero-meta">
             <a href={`/p/${skill.project}`} class="cf-hero-project">{skill.project_name}</a>
@@ -332,17 +333,6 @@ export function SkillPage(props: {
             {props.user ? <Downloads count={skill.download_count} /> : null}
           </p>
           {base ? <CodeBlock raised>npx skills add {`${base}/.well-known/agent-skills/${skill.slug}`}</CodeBlock> : null}
-          {membership ? (
-            <p class="cf-hero-note">
-              This command carries your install key for {skill.project_name}, so it can install private skills.
-            </p>
-          ) : skill.visibility === "public" ? (
-            <p class="cf-hero-note">This is the public address. Anyone can use it.</p>
-          ) : (
-            <p class="cf-hero-note">
-              You are not a member of {skill.project_name}, so you have no install key for this skill.
-            </p>
-          )}
         </div>
       </section>
 

@@ -155,10 +155,12 @@ describe("/p/:project", () => {
     expect(html).not.toContain('action="/p/default/members"');
   });
 
-  it("leaves the project's name out of each cell and keeps the author", async () => {
+  it("titles each cell with the project's name and leaves it out of the meta row", async () => {
     const alice = await seedAndLogin({ username: "alice" });
     await publish(alice.cookie, GOOD_MD, "public");
-    const meta = cellMeta(await (await get("/p/default")).text());
+    const html = await (await get("/p/default")).text();
+    expect(html).toContain('<a href="/p/default/s/demo-skill" class="cf-cell-link">Default/demo-skill</a>');
+    const meta = cellMeta(html);
     expect(meta).toContain("<span>alice</span>");
     expect(meta).not.toContain("Default");
     expect(meta).not.toContain("download");

@@ -188,7 +188,6 @@ export function ProjectPage(props: {
         q={props.q}
         clearHref={path}
         showDownloads={user !== null}
-        showProject={false}
         empty={<EmptyProject project={project} q={props.q} />}
       />
     </Layout>

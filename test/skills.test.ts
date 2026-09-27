@@ -42,15 +42,27 @@ describe("GET /", () => {
     await publish(cookie, OTHER_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/?q=other`)).text();
     expect(html).toContain("other-skill");
-    expect(html).not.toContain(">demo-skill<");
+    expect(html).not.toContain(">Default/demo-skill<");
   });
 
-  it("shows only the project and the author in a cell's meta row", async () => {
+  it("titles each cell with its project's name and its own", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(bob.cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
+    expect(html).toContain('<a href="/p/default/s/demo-skill" class="cf-cell-link">Default/demo-skill</a>');
+    expect(html).toContain('<a href="/p/team-b/s/demo-skill" class="cf-cell-link">Team B/demo-skill</a>');
+  });
+
+  it("shows only the author in a cell's meta row", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
     const meta = metaRow(html, "cell");
-    expect(meta).toContain("<span>Default</span><span>alice</span>");
+    expect(meta).toContain("<span>alice</span>");
+    expect(meta).not.toContain("Default");
     expect(meta).not.toContain("v1");
     expect(meta).not.toContain("<time");
   });
@@ -228,7 +240,7 @@ describe("GET /p/:project/s/:slug", () => {
 
     const { url, html } = await installCommandOn("/p/default/s/other-skill", cookie);
     expect(url).toBe(`${ORIGIN}/i/${await installKey(user.id)}/.well-known/agent-skills/other-skill`);
-    expect(html).toContain("This command carries your install key for Default, so it can install private skills.");
+    expect(html).not.toContain("cf-hero-note");
 
     const res = await SELF.fetch(`${url}/.well-known/agent-skills/index.json`);
     expect(res.status).toBe(200);
@@ -245,7 +257,7 @@ describe("GET /p/:project/s/:slug", () => {
 
     const { url, html } = await installCommandOn("/p/default/s/demo-skill", bob.cookie);
     expect(url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
-    expect(html).toContain("This is the public address. Anyone can use it.");
+    expect(html).not.toContain("cf-hero-note");
   });
 
   it("shows no install command to an admin outside a private skill's project", async () => {
@@ -255,7 +267,7 @@ describe("GET /p/:project/s/:slug", () => {
 
     const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: root.cookie } })).text();
     expect(html).not.toContain("npx skills add");
-    expect(html).toContain("You are not a member of Default, so you have no install key for this skill.");
+    expect(html).not.toContain("cf-hero-note");
   });
 
   it("shows the project, linked, to everyone", async () => {
@@ -279,6 +291,9 @@ describe("GET /p/:project/s/:slug", () => {
     expect(ours).toContain("Demo Heading");
     expect(theirs).toContain("Team B Heading");
     expect(metaRow(theirs, "hero")).toContain("bob");
+    expect(ours).toContain('<h1 id="skill-title" class="cf-hero-title cf-skill-title">Default/demo-skill</h1>');
+    expect(theirs).toContain('<h1 id="skill-title" class="cf-hero-title cf-skill-title">Team B/demo-skill</h1>');
+    expect(theirs).toContain("<title>Team B/demo-skill · skillsgist</title>");
   });
 
   it("sends an old /s/<name> address to the skill in the default project", async () => {

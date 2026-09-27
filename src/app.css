@@ -1471,12 +1471,6 @@
     color: var(--color-cf-ember);
   }
 
-  .cf-hero-note {
-    margin-top: 12px;
-    font-size: 14px;
-    color: var(--color-cf-ember);
-  }
-
   .cf-hero-project {
     color: inherit;
     text-decoration: underline;
