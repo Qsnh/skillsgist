@@ -12,12 +12,11 @@ import {
 } from "../db/queries";
 import type { ProjectRow, Viewer } from "../db/queries";
 import { flash } from "../flash";
+import { messages } from "../i18n";
 import { projectPath, projectSettingsPath } from "../paths";
 import { NewProjectPage, ProjectPage, ProjectSettingsPage, ProjectsPage } from "../views/projects";
 
 const PROJECT_SLUG = /^[a-z0-9-]{2,32}$/;
-
-const NAME_ERROR = "Project names must be 1-64 characters on one line";
 
 function projectName(value: unknown): string | null {
   const name = typeof value === "string" ? value.trim() : "";
@@ -40,13 +39,14 @@ projectsRoutes.post("/projects/new", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const rawName = String(body.name ?? "");
   const slug = String(body.slug ?? "");
+  const t = messages(c);
   const fail = (error: string) =>
     page(c, <NewProjectPage user={c.get("user")} name={rawName} slug={slug} error={error} />, 400);
   const name = projectName(rawName);
-  if (!name) return fail(NAME_ERROR);
-  if (!PROJECT_SLUG.test(slug)) return fail("Addresses must be 2-32 lowercase letters, digits or hyphens");
-  if (await getProject(c.env.DB, slug)) return fail("That address is taken");
-  if (await projectNameTaken(c.env.DB, name, null)) return fail("That name is taken");
+  if (!name) return fail(t.projects.nameInvalid);
+  if (!PROJECT_SLUG.test(slug)) return fail(t.projects.addressInvalid);
+  if (await getProject(c.env.DB, slug)) return fail(t.projects.addressTaken);
+  if (await projectNameTaken(c.env.DB, name, null)) return fail(t.projects.nameTaken);
   await createProject(c.env.DB, { slug, name });
   return c.redirect(projectPath(slug), 302);
 });
@@ -83,7 +83,7 @@ async function projectGuard(
   const project = await getProject(c.env.DB, slug);
   if (!project || !canAccessProject(user, slug)) return { ok: false, response: await c.notFound() };
   if (manage && !canManageProject(user, slug)) {
-    return { ok: false, response: c.text("Only this project's admins can do that", 403) };
+    return { ok: false, response: c.text(messages(c).projects.adminsOnly, 403) };
   }
   return { ok: true, project };
 }
@@ -132,12 +132,13 @@ projectsRoutes.post("/p/:project/rename", requireUser, async (c) => {
   const { project } = guard;
   const body = await c.req.parseBody();
   const name = projectName(body.name);
-  if (!name) return settingsPage(c, c.get("user"), project, NAME_ERROR);
+  const t = messages(c);
+  if (!name) return settingsPage(c, c.get("user"), project, t.projects.nameInvalid);
   if (await projectNameTaken(c.env.DB, name, project.slug)) {
-    return settingsPage(c, c.get("user"), project, "That name is taken");
+    return settingsPage(c, c.get("user"), project, t.projects.nameTaken);
   }
   await renameProject(c.env.DB, project.slug, name);
-  await flash(c, `Renamed the project to ${name}.`);
+  await flash(c, t.projects.renamed(name));
   return c.redirect(projectSettingsPath(project.slug), 302);
 });
 
@@ -147,14 +148,15 @@ projectsRoutes.post("/p/:project/members", requireUser, async (c) => {
   const { project } = guard;
   const body = await c.req.parseBody();
   const target = await getUserById(c.env.DB, String(body.user ?? ""));
-  if (!target) return settingsPage(c, c.get("user"), project, "Choose an account to add");
+  const t = messages(c);
+  if (!target) return settingsPage(c, c.get("user"), project, t.projects.chooseAccount);
   if (await getMember(c.env.DB, project.slug, target.id)) {
-    return settingsPage(c, c.get("user"), project, `${target.username} is already a member`);
+    return settingsPage(c, c.get("user"), project, t.projects.alreadyMember(target.username));
   }
   await addMembership(c.env.DB, {
     project: project.slug, userId: target.id, role: roleOf(body.role), installKey: newInstallKey(),
   });
-  await flash(c, `Added ${target.username} to ${project.name}.`);
+  await flash(c, t.projects.added(target.username, project.name));
   return c.redirect(projectSettingsPath(project.slug), 302);
 });
 
@@ -175,7 +177,7 @@ projectsRoutes.post("/p/:project/members/:userId/remove", requireUser, async (c)
   const member = await getMember(c.env.DB, project.slug, c.req.param("userId"));
   if (!member) return c.notFound();
   await deleteMembership(c.env.DB, project.slug, member.user_id);
-  await flash(c, `Removed ${member.username} from ${project.name}. Their install key for it no longer works.`);
+  await flash(c, messages(c).projects.removed(member.username, project.name));
   const user = c.get("user");
   const stillSees = user.role === "admin" || member.user_id !== user.id;
   return c.redirect(stillSees ? projectSettingsPath(project.slug) : "/projects", 302);
@@ -185,8 +187,8 @@ projectsRoutes.post("/p/:project/delete", requireAdmin, async (c) => {
   const project = await getProject(c.env.DB, c.req.param("project"));
   if (!project) return c.notFound();
   if (!(await deleteProject(c.env.DB, project.slug))) {
-    return settingsPage(c, c.get("user"), project, `${project.name} still has skills. Move or delete them first.`);
+    return settingsPage(c, c.get("user"), project, messages(c).projects.stillHasSkills(project.name));
   }
-  await flash(c, `Deleted project ${project.name}.`);
+  await flash(c, messages(c).projects.deletedProject(project.name));
   return c.redirect("/projects", 302);
 });

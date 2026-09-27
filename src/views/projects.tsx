@@ -1,5 +1,6 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
+import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
 import { installBase, installKeyPath, projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
@@ -7,28 +8,27 @@ import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Selec
 import { NoMatches, NoSkillsYet, SearchForm, SkillRegistry } from "./skills";
 
 export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }) {
+  const t = useT();
   const admin = props.user.role === "admin";
   return (
-    <Layout title="Projects" user={props.user}>
+    <Layout title={t.layout.projects} user={props.user}>
       <PageHead
-        title="Projects"
+        title={t.layout.projects}
         compact
         aside={
           <>
             <span class="cf-count">{props.projects.length}</span>
-            {admin ? <a href="/projects/new" class="cf-btn cf-btn-outline cf-head-action">New project</a> : null}
+            {admin ? (
+              <a href="/projects/new" class="cf-btn cf-btn-outline cf-head-action">{t.projects.newProject}</a>
+            ) : null}
           </>
         }
       />
       {props.projects.length === 0 ? (
         <div class="cf-frame">
           <div class="cf-empty">
-            <p class="cf-empty-title">{admin ? "No projects yet." : "You are not in a project yet."}</p>
-            <p class="cf-empty-body">
-              {admin
-                ? "Every skill belongs to a project. Create one, then add people to it."
-                : "Ask an admin to add you to one. Until then you can see and install public skills only."}
-            </p>
+            <p class="cf-empty-title">{admin ? t.projects.noneAdmin : t.projects.noneMember}</p>
+            <p class="cf-empty-body">{admin ? t.projects.noneAdminBody : t.projects.noneMemberBody}</p>
           </div>
         </div>
       ) : (
@@ -36,21 +36,21 @@ export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }
           <table class="cf-table">
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Your role</th>
-                <th scope="col">Skills</th>
-                <th scope="col">Members</th>
+                <th scope="col">{t.projects.columns.name}</th>
+                <th scope="col">{t.projects.columns.yourRole}</th>
+                <th scope="col">{t.projects.columns.skills}</th>
+                <th scope="col">{t.projects.columns.members}</th>
               </tr>
             </thead>
             <tbody>
               {props.projects.map((p) => (
                 <tr>
-                  <td data-label="Name">
+                  <td data-label={t.projects.columns.name}>
                     <a href={projectSettingsPath(p.slug)} class="cf-link cf-user-name">{p.name}</a>
                   </td>
-                  <td data-label="Your role">{p.role ? <RoleLabel role={p.role} /> : "—"}</td>
-                  <td data-label="Skills" class="cf-table-date">{p.skills}</td>
-                  <td data-label="Members" class="cf-table-date">{p.members}</td>
+                  <td data-label={t.projects.columns.yourRole}>{p.role ? <RoleLabel role={p.role} /> : "—"}</td>
+                  <td data-label={t.projects.columns.skills} class="cf-table-date">{p.skills}</td>
+                  <td data-label={t.projects.columns.members} class="cf-table-date">{p.members}</td>
                 </tr>
               ))}
             </tbody>
@@ -62,32 +62,27 @@ export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }
 }
 
 export function NewProjectPage(props: { user: UserRow; name?: string; slug?: string; error?: string }) {
+  const t = useT();
   return (
-    <Layout title="New project" user={props.user}>
+    <Layout title={t.projects.newProject} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="New project" error={props.error} />
+        <PageHead title={t.projects.newProject} error={props.error} />
         <Form action="/projects/new" class="cf-frame cf-form">
           <div class="cf-form-section">
             <div class="cf-stack cf-stack-form">
+              <Field label={t.projects.name} name="name" value={props.name} autocomplete="off" hint={t.projects.nameHint} />
               <Field
-                label="Name"
-                name="name"
-                value={props.name}
-                autocomplete="off"
-                hint="Shown on every page. Up to 64 characters, and you can change it later."
-              />
-              <Field
-                label="Address"
+                label={t.projects.address}
                 name="slug"
                 value={props.slug}
                 autocomplete="off"
-                hint="Used in page, install and API addresses. Lowercase letters, digits and hyphens, 2-32 characters. It cannot be changed later."
+                hint={t.projects.addressHint}
               />
             </div>
           </div>
           <div class="cf-form-foot">
-            <Button>Create</Button>
-            <a href="/projects" class="cf-btn cf-btn-outline">Cancel</a>
+            <Button>{t.common.create}</Button>
+            <a href="/projects" class="cf-btn cf-btn-outline">{t.common.cancel}</a>
           </div>
         </Form>
       </div>
@@ -96,34 +91,19 @@ export function NewProjectPage(props: { user: UserRow; name?: string; slug?: str
 }
 
 function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPublicSkills: boolean }) {
+  const t = useT();
   const { user, project } = props;
-  const settings = <a href={projectSettingsPath(project.slug)}>Settings</a>;
+  const settings = <a href={projectSettingsPath(project.slug)}>{t.projects.settings}</a>;
   if (user && membershipIn(user, project.slug)) {
-    return (
-      <p class="cf-hero-lede">
-        This command carries your install key for {project.name}, so it installs every skill in it, private ones
-        included. Reset the key and see who is in the project under {settings}.
-      </p>
-    );
+    return <p class="cf-hero-lede">{t.projects.ledeMember(project.name, settings)}</p>;
   }
   if (user?.role === "admin") {
-    return (
-      <p class="cf-hero-lede">
-        You are not a member of {project.name}, so you have no install key for it.
-        {props.hasPublicSkills ? " The address below installs its public skills." : null} Add yourself under{" "}
-        {settings}.
-      </p>
-    );
+    return <p class="cf-hero-lede">{t.projects.ledeAdmin(project.name, props.hasPublicSkills, settings)}</p>;
   }
   return (
     <p class="cf-hero-lede">
-      Anyone can install the public skills of {project.name} with the address below.
-      {user ? null : (
-        <>
-          {" "}
-          <a href="/login">Sign in</a> to see its private ones if you are a member.
-        </>
-      )}
+      {t.projects.ledePublic(project.name)}
+      {user ? null : t.projects.ledeSignIn(<a href="/login">{t.layout.signIn}</a>)}
     </p>
   );
 }
@@ -178,40 +158,36 @@ export function ProjectSettingsPage(props: {
   canManage: boolean;
   error?: string;
 }) {
+  const t = useT();
   const { project } = props;
   const path = projectPath(project.slug);
   const membership = membershipIn(props.user, project.slug);
+  const title = t.projects.settingsTitle(project.name);
   return (
-    <Layout title={`${project.name} settings`} user={props.user}>
+    <Layout title={title} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title={`${project.name} settings`} error={props.error}>
-          The skills in this project are listed on <a href={path} class="cf-link">its page</a>.
+        <PageHead title={title} error={props.error}>
+          {t.projects.settingsLede(<a href={path} class="cf-link">{t.projects.itsPage}</a>)}
         </PageHead>
         <div class="cf-stack-lg">
-          <Panel title="Install this project's skills">
+          <Panel title={t.projects.installPanel}>
             {membership ? (
               <>
                 <CodeBlock>npx skills add {`${props.origin}${installKeyPath(membership.install_key)}`}</CodeBlock>
-                <p class="cf-hint">
-                  This key installs only {project.name}'s skills and can do nothing else: it cannot sign in, publish or
-                  delete. Reset it if you think it has leaked; the old command stops working at once.
-                </p>
+                <p class="cf-hint">{t.projects.installHint(project.name)}</p>
                 <Form action={`${path}/install-key`} class="cf-actions">
-                  <Button variant="outline">Reset install key</Button>
+                  <Button variant="outline">{t.projects.resetKey}</Button>
                 </Form>
               </>
             ) : (
-              <p class="cf-hint">
-                You are not a member of {project.name}, so you have no install key for it. Add yourself below to get
-                one.
-              </p>
+              <p class="cf-hint">{t.projects.notMemberHint(project.name)}</p>
             )}
           </Panel>
 
-          <Panel title="Members" aside={<span class="cf-count">{props.members.length}</span>} flush>
+          <Panel title={t.projects.members} aside={<span class="cf-count">{props.members.length}</span>} flush>
             {props.members.length === 0 ? (
               <div class="cf-panel-body">
-                <p class="cf-hint">No members yet.</p>
+                <p class="cf-hint">{t.projects.noMembers}</p>
               </div>
             ) : (
               <ul class="cf-rows">
@@ -219,24 +195,25 @@ export function ProjectSettingsPage(props: {
                   <li class="cf-row cf-member">
                     <span class="cf-row-main cf-user">
                       <span class="cf-user-name">{m.username}</span>
-                      {m.user_id === props.user.id ? <span class="cf-tag">You</span> : null}
+                      {m.user_id === props.user.id ? <span class="cf-tag">{t.common.you}</span> : null}
                     </span>
                     <RoleLabel role={m.role} />
                     {props.canManage ? (
                       <div class="cf-actions">
                         <Form action={`${path}/members/${m.user_id}/role`}>
                           <input type="hidden" name="role" value={m.role === "admin" ? "member" : "admin"} />
-                          <Button variant="outline" size="sm">{m.role === "admin" ? "Make member" : "Make admin"}</Button>
+                          <Button variant="outline" size="sm">
+                            {m.role === "admin" ? t.projects.makeMember : t.projects.makeAdmin}
+                          </Button>
                         </Form>
                         <ConfirmDelete
                           action={`${path}/members/${m.user_id}/remove`}
-                          label="Remove"
-                          confirm={`Remove ${m.username}`}
+                          label={t.projects.remove}
+                          confirm={t.projects.removeUser(m.username)}
                           size="sm"
                           name="remove-member"
                         >
-                          {m.username} loses access to {project.name}'s private skills, and their install key for it
-                          stops working at once.
+                          {t.projects.removeWarning(m.username, project.name)}
                         </ConfirmDelete>
                       </div>
                     ) : null}
@@ -247,55 +224,54 @@ export function ProjectSettingsPage(props: {
           </Panel>
 
           {props.canManage && props.candidates.length > 0 ? (
-            <Panel title="Add a member">
+            <Panel title={t.projects.addMember}>
               <Form action={`${path}/members`} class="cf-stack cf-stack-form">
-                <Select label="Account" name="user">
+                <Select label={t.projects.account} name="user">
                   {props.candidates.map((u) => (
                     <option value={u.id}>{u.username}</option>
                   ))}
                 </Select>
-                <Select label="Role in this project" name="role">
-                  <option value="member">member</option>
-                  <option value="admin">admin</option>
+                <Select label={t.projects.roleInProject} name="role">
+                  <option value="member">{t.common.roles.member}</option>
+                  <option value="admin">{t.common.roles.admin}</option>
                 </Select>
                 <div>
-                  <Button>Add</Button>
+                  <Button>{t.projects.add}</Button>
                 </div>
               </Form>
             </Panel>
           ) : null}
 
           {props.canManage ? (
-            <Panel title="Rename this project">
+            <Panel title={t.projects.renamePanel}>
               <Form action={`${path}/rename`} class="cf-stack cf-stack-form">
                 <Field
-                  label="Name"
+                  label={t.projects.name}
                   name="name"
                   value={project.name}
                   autocomplete="off"
-                  hint={`Up to 64 characters. The address, ${path}, stays the same.`}
+                  hint={t.projects.renameHint(path)}
                 />
                 <div>
-                  <Button>Save</Button>
+                  <Button>{t.common.save}</Button>
                 </div>
               </Form>
             </Panel>
           ) : null}
 
           {props.user.role === "admin" ? (
-            <Panel title="Delete this project">
+            <Panel title={t.projects.deletePanel}>
               {props.hasSkills ? (
-                <p class="cf-hint">A project that still has skills cannot be deleted. Move or delete its skills first.</p>
+                <p class="cf-hint">{t.projects.hasSkills}</p>
               ) : (
                 <div class="cf-actions">
                   <ConfirmDelete
                     action={`${path}/delete`}
-                    label="Delete project"
-                    confirm={`Delete ${project.name}`}
+                    label={t.projects.deleteProject}
+                    confirm={t.projects.deleteNamed(project.name)}
                     name="delete-project"
                   >
-                    Deleting removes {project.name} and every membership in it. Its members' install keys for it stop
-                    working at once.
+                    {t.projects.deleteWarning(project.name)}
                   </ConfirmDelete>
                 </div>
               )}

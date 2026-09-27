@@ -216,3 +216,32 @@ describe("registry and skill pages", () => {
     expect(await res.text()).toBe(zhCN.skills.notAllowed("delete"));
   });
 });
+
+describe("project pages", () => {
+  beforeEach(resetDb);
+
+  it("renders a member's project page in Japanese", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
+    const html = await htmlIn("/p/default", { Cookie: withLang(cookie, "ja") });
+    expect(html).toContain(`<a href="/p/default/settings">${ja.projects.settings}</a>`);
+    expect(html).toContain(ja.skills.noSkillsYet("Default"));
+  });
+
+  it("answers settings errors and flashes in Chinese", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const zh = withLang(cookie, "zh-CN");
+    const bad = await postForm("/p/default/rename", zh, { name: "" });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain(zhCN.projects.nameInvalid);
+    const ok = await postForm("/p/default/rename", zh, { name: "团队" });
+    expect(ok.status).toBe(302);
+    expect(await (await follow(ok, zh)).text()).toContain(zhCN.projects.renamed("团队"));
+  });
+
+  it("refuses a project member's admin action in Japanese", async () => {
+    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const res = await postForm("/p/default/rename", withLang(cookie, "ja"), { name: "X" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(ja.projects.adminsOnly);
+  });
+});
