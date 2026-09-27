@@ -24,31 +24,17 @@ describe("readZip", () => {
     expect(files.has("SKILL.md")).toBe(false);
   });
 
-  it("reads back what writeZip produced", async () => {
-    const enc = new TextEncoder();
-    const bytes = await writeZip([{ path: "SKILL.md", data: enc.encode("hello") }]);
-    const files = await readZip(bytes);
-    expect(dec.decode(files.get("SKILL.md"))).toBe("hello");
-  });
-
   it("rejects bytes that are not a zip", async () => {
     await expect(readZip(new Uint8Array([1, 2, 3, 4]))).rejects.toBeInstanceOf(ArchiveError);
   });
 
-  it("wraps a corrupt deflate stream as ArchiveError instead of leaking a raw exception", async () => {
+  it("reads back a deflated writeZip entry, and wraps a corrupt deflate stream as ArchiveError", async () => {
     const enc = new TextEncoder();
     const name = "data.txt";
     const nameLen = enc.encode(name).length;
-    // A highly repetitive payload guarantees writeZip picks method 8 (deflate).
     const compressible = enc.encode("a".repeat(500));
     const bytes = await writeZip([{ path: name, data: compressible }]);
-    // writeZip's layout for a single entry: [local header][compressed
-    // body][central directory entry][22-byte EOCD]. Compute the exact
-    // compressed-body span and smash only that (same length in, same length
-    // out) so the local header, central directory, and EOCD stay
-    // structurally valid — this isolates the failure to the inflate step
-    // itself, feeding DecompressionStream("deflate-raw") garbage instead of
-    // touching anything readZip parses before or after it.
+    expect((await readZip(bytes)).get(name)).toEqual(compressible);
     const localHeaderLen = 30 + nameLen;
     const centralEntryLen = 46 + nameLen;
     const bodyLen = bytes.length - localHeaderLen - centralEntryLen - 22;
@@ -59,14 +45,10 @@ describe("readZip", () => {
 });
 
 describe("readTarGz", () => {
-  it("reads a tarball whose entries carry a ./ prefix", async () => {
+  it("reads a tarball whose entries carry a ./ prefix, skipping directory entries", async () => {
     const files = await readTarGz(flatDotTarGz);
     expect([...files.keys()]).toContain("./SKILL.md");
     expect(dec.decode(files.get("./SKILL.md"))).toContain("name: demo-skill");
-  });
-
-  it("skips directory entries", async () => {
-    const files = await readTarGz(flatDotTarGz);
     for (const key of files.keys()) expect(key.endsWith("/")).toBe(false);
   });
 
@@ -75,50 +57,31 @@ describe("readTarGz", () => {
   });
 
   it("reads a tarball produced by bsdtar's own default compression (block-padded gzip)", async () => {
-    // `tar czf` on macOS is the single most standard command a user would
-    // run, and its block padding must not be rejected — see GZIP_TRAILER_LEN
-    // in src/skills/tar.ts.
     const files = await readTarGz(bsdtarPaddedTarGz);
-    expect([...files.keys()]).toContain("./SKILL.md");
+    expect([...files.keys()].sort()).toEqual(["./SKILL.md", "./references/api.md", "./scripts/run.sh"]);
     expect(dec.decode(files.get("./SKILL.md"))).toContain("name: demo-skill");
     expect(dec.decode(files.get("./references/api.md"))).toContain("API notes");
   });
 
   it("rejects genuinely corrupt gzip data (not just padding)", async () => {
-    // Valid gzip magic bytes, but otherwise random non-zero garbage — the
-    // padding probe must not mistake this for the bsdtar-padding case.
     const bad = new Uint8Array(300);
     bad[0] = 0x1f;
     bad[1] = 0x8b;
-    for (let i = 2; i < bad.length; i++) bad[i] = ((i * 37) % 256) || 1; // never 0x00
+    for (let i = 2; i < bad.length; i++) bad[i] = ((i * 37) % 256) || 1;
     await expect(readTarGz(bad)).rejects.toBeInstanceOf(ArchiveError);
   });
 });
 
 describe("gzipRetryLengths", () => {
-  // Asserts the two guarantees the function documents — never `data.length`,
-  // never a repeat — on the pure function rather than on CPU time, so an edit
-  // that reintroduces duplicate probing fails a test instead of merely
-  // burning ~10x the CPU on every corrupt upload.
-
-  it("returns no candidates when the buffer doesn't end in a zero byte", () => {
-    const garbage = new Uint8Array([1, 2, 3, 4, 5]);
-    expect(gzipRetryLengths(garbage)).toEqual([]);
-  });
-
-  it("never proposes the length that already failed, and never repeats a candidate", () => {
-    const withPadding = new Uint8Array([9, 9, 9, 0, 0, 0, 0, 0]);
-    const lengths = gzipRetryLengths(withPadding);
-    expect(lengths.length).toBeGreaterThan(0);
-    expect(lengths).not.toContain(withPadding.length);
+  it.each([
+    ["no trailing zero byte", new Uint8Array([1, 2, 3, 4, 5]), 0, 0],
+    ["a little padding", new Uint8Array([9, 9, 9, 0, 0, 0, 0, 0]), 1, 9],
+    ["huge padding", Uint8Array.from({ length: 10_000 }, (_, i) => (i === 0 ? 1 : 0)), 1, 9],
+  ])("proposes a bounded set of new, distinct lengths for %s", (_label, data, min, max) => {
+    const lengths = gzipRetryLengths(data);
+    expect(lengths.length).toBeGreaterThanOrEqual(min);
+    expect(lengths.length).toBeLessThanOrEqual(max);
+    expect(lengths).not.toContain(data.length);
     expect(new Set(lengths).size).toBe(lengths.length);
-  });
-
-  it("stays bounded no matter how much trailing padding there is", () => {
-    const hugePadding = new Uint8Array(10_000);
-    hugePadding[0] = 1;
-    const lengths = gzipRetryLengths(hugePadding);
-    expect(lengths.length).toBeLessThanOrEqual(9); // GZIP_TRAILER_LEN (8) + 1
-    expect(lengths).not.toContain(hugePadding.length);
   });
 });

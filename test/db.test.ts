@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as q from "../src/db/queries";
-import { env, resetDb } from "./helpers";
+import { env, joinProject, resetDb } from "./helpers";
 
-const seedU1 = () =>
-  q.createUser(env.DB, {
-    id: "u1", username: "alice", passwordHash: "h", role: "admin", installKey: "k1",
-  });
+const seedU1 = () => q.createUser(env.DB, { id: "u1", username: "alice", passwordHash: "h", role: "admin" });
+
+const digest = (c: string) => "sha256:" + c.repeat(64);
 
 const base = {
-  digest: "sha256:" + "a".repeat(64),
+  skillId: "s1",
+  project: q.DEFAULT_PROJECT,
+  slug: "demo",
+  digest: digest("a"),
   size: 100,
   name: "demo",
   description: "a demo skill",
@@ -16,96 +18,113 @@ const base = {
   html: "<p>body</p>",
   html_rev: 1,
   files: JSON.stringify([{ path: "SKILL.md", size: 10 }]),
+  authorId: "u1",
+  visibility: "private" as const,
 };
 
-describe("queries", () => {
+describe("accounts, projects and memberships", () => {
   beforeEach(resetDb);
 
-  it("counts users and round-trips one", async () => {
-    expect(await q.countUsers(env.DB)).toBe(0);
+  it("loads a viewer with their memberships and project names, and lists projects, ordered by name", async () => {
     await seedU1();
-    expect(await q.countUsers(env.DB)).toBe(1);
-    const byName = await q.getUserByUsername(env.DB, "alice");
-    expect(byName?.id).toBe("u1");
-    expect(await q.getUserByInstallKey(env.DB, "k1")).not.toBeNull();
-    expect(await q.getUserByInstallKey(env.DB, "nope")).toBeNull();
+    await q.createProject(env.DB, { slug: "aaa", name: "Zebra" });
+    await joinProject("u1", "aaa", "kz");
+    await joinProject("u1", q.DEFAULT_PROJECT, "kd");
+    const viewer = await q.getViewer(env.DB, "u1");
+    expect(viewer?.username).toBe("alice");
+    expect(viewer?.memberships.map((m) => [m.project, m.project_name, m.install_key])).toEqual([
+      ["default", "Default", "kd"],
+      ["aaa", "Zebra", "kz"],
+    ]);
+    expect(await q.getViewer(env.DB, "nobody")).toBeNull();
+    expect((await q.listProjects(env.DB)).map((p) => p.slug)).toEqual(["default", "aaa"]);
   });
 
-  it("allocates version numbers monotonically per slug", async () => {
-    await seedU1();
-    const v1 = await q.insertVersion(env.DB, {
-      ...base, slug: "demo", authorId: "u1", visibility: "private",
+  it("makes the first admin a member of the default project, once", async () => {
+    const first = { id: "u1", username: "root", passwordHash: "h", installKey: "k1" };
+    expect(await q.createFirstAdmin(env.DB, first)).toBe(true);
+    expect(await q.createFirstAdmin(env.DB, { ...first, id: "u2", username: "late", installKey: "k2" })).toBe(false);
+    expect(await q.getMembershipByInstallKey(env.DB, "k1")).toMatchObject({
+      project: "default", user_id: "u1", role: "member",
     });
-    const v2 = await q.insertVersion(env.DB, {
-      ...base, slug: "demo", authorId: "u1", visibility: "private",
-      digest: "sha256:" + "b".repeat(64),
-    });
-    expect(v1).toEqual({ version: 1, r2Key: "skills/demo/1.zip" });
-    expect(v2).toEqual({ version: 2, r2Key: "skills/demo/2.zip" });
-    // The key it returns is the key it recorded — publish.ts writes the R2
-    // object under exactly this, instead of re-deriving the string.
-    expect((await q.getVersion(env.DB, "demo", 2))?.r2_key).toBe(v2.r2Key);
-    const skill = await q.getSkill(env.DB, "demo");
-    expect(skill?.latest_version).toBe(2);
-    expect(await q.listVersions(env.DB, "demo")).toHaveLength(2);
+    expect(await q.getMembershipByInstallKey(env.DB, "k2")).toBeNull();
   });
 
-  it("hides private skills from the public index", async () => {
+  it("rotates nothing for a user in no project", async () => {
     await seedU1();
-    await q.insertVersion(env.DB, { ...base, slug: "secret", authorId: "u1", visibility: "private" });
-    await q.insertVersion(env.DB, {
-      ...base, slug: "shared", authorId: "u1", visibility: "public",
-      digest: "sha256:" + "c".repeat(64),
-    });
-    const pub = await q.listPublishedForIndex(env.DB, false);
-    expect(pub.map((s) => s.slug)).toEqual(["shared"]);
-    const all = await q.listPublishedForIndex(env.DB, true);
-    expect(all.map((s) => s.slug).sort()).toEqual(["secret", "shared"]);
+    await expect(q.rotateInstallKeys(env.DB, "u1", () => "x")).resolves.toBeUndefined();
   });
 
-  it("returns r2 keys when deleting a skill", async () => {
+  it("summarises the projects each account is in and the skills it owns", async () => {
     await seedU1();
-    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
-    const keys = await q.deleteSkill(env.DB, "demo");
-    expect(keys).toEqual(["skills/demo/1.zip"]);
-    expect(await q.getSkill(env.DB, "demo")).toBeNull();
+    await q.createUser(env.DB, { id: "u2", username: "bob", passwordHash: "h", role: "member" });
+    await q.createProject(env.DB, { slug: "team-b", name: "Team B" });
+    await joinProject("u1", q.DEFAULT_PROJECT, "k1");
+    await joinProject("u1", "team-b", "k2");
+    await q.insertVersion(env.DB, base);
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "other", name: "other" });
+    await q.insertVersion(env.DB, { ...base, authorId: "u2" });
+    expect((await q.listUserSummaries(env.DB)).map((u) => [u.username, u.projects, u.skills])).toEqual([
+      ["alice", 2, 2],
+      ["bob", 0, 0],
+    ]);
+    expect(await q.getUserSummary(env.DB, "u1")).not.toHaveProperty("password_hash");
+  });
+});
+
+describe("skills", () => {
+  beforeEach(async () => {
+    await resetDb();
+    await seedU1();
+    await q.createProject(env.DB, { slug: "team-b", name: "Team B" });
   });
 
-  it("counts downloads without touching updated_at", async () => {
-    await seedU1();
-    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
-    const before = await q.getSkill(env.DB, "demo");
+  it("allocates version numbers per skill and stores each under the skill's id", async () => {
+    const v1 = await q.insertVersion(env.DB, base);
+    const v2 = await q.insertVersion(env.DB, { ...base, digest: digest("b") });
+    expect(v1).toEqual({ version: 1, r2Key: "artifacts/s1/1.zip" });
+    expect(v2).toEqual({ version: 2, r2Key: "artifacts/s1/2.zip" });
+    expect((await q.getVersion(env.DB, "default", "demo", 2))?.r2_key).toBe(v2.r2Key);
+    const skill = await q.getSkill(env.DB, "default", "demo");
+    expect(skill).toMatchObject({ id: "s1", project: "default", slug: "demo", latest_version: 2 });
+    expect(await q.listVersions(env.DB, "default", "demo")).toHaveLength(2);
+  });
+
+  it("keeps a name in the narrowed root index while its other copies are private", async () => {
+    await q.insertVersion(env.DB, base);
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", visibility: "public" });
+    expect((await q.listPublishedForIndex(env.DB, { kind: "root" }, "demo")).map((s) => s.slug)).toEqual(["demo"]);
+  });
+
+  it("finds an artifact by digest only in its own project", async () => {
+    await q.insertVersion(env.DB, base);
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", digest: digest("b"), visibility: "public" });
+    expect((await q.getArtifactByDigest(env.DB, "team-b", "demo", digest("b")))?.r2_key).toBe("artifacts/s2/1.zip");
+    expect(await q.getArtifactByDigest(env.DB, "default", "demo", digest("b"))).toBeNull();
+  });
+
+  it("returns r2 keys when deleting a skill and leaves the same name in another project alone", async () => {
+    await q.insertVersion(env.DB, base);
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b" });
+    expect(await q.deleteSkill(env.DB, "default", "demo")).toEqual(["artifacts/s1/1.zip"]);
+    expect(await q.getSkill(env.DB, "default", "demo")).toBeNull();
+    expect(await q.getVersion(env.DB, "team-b", "demo", 1)).not.toBeNull();
+  });
+
+  it("counts downloads without touching updated_at, keeps the count across versions, and ignores a missing skill", async () => {
+    await q.insertVersion(env.DB, base);
+    const before = await q.getSkill(env.DB, "default", "demo");
     expect(before?.download_count).toBe(0);
 
-    await q.incrementDownloads(env.DB, "demo");
-    await q.incrementDownloads(env.DB, "demo");
+    await q.incrementDownloads(env.DB, "default", "demo");
+    await q.incrementDownloads(env.DB, "default", "demo");
 
-    const after = await q.getSkill(env.DB, "demo");
+    const after = await q.getSkill(env.DB, "default", "demo");
     expect(after?.download_count).toBe(2);
     expect(after?.updated_at).toBe(before?.updated_at);
-  });
 
-  it("keeps the download count when a new version is published", async () => {
-    await seedU1();
-    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
-    await q.incrementDownloads(env.DB, "demo");
-    await q.insertVersion(env.DB, {
-      ...base, slug: "demo", authorId: "u1", visibility: "private",
-      digest: "sha256:" + "b".repeat(64),
-    });
-    expect((await q.getSkill(env.DB, "demo"))?.download_count).toBe(1);
-  });
-
-  it("starts from zero when a deleted skill is published again", async () => {
-    await seedU1();
-    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
-    await q.incrementDownloads(env.DB, "demo");
-    await q.deleteSkill(env.DB, "demo");
-    await q.insertVersion(env.DB, { ...base, slug: "demo", authorId: "u1", visibility: "private" });
-    expect((await q.getSkill(env.DB, "demo"))?.download_count).toBe(0);
-  });
-
-  it("ignores a download for a slug that does not exist", async () => {
-    await expect(q.incrementDownloads(env.DB, "gone")).resolves.toBeUndefined();
+    await q.insertVersion(env.DB, { ...base, digest: digest("b") });
+    expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(2);
+    await expect(q.incrementDownloads(env.DB, "default", "gone")).resolves.toBeUndefined();
   });
 });

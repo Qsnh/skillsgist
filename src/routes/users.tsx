@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, newInstallKey, randomHex, requireAdmin, requireUser, roleOf,
   startSession, verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
@@ -8,12 +8,13 @@ import { page } from "../csrf";
 import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
-  getUserByUsername, listUsers, touchLogin, updateApiTokenHash, updateInstallKey, updatePassword,
+  getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
-import { LoginPage, MePage, NewUserPage, SetupPage, UsersPage } from "../views/auth";
+import { userSettingsPath } from "../paths";
+import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
 
@@ -22,11 +23,26 @@ const DUMMY_PASSWORD_HASH =
 
 export const usersRoutes = new Hono<AppEnv>();
 
-const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
+async function issueApiToken(db: D1Database, userId: string): Promise<{ token: string; hash: string }> {
+  const token = `sgt_${randomHex(16)}`;
+  const hash = await sha256Hex(token);
+  await updateApiTokenHash(db, userId, hash);
+  return { token, hash };
+}
 
-/** Re-render the user list with an error. */
-const usersError = async (c: Ctx, admin: UserRow, error: string) =>
-  page(c, <UsersPage user={admin} users={await listUsers(c.env.DB)} error={error} />, 400);
+const userSettings = async (
+  c: Ctx,
+  id: string,
+  extra: { error?: string; newToken?: string } = {},
+): Promise<Response> => {
+  const target = await getUserSummary(c.env.DB, id);
+  if (!target) return c.notFound();
+  return page(
+    c,
+    <UserSettingsPage user={c.get("user")} target={target} error={extra.error} newToken={extra.newToken} />,
+    extra.error ? 400 : undefined,
+  );
+};
 
 usersRoutes.get("/setup", async (c) => {
   if ((await countUsers(c.env.DB)) > 0) return c.notFound();
@@ -46,7 +62,7 @@ usersRoutes.post("/setup", async (c) => {
   }
   const id = randomHex(8);
   const inserted = await createFirstAdmin(c.env.DB, {
-    id, username, passwordHash: await hashPassword(password), installKey: randomHex(16),
+    id, username, passwordHash: await hashPassword(password), installKey: newInstallKey(),
   });
   if (!inserted) return c.notFound();
   await startSession(c, id);
@@ -71,24 +87,12 @@ usersRoutes.post("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/me", requireUser, async (c) =>
-  page(c, <MePage user={c.get("user")} origin={new URL(c.req.url).origin} />),
-);
-
-usersRoutes.post("/me/install-key", requireUser, async (c) => {
-  await updateInstallKey(c.env.DB, c.get("user").id, randomHex(16));
-  return c.redirect("/me", 302);
-});
+usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("user")} />));
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
-  const token = `sgt_${randomHex(16)}`;
-  const api_token_hash = await sha256Hex(token);
-  await updateApiTokenHash(c.env.DB, user.id, api_token_hash);
-  return page(
-    c,
-    <MePage user={{ ...user, api_token_hash }} origin={new URL(c.req.url).origin} newToken={token} />,
-  );
+  const { token, hash } = await issueApiToken(c.env.DB, user.id);
+  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />);
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -99,13 +103,12 @@ usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
 usersRoutes.post("/me/password", requireUser, async (c) => {
   const user = c.get("user");
   const body = await c.req.parseBody();
-  const origin = new URL(c.req.url).origin;
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} origin={origin} error="Current password is incorrect" />, 400);
+    return page(c, <MePage user={user} error="Current password is incorrect" />, 400);
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} origin={origin} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
+    return page(c, <MePage user={user} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   await flash(c, "Your password has been changed.");
@@ -113,7 +116,7 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
 });
 
 usersRoutes.get("/admin/users", requireAdmin, async (c) =>
-  page(c, <UsersPage user={c.get("user")} users={await listUsers(c.env.DB)} />),
+  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB)} />),
 );
 
 usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));
@@ -135,10 +138,11 @@ usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
     username,
     passwordHash: await hashPassword(password),
     role,
-    installKey: randomHex(16),
   });
   return c.redirect("/admin/users", 302);
 });
+
+usersRoutes.get("/admin/users/:id", requireAdmin, (c) => userSettings(c, c.req.param("id")));
 
 async function adminTarget(
   c: Ctx,
@@ -151,7 +155,7 @@ async function adminTarget(
   if (target.id === admin.id && !opts.allowSelf) {
     return {
       ok: false,
-      response: await usersError(c, admin, opts.selfError ?? "You cannot do this to your own account. Ask another admin."),
+      response: await userSettings(c, target.id, { error: opts.selfError ?? "You cannot do this to your own account. Ask another admin." }),
     };
   }
   return { ok: true, admin, target };
@@ -162,14 +166,14 @@ usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
     selfError: "You cannot change your own role. Ask another admin.",
   });
   if (!guard.ok) return guard.response;
-  const { admin, target } = guard;
+  const { target } = guard;
   const body = await c.req.parseBody();
   const role = roleOf(body.role);
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "You cannot demote the last admin");
+    return userSettings(c, target.id, { error: "You cannot demote the last admin" });
   }
   await updateUserRole(c.env.DB, target.id, role);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
@@ -178,26 +182,33 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return usersError(c, guard.admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    return userSettings(c, guard.target.id, { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
   await flash(c, `Password reset for ${guard.target.username}.`);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  await updateInstallKey(c.env.DB, guard.target.id, randomHex(16));
-  await flash(c, `Install key rotated for ${guard.target.username}. The old install command no longer works.`);
-  return c.redirect("/admin/users", 302);
+  await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
+  await flash(c, `Install keys rotated for ${guard.target.username}. The old install commands no longer work.`);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
+});
+
+usersRoutes.post("/admin/users/:id/api-token", requireAdmin, async (c) => {
+  const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
+  if (!guard.ok) return guard.response;
+  const { token } = await issueApiToken(c.env.DB, guard.target.id);
+  return userSettings(c, guard.target.id, { newToken: token });
 });
 
 usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateApiTokenHash(c.env.DB, guard.target.id, null);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
@@ -207,10 +218,11 @@ usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "You cannot delete the last admin");
+    return userSettings(c, target.id, { error: "You cannot delete the last admin" });
   }
   // Reassigns owner_id and author_id in the same batch as the delete; the
   // foreign keys make that mandatory — see deleteUserReassigning.
   await deleteUserReassigning(c.env.DB, target.id, admin.id);
+  await flash(c, `Deleted ${target.username}.`);
   return c.redirect("/admin/users", 302);
 });

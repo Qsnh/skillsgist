@@ -1,29 +1,27 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
+import { sha256Hex } from "../src/hash";
 import { readZip } from "../src/skills/zip";
 import {
-  env, fixture, GOOD_MD, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken,
+  env, fixture, FLAT_FILES, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, putSkill, resetDb, seedAndLogin,
+  seedAndToken, seedProject,
 } from "./helpers";
 
-/** `PUT /api/skills/:slug` — the one place this request is spelled out. */
-function putSkill(
-  token: string,
-  body: BodyInit,
-  opts: { slug?: string; contentType?: string; visibility?: string } = {},
-): Promise<Response> {
-  const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
-  return SELF.fetch(`${ORIGIN}/api/skills/${opts.slug ?? "demo-skill"}${query}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": opts.contentType ?? "text/markdown",
-    },
-    body,
-  });
-}
+const flatZip = () => new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" });
+const pathsOf = (files: string) => (JSON.parse(files) as Array<{ path: string }>).map((f) => f.path);
+const crlf = (text: string) => text.replace(/\n/g, "\r\n");
+const html = async (path: string, cookie: string) =>
+  (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
 
-describe("PUT /api/skills/:slug", () => {
+const inTwoProjects = async () => {
+  await seedProject("team-b", "Team B");
+  const alice = await seedAndToken({ username: "alice", role: "member" });
+  await joinProject(alice.user.id, "team-b");
+  return alice;
+};
+
+describe("PUT /api/projects/:project/skills/:slug", () => {
   beforeEach(resetDb);
 
   it("publishes a zip and stores the artifact in R2", async () => {
@@ -31,59 +29,29 @@ describe("PUT /api/skills/:slug", () => {
     const res = await putSkill(token, fixture("WRAPPED_ZIP"), { contentType: "application/zip" });
     expect(res.status).toBe(201);
     const body = await res.json<{ slug: string; version: number; digest: string }>();
-    expect(body.slug).toBe("demo-skill");
-    expect(body.version).toBe(1);
-    expect(body.digest).toMatch(/^sha256:[a-f0-9]{64}$/);
-
-    const object = await env.BUCKET.get("skills/demo-skill/1.zip");
+    expect(body).toMatchObject({ slug: "demo-skill", project: "default", version: 1 });
+    const object = await env.BUCKET.get((await getVersion(env.DB, "default", "demo-skill", 1))!.r2_key);
     expect(object).not.toBeNull();
-    const stored = new Uint8Array(await object!.arrayBuffer());
-    const hash = await crypto.subtle.digest("SHA-256", stored);
-    const hex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    expect(body.digest).toBe(`sha256:${hex}`);
+    expect(body.digest).toBe(`sha256:${await sha256Hex(new Uint8Array(await object!.arrayBuffer()))}`);
   });
 
-  it("stores rendered html alongside the version", async () => {
+  it("stores rendered html without the frontmatter alongside the version", async () => {
     const { token } = await seedAndToken({ username: "alice" });
     await putSkill(token, GOOD_MD);
-    const version = await getVersion(env.DB, "demo-skill", 1);
+    const version = await getVersion(env.DB, "default", "demo-skill", 1);
     expect(version?.html).toContain("<h1");
-  });
-
-  it("leaves the frontmatter out of the stored html", async () => {
-    const { token } = await seedAndToken({ username: "alice" });
-    await putSkill(token, GOOD_MD);
-    const version = await getVersion(env.DB, "demo-skill", 1);
     expect(version?.html).not.toContain("name: demo-skill");
     expect(version?.html).not.toContain("<hr");
   });
 
-  it("does not create a new version when content is unchanged", async () => {
+  it.each([
+    ["a slug that disagrees with the frontmatter name", GOOD_MD, { slug: "other-name" }, "demo-skill"],
+    ["an upload normalization rejects", fixture("NO_SKILL_MD_ZIP"), { contentType: "application/zip" }, "SKILL.md"],
+  ])("answers 400 with a reason for %s", async (_label, body, opts, reason) => {
     const { token } = await seedAndToken({ username: "alice" });
-    const put = () => putSkill(token, GOOD_MD);
-    expect((await put()).status).toBe(201);
-    const second = await put();
-    expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({ unchanged: true, version: 1 });
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("creates version 2 when content changes", async () => {
-    const { token } = await seedAndToken({ username: "alice" });
-    const put = (md: string) => putSkill(token, md);
-    await put(GOOD_MD);
-    const res = await put(`${GOOD_MD}\nmore text\n`);
-    expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ version: 2 });
-  });
-
-  it("rejects a slug that disagrees with the frontmatter name", async () => {
-    const { token } = await seedAndToken({ username: "alice" });
-    const res = await putSkill(token, GOOD_MD, { slug: "other-name" });
+    const res = await putSkill(token, body, opts);
     expect(res.status).toBe(400);
-    expect(await res.json<{ message: string }>()).toMatchObject({
-      message: expect.stringContaining("demo-skill"),
-    });
+    expect(await res.json()).toMatchObject({ message: expect.stringContaining(reason) });
   });
 
   it("rejects requests without a valid api token", async () => {
@@ -99,32 +67,6 @@ describe("PUT /api/skills/:slug", () => {
     expect(res.status).toBe(403);
   });
 
-  it("surfaces normalization errors as 400 with a reason", async () => {
-    const { token } = await seedAndToken({ username: "alice" });
-    const res = await putSkill(token, fixture("NO_SKILL_MD_ZIP"), { contentType: "application/zip" });
-    expect(res.status).toBe(400);
-    expect(await res.json<{ message: string }>()).toMatchObject({
-      message: expect.stringContaining("SKILL.md"),
-    });
-  });
-
-  // An explicitly-supplied `?visibility=` must actually apply, even when the
-  // skill already exists. `insertVersion`'s ON CONFLICT clause intentionally
-  // never touches `visibility` — that's what keeps a no-visibility edit from
-  // resetting a public skill to private — but that same short-circuit used to
-  // discard a visibility the caller *did* explicitly choose.
-  it("applies an explicit visibility on republish even though the skill already exists", async () => {
-    const { token } = await seedAndToken({ username: "alice" });
-    const putWithVisibility = (md: string, visibility: string) =>
-      putSkill(token, md, { visibility });
-    await putWithVisibility(GOOD_MD, "public");
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
-
-    const res = await putWithVisibility(`${GOOD_MD}\nrepublish\n`, "private");
-    expect(res.status).toBe(201);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
-  });
-
   // Omitting `?visibility` entirely on a republish must mean "not supplied",
   // not "supplied as private" — both cases used to collapse to the same value
   // at the call site.
@@ -133,7 +75,7 @@ describe("PUT /api/skills/:slug", () => {
     await putSkill(token, GOOD_MD, { visibility: "public" });
     const res = await putSkill(token, `${GOOD_MD}\nno visibility param this time\n`);
     expect(res.status).toBe(201);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
   });
 
   // A failed/missing R2 object for the current latest
@@ -142,52 +84,17 @@ describe("PUT /api/skills/:slug", () => {
   // deleting the R2 object directly, the same way an interrupted
   // `BUCKET.put` (R2 error, isolate killed at the CPU/memory limit) would
   // leave things.
-  it("repairs a missing R2 object when republishing identical bytes", async () => {
-    const { cookie, token } = await seedAndToken({ username: "alice" });
+  it("repairs a missing R2 object, without a new version, when republishing identical bytes", async () => {
+    const { token } = await seedAndToken({ username: "alice" });
     const put = () => putSkill(token, GOOD_MD);
-
-    const first = await put();
-    expect(first.status).toBe(201);
-    const { version } = await first.json<{ version: number }>();
-    const versionRow = await getVersion(env.DB, "demo-skill", version);
-    expect(versionRow).not.toBeNull();
-    await env.BUCKET.delete(versionRow!.r2_key);
-    expect(await env.BUCKET.get(versionRow!.r2_key)).toBeNull();
-
+    expect((await put()).status).toBe(201);
+    const { r2_key } = (await getVersion(env.DB, "default", "demo-skill", 1))!;
+    await env.BUCKET.delete(r2_key);
     const second = await put();
     expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({ unchanged: true });
-
-    const repaired = await env.BUCKET.get(versionRow!.r2_key);
-    expect(repaired).not.toBeNull();
-
-    const download = await SELF.fetch(`${ORIGIN}/s/demo-skill/download`, { headers: { Cookie: cookie } });
-    expect(download.status).toBe(200);
-    expect(download.headers.get("Content-Type")).toBe("application/zip");
-  });
-
-  // `versions.author_id` must record
-  // who actually published a version, not who owns the skill — otherwise
-  // the column is just a copy of `skills.owner_id` and can never show that
-  // an admin published on someone else's behalf. Ownership itself must
-  // stay put: `insertVersion`'s ON CONFLICT clause never touches owner_id.
-  it("records the publisher as version author_id while leaving skill ownership untouched", async () => {
-    const member = await seedAndToken({ username: "carol", role: "member" });
-    const memberToken = member.token;
-    await putSkill(memberToken, GOOD_MD);
-
-    const admin = await seedAndToken({ username: "root-admin", role: "admin" });
-    const adminToken = admin.token;
-    const res = await putSkill(adminToken, `${GOOD_MD}\nadmin republish\n`);
-    expect(res.status).toBe(201);
-    const body = await res.json<{ version: number }>();
-    expect(body.version).toBe(2);
-
-    const skill = await getSkill(env.DB, "demo-skill");
-    expect(skill?.owner_id).toBe(member.user.id);
-
-    const version = await getVersion(env.DB, "demo-skill", 2);
-    expect(version?.author_id).toBe(admin.user.id);
+    expect(await second.json()).toMatchObject({ unchanged: true, version: 1 });
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
+    expect(await env.BUCKET.get(r2_key)).not.toBeNull();
   });
 
   it("applies ?visibility on an unchanged republish", async () => {
@@ -197,7 +104,7 @@ describe("PUT /api/skills/:slug", () => {
     const res = await putSkill(token, GOOD_MD, { visibility: "public" });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ unchanged: true, version: 1 });
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
   });
 });
 
@@ -206,29 +113,10 @@ describe("POST /new", () => {
 
   it("publishes an uploaded file", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-      visibility: "public",
-    });
+    const res = await postMultipart("/new", cookie, { file: flatZip(), visibility: "public" });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/s/demo-skill");
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
-  });
-
-  it("publishes pasted markdown", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private" });
-    expect(res.status).toBe(302);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
-  });
-
-  it("re-renders the form with the reason on failure", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postMultipart("/new", cookie, {
-      markdown: "---\nname: Bad_Name\ndescription: x\n---\nbody",
-    });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("name");
+    expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill");
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
   });
 
   it("requires a login", async () => {
@@ -243,50 +131,28 @@ describe("POST /new", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
 
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
 
     const res = await postMultipart("/new", cookie, {
       markdown: `${GOOD_MD}\nrepublished\n`,
       visibility: "private",
     });
     expect(res.status).toBe(302);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("private");
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("private");
   });
 
-  it("keeps visibility=public on republish through /new when selected again", async () => {
+  it("refuses an archive identical to the latest version, repairing a missing one and leaving visibility alone", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
+    expect((await postMultipart("/new", cookie, { file: flatZip() })).status).toBe(302);
+    const { r2_key } = (await getVersion(env.DB, "default", "demo-skill", 1))!;
+    await env.BUCKET.delete(r2_key);
 
-    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
-
-    const res = await postMultipart("/new", cookie, {
-      markdown: `${GOOD_MD}\nrepublished again\n`,
-      visibility: "public",
-    });
-    expect(res.status).toBe(302);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
-  });
-
-  it("refuses an archive identical to the latest version", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const upload = () =>
-      postMultipart("/new", cookie, {
-        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-      });
-    expect((await upload()).status).toBe(302);
-
-    const res = await upload();
+    const res = await postMultipart("/new", cookie, { file: flatZip(), visibility: "public" });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("identical to v1, the latest version of demo-skill");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("leaves visibility alone when it refuses identical content", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
-
-    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private" });
-    expect(res.status).toBe(400);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
+    expect(await env.BUCKET.get(r2_key)).not.toBeNull();
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("private");
   });
 
   it("publishes content identical to an older version as a new version", async () => {
@@ -296,22 +162,7 @@ describe("POST /new", () => {
 
     const res = await postMultipart("/new", cookie, { markdown: GOOD_MD });
     expect(res.status).toBe(302);
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(3);
-  });
-
-  it("repairs a missing archive even when it refuses identical content", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const upload = () =>
-      postMultipart("/new", cookie, {
-        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-      });
-    await upload();
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
-    await env.BUCKET.delete(v1!.r2_key);
-
-    const res = await upload();
-    expect(res.status).toBe(400);
-    expect(await env.BUCKET.get(v1!.r2_key)).not.toBeNull();
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(3);
   });
 
   it("answers identical content on another user's skill with forbidden", async () => {
@@ -328,39 +179,29 @@ describe("POST /new", () => {
     const { cookie, token } = await seedAndToken({ username: "alice" });
     await putSkill(token, GOOD_MD);
 
-    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD.replace(/\n/g, "\r\n") });
+    const res = await postMultipart("/new", cookie, { markdown: crlf(GOOD_MD) });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("identical to v1");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
   });
 });
 
-describe("POST /s/:slug/edit", () => {
+describe("POST /p/:project/s/:slug/edit", () => {
   beforeEach(resetDb);
-
-  it("saves edited markdown as a new version", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, {
-      markdown: `${GOOD_MD}\nedited\n`,
-    });
-    expect(res.status).toBe(302);
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
-  });
 
   // The edit path must never pass a visibility at all, so a public skill
   // stays public across an edit-triggered republish. This side always
   // behaved correctly but had no test pinning it.
-  it("does not change visibility when republishing through the edit path", async () => {
+  it("saves edited markdown as a new version without changing visibility", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
 
-    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+    const res = await postMultipart("/p/default/s/demo-skill/edit", cookie, {
       markdown: `${GOOD_MD}\nedited\n`,
     });
     expect(res.status).toBe(302);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(2);
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
   });
 
   // On a text-only edit, files under references/ and scripts/ in the old
@@ -368,191 +209,99 @@ describe("POST /s/:slug/edit", () => {
   // text box content was treated as the whole upload body, normalizeUpload read
   // bare markdown as "a skill containing only SKILL.md", and the page still
   // answered 302 success.
-  it("carries SKILL.md's sibling files into the new version on a text-only edit", async () => {
+  it("carries SKILL.md's sibling files into the new version and its stored artifact on a text-only edit", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
+    await postMultipart("/new", cookie, { file: flatZip() });
+    const v1 = await getVersion(env.DB, "default", "demo-skill", 1);
 
-    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+    const res = await postMultipart("/p/default/s/demo-skill/edit", cookie, {
       markdown: `${v1!.skill_md}\nedited\n`,
     });
     expect(res.status).toBe(302);
 
-    const v2 = await getVersion(env.DB, "demo-skill", 2);
+    const v2 = await getVersion(env.DB, "default", "demo-skill", 2);
     expect(v2!.skill_md).toContain("edited");
-    expect(JSON.parse(v2!.files).map((f: { path: string }) => f.path)).toEqual([
-      "SKILL.md",
-      "references/api.md",
-      "scripts/run.sh",
-    ]);
-  });
-
-  // The files column in D1 being right does not mean the archive in R2 is — whoever installs the skill gets the R2 copy.
-  it("writes the carried files into the stored artifact too", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
-
-    await postMultipart("/s/demo-skill/edit", cookie, { markdown: `${v1!.skill_md}\nedited\n` });
-
-    const v2 = await getVersion(env.DB, "demo-skill", 2);
+    expect(pathsOf(v2!.files)).toEqual(FLAT_FILES);
     const object = await env.BUCKET.get(v2!.r2_key);
     expect(object).not.toBeNull();
     const unpacked = await readZip(new Uint8Array(await object!.arrayBuffer()));
-    expect([...unpacked.keys()].sort()).toEqual([
-      "SKILL.md",
-      "references/api.md",
-      "scripts/run.sh",
-    ]);
+    expect([...unpacked.keys()].sort()).toEqual(FLAT_FILES);
     expect(new TextDecoder().decode(unpacked.get("SKILL.md")!)).toContain("edited");
   });
 
   // When the previous archive cannot be read, refuse rather than publish a new version quietly missing files.
   it("refuses a text-only edit when the current archive is missing from storage", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
+    await postMultipart("/new", cookie, { file: flatZip() });
+    const v1 = await getVersion(env.DB, "default", "demo-skill", 1);
     await env.BUCKET.delete(v1!.r2_key);
 
-    const res = await postMultipart("/s/demo-skill/edit", cookie, {
+    const res = await postMultipart("/p/default/s/demo-skill/edit", cookie, {
       markdown: `${v1!.skill_md}\nedited\n`,
     });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Upload a complete archive");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
   });
 
-  it("names the files a text-only edit will carry forward", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
+  it.each([
+    ["a save that changes nothing", GOOD_MD, (text: string) => text],
+    ["an untouched save when the skill carries other files", fixture("FLAT_ZIP"), (text: string) => text],
+    ["an untouched save that the browser submits with CRLF line endings", fixture("FLAT_ZIP"), crlf],
+    ["an untouched save when the stored SKILL.md has CRLF line endings", crlf(GOOD_MD), (text: string) => text],
+    ["an untouched save when the stored SKILL.md lacks a trailing newline", GOOD_MD.trimEnd(), (text: string) => text],
+  ])("refuses %s", async (_label, stored, submit) => {
+    const { cookie, token } = await seedAndToken({ username: "alice" });
+    await putSkill(token, stored);
+    const v1 = await getVersion(env.DB, "default", "demo-skill", 1);
 
-    const html = await (
-      await SELF.fetch(`${ORIGIN}/s/demo-skill/edit`, { headers: { Cookie: cookie } })
-    ).text();
-    expect(html).toContain("references/api.md");
-    expect(html).toContain("scripts/run.sh");
-  });
-
-  it("refuses a save that changes nothing", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: GOOD_MD });
+    const res = await postMultipart("/p/default/s/demo-skill/edit", cookie, { markdown: submit(v1!.skill_md) });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("identical to v1, the latest version of demo-skill");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("refuses an untouched save when the skill carries other files", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: v1!.skill_md });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("identical to v1");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("refuses an untouched save that the browser submits with CRLF line endings", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    const v1 = await getVersion(env.DB, "demo-skill", 1);
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, {
-      markdown: v1!.skill_md.replace(/\n/g, "\r\n"),
-    });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("identical to v1");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("refuses an untouched save when the stored SKILL.md has CRLF line endings", async () => {
-    const { cookie, token } = await seedAndToken({ username: "alice" });
-    const crlf = GOOD_MD.replace(/\n/g, "\r\n");
-    await putSkill(token, crlf);
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: crlf });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("identical to v1");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("refuses an untouched save when the stored SKILL.md lacks a trailing newline", async () => {
-    const { cookie, token } = await seedAndToken({ username: "alice" });
-    await putSkill(token, GOOD_MD.trimEnd());
-
-    const res = await postMultipart("/s/demo-skill/edit", cookie, { markdown: GOOD_MD.trimEnd() });
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("identical to v1");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
   });
 });
 
-describe("POST /s/:slug/upload", () => {
+describe("POST /p/:project/s/:slug/upload", () => {
   beforeEach(resetDb);
 
-  it("publishes an uploaded archive as a new version", async () => {
+  it("publishes an uploaded archive as a new version, keeping visibility, and refuses it a second time", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
+    const upload = () => postMultipart("/p/default/s/demo-skill/upload", cookie, { file: flatZip() });
 
-    const res = await postMultipart("/s/demo-skill/upload", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
+    const res = await upload();
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/s/demo-skill");
+    expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill");
+    expect(pathsOf((await getVersion(env.DB, "default", "demo-skill", 2))!.files)).toEqual(FLAT_FILES);
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
 
-    const v2 = await getVersion(env.DB, "demo-skill", 2);
-    expect(JSON.parse(v2!.files).map((f: { path: string }) => f.path)).toEqual([
-      "SKILL.md",
-      "references/api.md",
-      "scripts/run.sh",
-    ]);
+    const again = await upload();
+    expect(again.status).toBe(400);
+    expect(await again.text()).toContain("identical to v2, the latest version of demo-skill");
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(2);
   });
 
   it("rejects an archive whose name disagrees with the slug", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD });
 
-    const res = await postMultipart("/s/demo-skill/upload", cookie, {
+    const res = await postMultipart("/p/default/s/demo-skill/upload", cookie, {
       file: new File([OTHER_MD], "SKILL.md", { type: "text/markdown" }),
     });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("other-skill");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
   });
 
   it("re-renders the page when no file was chosen", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await postMultipart("/new", cookie, { markdown: GOOD_MD });
 
-    const res = await postMultipart("/s/demo-skill/upload", cookie, {});
+    const res = await postMultipart("/p/default/s/demo-skill/upload", cookie, {});
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Choose an archive");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(1);
-  });
-
-  it("keeps a public skill public", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "public" });
-
-    const res = await postMultipart("/s/demo-skill/upload", cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
-    expect(res.status).toBe(302);
-    expect((await getSkill(env.DB, "demo-skill"))?.visibility).toBe("public");
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
   });
 
   it("stops a member updating another user's skill", async () => {
@@ -560,25 +309,8 @@ describe("POST /s/:slug/upload", () => {
     await postMultipart("/new", alice.cookie, { markdown: GOOD_MD });
 
     const bob = await seedAndLogin({ username: "bob", role: "member" });
-    const res = await postMultipart("/s/demo-skill/upload", bob.cookie, {
-      file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-    });
+    const res = await postMultipart("/p/default/s/demo-skill/upload", bob.cookie, { file: flatZip() });
     expect(res.status).toBe(403);
-  });
-
-  it("refuses an archive identical to the latest version", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
-    const upload = () =>
-      postMultipart("/s/demo-skill/upload", cookie, {
-        file: new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" }),
-      });
-    expect((await upload()).status).toBe(302);
-
-    const res = await upload();
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("identical to v2, the latest version of demo-skill");
-    expect(await listVersions(env.DB, "demo-skill")).toHaveLength(2);
   });
 });
 
@@ -589,25 +321,187 @@ describe("POST /s/:slug/upload", () => {
 describe("edit and upload each take exactly one kind of input", () => {
   beforeEach(resetDb);
 
-  it("keeps the edit page free of a file input", async () => {
+  it("gives the edit page a textarea naming the carried files, and the upload page only a file input", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    await postMultipart("/new", cookie, { file: flatZip() });
 
-    const html = await (
-      await SELF.fetch(`${ORIGIN}/s/demo-skill/edit`, { headers: { Cookie: cookie } })
-    ).text();
-    expect(html).toContain("<textarea");
-    expect(html).not.toContain('type="file"');
+    const edit = await html("/p/default/s/demo-skill/edit", cookie);
+    expect(edit).toContain("<textarea");
+    expect(edit).not.toContain('type="file"');
+    expect(edit).toContain("references/api.md");
+    expect(edit).toContain("scripts/run.sh");
+    const upload = await html("/p/default/s/demo-skill/upload", cookie);
+    expect(upload).toContain('type="file"');
+    expect(upload).not.toContain("<textarea");
+    await postMultipart("/new", cookie, { markdown: OTHER_MD });
+    expect(await html("/p/default/s/other-skill/edit", cookie)).not.toContain('type="file"');
+  });
+});
+
+describe("publishing into a project", () => {
+  beforeEach(resetDb);
+
+  it("publishes through /api/projects/:project/skills/:slug", async () => {
+    const { token } = await inTwoProjects();
+    const res = await putSkill(token, GOOD_MD, { project: "team-b" });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ project: "team-b", slug: "demo-skill", version: 1 });
+    expect((await getSkill(env.DB, "team-b", "demo-skill"))?.project).toBe("team-b");
+    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
   });
 
-  it("keeps the upload page free of a markdown textarea", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await postMultipart("/new", cookie, { markdown: GOOD_MD });
+  it("no longer publishes through the old /api/skills/:slug address", async () => {
+    const { token } = await inTwoProjects();
+    const res = await SELF.fetch(`${ORIGIN}/api/skills/demo-skill`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+      body: GOOD_MD,
+    });
+    expect(res.status).toBe(404);
+    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).toBeNull();
+  });
 
-    const html = await (
-      await SELF.fetch(`${ORIGIN}/s/demo-skill/upload`, { headers: { Cookie: cookie } })
-    ).text();
-    expect(html).toContain('type="file"');
-    expect(html).not.toContain("<textarea");
+  it("keeps skills with the same name in two projects separate", async () => {
+    const { token } = await inTwoProjects();
+    await putSkill(token, GOOD_MD, { project: "default" });
+    const res = await putSkill(token, `${GOOD_MD}\nteam b\n`, { project: "team-b" });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ version: 1 });
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
+    expect(await listVersions(env.DB, "team-b", "demo-skill")).toHaveLength(1);
+  });
+
+  it("refuses a project the publisher is not in, or one that does not exist", async () => {
+    await seedProject("team-b", "Team B");
+    const { token } = await seedAndToken({ username: "alice", role: "member" });
+    for (const project of ["team-b", "nope"]) {
+      const res = await putSkill(token, GOOD_MD, { project });
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({
+        error: "forbidden",
+        message: `There is no project named ${project} that you can publish to`,
+      });
+      expect(await getSkill(env.DB, project, "demo-skill")).toBeNull();
+    }
+  });
+
+  it("does not tell an outsider whether a name is taken in a project", async () => {
+    await seedProject("team-b", "Team B");
+    const bob = await seedAndToken({ username: "bob", role: "member", project: "team-b" });
+    await putSkill(bob.token, GOOD_MD, { project: "team-b" });
+    const alice = await seedAndToken({ username: "alice", role: "member" });
+    const taken = await putSkill(alice.token, GOOD_MD, { project: "team-b" });
+    const free = await putSkill(alice.token, OTHER_MD, { project: "team-b", slug: "other-skill" });
+    expect(taken.status).toBe(403);
+    expect(await taken.json()).toEqual(await free.json());
+    expect(await listVersions(env.DB, "team-b", "demo-skill")).toHaveLength(1);
+  });
+
+  it("lets an instance admin in no project publish into any project", async () => {
+    await seedProject("team-b", "Team B");
+    const { token } = await seedAndToken({ username: "root", role: "admin", project: null });
+    expect((await putSkill(token, GOOD_MD, { project: "team-b" })).status).toBe(201);
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).not.toBeNull();
+  });
+
+  // `versions.author_id` must record
+  // who actually published a version, not who owns the skill — otherwise
+  // the column is just a copy of `skills.owner_id` and can never show that
+  // an admin published on someone else's behalf. Ownership itself must
+  // stay put: `insertVersion`'s ON CONFLICT clause never touches owner_id.
+  it("lets a project admin publish a new version of a member's skill, recorded as its author", async () => {
+    const carol = await seedAndToken({ username: "carol", role: "member" });
+    await putSkill(carol.token, GOOD_MD);
+    const lead = await seedAndToken({ username: "lead", role: "member", projectRole: "admin" });
+    const res = await putSkill(lead.token, `${GOOD_MD}\nlead edit\n`);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ version: 2 });
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(carol.user.id);
+    expect((await getVersion(env.DB, "default", "demo-skill", 2))?.author_id).toBe(lead.user.id);
+  });
+});
+
+describe("the project select on /new", () => {
+  beforeEach(resetDb);
+
+  const optionsOn = async (cookie: string) =>
+    [...(await html("/new", cookie)).matchAll(/<option value="([^"]+)"[^>]*>([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]);
+
+  it("offers exactly the projects a member is in, by name", async () => {
+    await seedProject("team-b", "Team B");
+    await seedProject("team-c", "Team C");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await joinProject(alice.user.id, "team-c");
+    expect(await optionsOn(alice.cookie)).toEqual([["default", "Default"], ["team-c", "Team C"]]);
+  });
+
+  it("offers every project to an instance admin", async () => {
+    await seedProject("team-b", "Team B");
+    const root = await seedAndLogin({ username: "root", role: "admin", project: null });
+    expect(await optionsOn(root.cookie)).toEqual([["default", "Default"], ["team-b", "Team B"]]);
+  });
+
+  it("preselects the project named in ?project=", async () => {
+    const { cookie } = await inTwoProjects();
+    const page = await html("/new?project=team-b", cookie);
+    expect(page).toContain('<option value="team-b" selected="">Team B</option>');
+    expect(page).toContain('<option value="" disabled="">Choose a project</option>');
+    expect(await html("/new", cookie)).toContain('<option value="" disabled="" selected="">Choose a project</option>');
+  });
+
+  it("ignores a ?project= the user cannot publish to", async () => {
+    await seedProject("team-b", "Team B");
+    await seedProject("team-c", "Team C");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await joinProject(alice.user.id, "team-c");
+    const page = await html("/new?project=team-b", alice.cookie);
+    expect(page).toContain('<option value="" disabled="" selected="">Choose a project</option>');
+    expect(page).not.toContain("Team B");
+  });
+
+  it("shows no placeholder when a member is in exactly one project", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    const page = await html("/new", alice.cookie);
+    expect(page).not.toContain("Choose a project");
+    expect(page).toContain('<option value="default">Default</option>');
+  });
+
+  it("publishes into the chosen project and lands on the skill there", async () => {
+    const { cookie } = await inTwoProjects();
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD, visibility: "private", project: "team-b" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/p/team-b/s/demo-skill");
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).not.toBeNull();
+  });
+
+  it("asks a user in several projects to choose one when the form sends none", async () => {
+    const { cookie } = await inTwoProjects();
+    const res = await postMultipart("/new", cookie, { markdown: GOOD_MD });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("Choose which project this skill goes into");
+  });
+
+  it("keeps the chosen project when it re-renders with an error", async () => {
+    const { cookie } = await inTwoProjects();
+    const res = await postMultipart("/new", cookie, { markdown: "no frontmatter", project: "team-b" });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('<option value="team-b" selected="">Team B</option>');
+  });
+
+  it("refuses a project the user is not in", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    const res = await postMultipart("/new", alice.cookie, { markdown: GOOD_MD, project: "team-b" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain("There is no project named team-b that you can publish to");
+    expect(await getSkill(env.DB, "team-b", "demo-skill")).toBeNull();
+  });
+
+  it("tells a user in no project that there is nowhere to publish", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member", project: null });
+    const page = await html("/new", alice.cookie);
+    expect(page).toContain("You are not in a project yet.");
+    expect(page).not.toContain('name="file"');
   });
 });

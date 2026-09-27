@@ -12,6 +12,7 @@ export default defineConfig(async () => {
         wrangler: { configPath: "./wrangler.jsonc" },
         miniflare: {
           bindings: { TEST_MIGRATIONS: migrations, SESSION_SECRET: "test-secret" },
+          d1Databases: ["MIGRATION_DB"],
           dataBlobBindings: {
             FLAT_ZIP: fixture("flat.zip"),
             WRAPPED_ZIP: fixture("wrapped.zip"),

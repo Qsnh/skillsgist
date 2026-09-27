@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
-import { getArtifactByDigest, getUserByInstallKey, listPublishedForIndex } from "../db/queries";
+import {
+  getArtifactByDigest, getArtifactByInstallKey, getMembershipByInstallKey, getPublicArtifact, listPublishedForIndex,
+} from "../db/queries";
+import type { ArtifactRef, IndexFilter } from "../db/queries";
+import { installKeyPath, projectPath } from "../paths";
 import { buildIndex } from "../registry";
 import { serveDownload } from "./download";
 
@@ -20,37 +24,30 @@ function indexResponse(body: unknown): Response {
   });
 }
 
-async function serveArtifact(
+async function sendArtifact(
   c: Ctx,
-  slug: string,
   file: string,
-  visible: "public" | "any",
+  lookup: (digest: string) => Promise<ArtifactRef | null>,
+  cacheable: boolean,
 ): Promise<Response> {
   const digest = digestFromArtifactFile(file);
-  if (!digest) return notFound();
-
-  const artifact = await getArtifactByDigest(c.env.DB, slug, digest);
+  const artifact = digest ? await lookup(digest) : null;
   if (!artifact) return notFound();
-  if (visible === "public" && artifact.visibility !== "public") return notFound();
-
   const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return notFound();
-
-  return serveDownload(c, object, slug, visible === "public");
+  return serveDownload(c, object, artifact, cacheable);
 }
 
 // Each index path minus its trailing `/index.json`, used to register the
 // nested wildcard routes.
 const INDEX_PREFIXES = INDEX_SUFFIXES.map((suffix) => suffix.slice(0, -"/index.json".length));
 
-// Mirrors the shape the CLI uses to recognise a skill name (the
-// WellKnownProvider in skills 1.5.18), so the address shown on /s/:slug means
-// the same skill to the server and to the CLI.
 const SKILL_IN_PATH = /\/\.well-known\/(?:agent-skills|skills)\/([^/]+)$/;
 
-/** The two variables in an install address: install key (optional) and skill name (optional). */
+type IndexScope = { kind: "root" } | { kind: "project"; project: string } | { kind: "key"; key: string };
+
 interface IndexRequest {
-  key: string | null;
+  scope: IndexScope;
   only: string | null;
 }
 
@@ -58,8 +55,10 @@ function indexRequest(path: string): IndexRequest | null {
   const suffix = INDEX_SUFFIXES.find((s) => path.endsWith(s));
   if (!suffix) return null;
   const base = path.slice(0, path.length - suffix.length);
+  const key = /^\/i\/([^/]+)/.exec(base)?.[1];
+  const project = /^\/p\/([^/]+)/.exec(base)?.[1];
   return {
-    key: /^\/i\/([^/]+)/.exec(base)?.[1] ?? null,
+    scope: key ? { kind: "key", key } : project ? { kind: "project", project } : { kind: "root" },
     only: SKILL_IN_PATH.exec(base)?.[1] ?? null,
   };
 }
@@ -67,12 +66,18 @@ function indexRequest(path: string): IndexRequest | null {
 async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   const origin = new URL(c.req.url).origin;
   let base = origin;
-  if (req.key !== null) {
-    if (!(await getUserByInstallKey(c.env.DB, req.key))) return notFound();
-    base = `${origin}/i/${req.key}`;
+  let filter: IndexFilter = { kind: "root" };
+  if (req.scope.kind === "key") {
+    const membership = await getMembershipByInstallKey(c.env.DB, req.scope.key);
+    if (!membership) return notFound();
+    base = `${origin}${installKeyPath(req.scope.key)}`;
+    filter = { kind: "project", project: membership.project, publicOnly: false };
   }
-  const rows = await listPublishedForIndex(c.env.DB, req.key !== null);
-  return indexResponse(buildIndex(req.only ? rows.filter((r) => r.slug === req.only) : rows, base));
+  if (req.scope.kind === "project") {
+    base = `${origin}${projectPath(req.scope.project)}`;
+    filter = { kind: "project", project: req.scope.project, publicOnly: true };
+  }
+  return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, filter, req.only), base));
 }
 
 const indexRoute = (c: Ctx) => {
@@ -82,20 +87,37 @@ const indexRoute = (c: Ctx) => {
 
 for (const suffix of INDEX_SUFFIXES) {
   registryRoutes.get(suffix, indexRoute);
+  registryRoutes.get(`/p/:project${suffix}`, indexRoute);
 }
 
-registryRoutes.get("/d/:slug/:file", async (c) =>
-  serveArtifact(c, c.req.param("slug"), c.req.param("file"), "public"),
+registryRoutes.get("/d/:slug/:file", (c) =>
+  sendArtifact(c, c.req.param("file"), (digest) => getPublicArtifact(c.env.DB, c.req.param("slug"), digest), true),
 );
 
-registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
-  const user = await getUserByInstallKey(c.env.DB, c.req.param("key"));
-  if (!user) return c.notFound();
-  return serveArtifact(c, c.req.param("slug"), c.req.param("file"), "any");
-});
+registryRoutes.get("/p/:project/d/:slug/:file", (c) =>
+  sendArtifact(
+    c,
+    c.req.param("file"),
+    async (digest) => {
+      const artifact = await getArtifactByDigest(c.env.DB, c.req.param("project"), c.req.param("slug"), digest);
+      return artifact?.visibility === "public" ? artifact : null;
+    },
+    true,
+  ),
+);
+
+registryRoutes.get("/i/:key/d/:slug/:file", (c) =>
+  sendArtifact(
+    c,
+    c.req.param("file"),
+    (digest) => getArtifactByInstallKey(c.env.DB, c.req.param("key"), c.req.param("slug"), digest),
+    false,
+  ),
+);
 
 for (const prefix of INDEX_PREFIXES) {
   registryRoutes.get(`${prefix}/*`, indexRoute);
+  registryRoutes.get(`/p/:project${prefix}/*`, indexRoute);
 }
 
 registryRoutes.get("/i/:key/*", indexRoute);

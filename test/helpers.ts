@@ -1,8 +1,9 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
-import { createUser, getUserByUsername } from "../src/db/queries";
+import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import type { IndexEntry } from "../src/registry";
 
 /**
  * The worker's bindings, typed.
@@ -44,6 +45,8 @@ export const GOOD_MD =
 /** A second one, for the tests that need two distinct skills. */
 export const OTHER_MD = "---\nname: other-skill\ndescription: Another skill.\n---\n\n# Other\n";
 
+export const FLAT_FILES = ["SKILL.md", "references/api.md", "scripts/run.sh"];
+
 // Every state-changing request needs an Origin header now: `hono/csrf` rejects
 // a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and neither
 // `SELF.fetch` nor Node's `fetch` sends either on its own the way a browser
@@ -52,24 +55,31 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM memberships"),
     env.DB.prepare("DELETE FROM versions"),
     env.DB.prepare("DELETE FROM skills"),
     env.DB.prepare("DELETE FROM users"),
+    env.DB.prepare("DELETE FROM projects"),
+    env.DB.prepare("INSERT INTO projects (slug, name, created_at) VALUES (?, 'Default', 0)").bind(DEFAULT_PROJECT),
   ]);
 }
 
-export async function seedUser(
-  opts: { username?: string; role?: "admin" | "member"; password?: string } = {},
-): Promise<{ user: UserRow; password: string }> {
+export interface SeedOptions {
+  username?: string;
+  role?: "admin" | "member";
+  password?: string;
+  project?: string | null;
+  projectRole?: "admin" | "member";
+}
+
+export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow; password: string }> {
   const username = opts.username ?? "alice";
   const password = opts.password ?? "a-very-long-password";
-  await createUser(env.DB, {
-    id: randomHex(8),
-    username,
-    passwordHash: await hashPassword(password),
-    role: opts.role ?? "admin",
-    installKey: randomHex(16),
-  });
+  const role = opts.role ?? "admin";
+  const id = randomHex(8);
+  await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
+  const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
+  if (project !== null) await joinProject(id, project, randomHex(16), opts.projectRole);
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
@@ -80,7 +90,7 @@ export async function seedUser(
  * between the two halves and silently log in as somebody else.
  */
 export async function seedAndLogin(
-  opts: { username?: string; role?: "admin" | "member"; password?: string } = {},
+  opts: SeedOptions = {},
 ): Promise<{ user: UserRow; password: string; cookie: string }> {
   const { user, password } = await seedUser(opts);
   return { user, password, cookie: await login(user.username, password) };
@@ -154,9 +164,19 @@ export async function publishMarkdown(
   cookie: string,
   markdown: string,
   visibility: "public" | "private",
+  project?: string,
 ): Promise<void> {
-  const res = await postMultipart("/new", cookie, { markdown, visibility });
+  const res = await postMultipart("/new", cookie, { markdown, visibility, ...(project ? { project } : {}) });
   if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
+}
+
+export async function seedWithSkills(
+  opts: SeedOptions,
+  ...skills: Array<[markdown: string, visibility: "public" | "private", project?: string]>
+): Promise<{ user: UserRow; password: string; cookie: string }> {
+  const login = await seedAndLogin(opts);
+  for (const [markdown, visibility, project] of skills) await publishMarkdown(login.cookie, markdown, visibility, project);
+  return login;
 }
 
 /** Mint an API token for `cookie`, reading it back out of the rendered page. */
@@ -169,7 +189,7 @@ export async function apiToken(cookie: string): Promise<string> {
 
 /** Seed a user, log them in, and mint an API token for them. */
 export async function seedAndToken(
-  opts: { username?: string; role?: "admin" | "member" } = {},
+  opts: SeedOptions = {},
 ): Promise<{ user: UserRow; cookie: string; token: string }> {
   const { user, cookie } = await seedAndLogin(opts);
   return { user, cookie, token: await apiToken(cookie) };
@@ -190,3 +210,64 @@ export async function follow(res: Response, cookie: string): Promise<Response> {
     redirect: "manual",
   });
 }
+
+export const seedProject = (slug: string, name: string = slug) => createProject(env.DB, { slug, name });
+
+export async function twoProjects(aliceRole: "admin" | "member" = "admin") {
+  await seedProject("team-b", "Team B");
+  const alice = await seedAndLogin({ username: "alice", role: aliceRole });
+  const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+  return { alice, bob };
+}
+
+export const joinProject = (
+  userId: string,
+  project: string,
+  key: string = randomHex(16),
+  role: "admin" | "member" = "member",
+) => addMembership(env.DB, { project, userId, role, installKey: key });
+
+export const membership = (userId: string, project: string = DEFAULT_PROJECT) =>
+  env.DB.prepare("SELECT role, install_key FROM memberships WHERE project = ? AND user_id = ?")
+    .bind(project, userId)
+    .first<{ role: string; install_key: string }>();
+
+export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
+  const row = await membership(userId, project);
+  if (!row) throw new Error(`${userId} is not a member of ${project}`);
+  return row.install_key;
+}
+
+export const indexStatus = async (key: string) =>
+  (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
+
+export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {
+  const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);
+  if (res.status !== 200) throw new Error(`${base} index answered ${res.status}`);
+  return (await res.json<{ skills: IndexEntry[] }>()).skills;
+}
+
+export const indexNames = async (base: string, alias?: "agent-skills" | "skills") =>
+  (await indexAt(base, alias)).map((s) => s.name);
+
+export const get = (path: string, cookie?: string) =>
+  SELF.fetch(`${ORIGIN}${path}`, { headers: cookie ? { Cookie: cookie } : {}, redirect: "manual" });
+
+export function putSkill(
+  token: string,
+  body: BodyInit,
+  opts: { slug?: string; contentType?: string; visibility?: string; project?: string } = {},
+): Promise<Response> {
+  const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
+  const slug = opts.slug ?? "demo-skill";
+  return SELF.fetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": opts.contentType ?? "text/markdown",
+    },
+    body,
+  });
+}
+
+export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];

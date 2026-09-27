@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { sha256Hex } from "../src/hash";
 import { MAX_FILES, normalizeUpload, UploadError } from "../src/skills/normalize";
 import { readZip, writeZip } from "../src/skills/zip";
-import { fixture, GOOD_MD } from "./helpers";
+import { fixture, FLAT_FILES, GOOD_MD } from "./helpers";
 
 const enc = new TextEncoder();
 
@@ -16,39 +17,34 @@ describe("normalizeUpload", () => {
 
   it("strips ./ prefixes from tar entries", async () => {
     const result = await normalizeUpload(fixture("FLAT_DOT_TAR_GZ"));
-    expect(result.files.map((f) => f.path).sort()).toEqual([
-      "SKILL.md", "references/api.md", "scripts/run.sh",
-    ]);
+    expect(result.files.map((f) => f.path).sort()).toEqual(FLAT_FILES);
   });
 
-  it("strips a single wrapping directory", async () => {
+  it("strips a single wrapping directory into a zip whose root holds SKILL.md and whose digest matches its bytes", async () => {
     const result = await normalizeUpload(fixture("WRAPPED_ZIP"));
-    expect(result.files.map((f) => f.path)).toContain("SKILL.md");
-    expect(result.files.every((f) => !f.path.startsWith("demo-skill/"))).toBe(true);
+    expect(result.files.map((f) => f.path)).toEqual(FLAT_FILES);
+    expect((await readZip(result.zip)).has("SKILL.md")).toBe(true);
+    expect(result.digest).toBe(`sha256:${await sha256Hex(result.zip)}`);
   });
 
-  it("accepts a zip that already has SKILL.md at the root", async () => {
-    const result = await normalizeUpload(fixture("FLAT_ZIP"));
-    expect(result.name).toBe("demo-skill");
+  it("accepts a zip that already has SKILL.md at the root, deterministically", async () => {
+    const a = await normalizeUpload(fixture("FLAT_ZIP"));
+    const b = await normalizeUpload(fixture("FLAT_ZIP"));
+    expect(a.name).toBe("demo-skill");
+    expect(a.digest).toBe(b.digest);
   });
 
-  it("rejects an archive without SKILL.md", async () => {
-    await expect(normalizeUpload(fixture("NO_SKILL_MD_ZIP"))).rejects.toBeInstanceOf(UploadError);
-  });
-
-  it("rejects archives containing links", async () => {
-    await expect(normalizeUpload(fixture("SYMLINK_TAR_GZ"))).rejects.toBeInstanceOf(UploadError);
-  });
-
-  it("accepts a tarball padded by bsdtar's default gzip (macOS tar czf)", async () => {
-    // readTarGz already covers this at the reader level (see
-    // archive-read.test.ts); pin it at the pipeline level too, since it's the
-    // most likely real-world upload shape from a macOS user.
-    const result = await normalizeUpload(fixture("BSDTAR_PADDED_TAR_GZ"));
-    expect(result.name).toBe("demo-skill");
-    expect(result.files.map((f) => f.path).sort()).toEqual([
-      "SKILL.md", "references/api.md", "scripts/run.sh",
-    ]);
+  it.each([
+    ["an archive without SKILL.md", fixture("NO_SKILL_MD_ZIP"), /SKILL\.md/],
+    ["archives containing links", fixture("SYMLINK_TAR_GZ"), /link/i],
+    ["an invalid name in frontmatter", enc.encode("---\nname: Demo_Skill\ndescription: nope\n---\nbody"), /name/],
+    ["a missing description", enc.encode("---\nname: demo\n---\nbody"), /description/],
+    ["an oversized description", enc.encode(`---\nname: demo\ndescription: ${"x".repeat(1025)}\n---\nbody`), /description/],
+    ["an upload over the size limit", new Uint8Array(2 * 1024 * 1024 + 1), /upload/i],
+  ])("rejects %s", async (_label, bytes, reason) => {
+    const result = normalizeUpload(bytes);
+    await expect(result).rejects.toBeInstanceOf(UploadError);
+    await expect(result).rejects.toThrow(reason);
   });
 
   it("rejects path traversal", async () => {
@@ -69,45 +65,10 @@ describe("normalizeUpload", () => {
     expect(result.files.map((f) => f.path)).toEqual(["SKILL.md"]);
   });
 
-  it("rejects an invalid name in frontmatter", async () => {
-    const md = "---\nname: Demo_Skill\ndescription: nope\n---\nbody";
-    await expect(normalizeUpload(enc.encode(md))).rejects.toThrow(/name/);
-  });
-
-  it("rejects a missing description", async () => {
-    const md = "---\nname: demo\n---\nbody";
-    await expect(normalizeUpload(enc.encode(md))).rejects.toThrow(/description/);
-  });
-
-  it("rejects an oversized description", async () => {
-    const md = `---\nname: demo\ndescription: ${"x".repeat(1025)}\n---\nbody`;
-    await expect(normalizeUpload(enc.encode(md))).rejects.toThrow(/description/);
-  });
-
   it("rejects too many files", async () => {
     const entries = [{ path: "SKILL.md", data: enc.encode(GOOD_MD) }];
     for (let i = 0; i <= MAX_FILES; i++) entries.push({ path: `f${i}.txt`, data: enc.encode("x") });
     const bytes = await writeZip(entries);
     await expect(normalizeUpload(bytes)).rejects.toThrow(/file count/i);
-  });
-
-  it("rejects an upload over the size limit", async () => {
-    const big = new Uint8Array(2 * 1024 * 1024 + 1);
-    await expect(normalizeUpload(big)).rejects.toThrow(/upload/i);
-  });
-
-  it("produces a zip whose root holds SKILL.md and whose digest matches its bytes", async () => {
-    const result = await normalizeUpload(fixture("WRAPPED_ZIP"));
-    const files = await readZip(result.zip);
-    expect(files.has("SKILL.md")).toBe(true);
-    const hash = await crypto.subtle.digest("SHA-256", result.zip);
-    const hex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    expect(result.digest).toBe(`sha256:${hex}`);
-  });
-
-  it("is deterministic for identical input", async () => {
-    const a = await normalizeUpload(fixture("FLAT_ZIP"));
-    const b = await normalizeUpload(fixture("FLAT_ZIP"));
-    expect(a.digest).toBe(b.digest);
   });
 });

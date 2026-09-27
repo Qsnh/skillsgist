@@ -149,10 +149,17 @@
   }
 
   .cf-wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.035em;
     color: var(--color-cf-ink);
+  }
+
+  .cf-wordmark-mark {
+    flex: none;
   }
 
   .cf-tag {
@@ -245,7 +252,7 @@
   }
 
   .cf-menu-panel,
-  .cf-toolbar .cf-confirm-panel {
+  .cf-confirm-panel {
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
@@ -781,11 +788,14 @@
   .cf-footer-inner p {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     gap: 4px 12px;
   }
 
   .cf-footer-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.03em;
@@ -912,6 +922,7 @@
   }
 
   .cf-actions {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -959,12 +970,6 @@
 
   .cf-input::placeholder {
     color: var(--color-cf-muted);
-  }
-
-  .cf-input-sm {
-    width: min(100%, 300px);
-    height: 32px;
-    font-size: 13.5px;
   }
 
   .cf-textarea {
@@ -1334,6 +1339,10 @@
     padding: 32px;
   }
 
+  .cf-auth-mark {
+    margin-bottom: 20px;
+  }
+
   .cf-auth-title {
     margin-bottom: 24px;
     font-size: 28px;
@@ -1391,17 +1400,6 @@
     overflow-wrap: anywhere;
   }
 
-  .cf-user-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .cf-danger-zone {
-    padding-top: 12px;
-    border-top: 1px dashed var(--color-cf-line-strong);
-  }
-
   .cf-confirm[open] > summary {
     border-color: var(--color-cf-danger);
   }
@@ -1411,21 +1409,29 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
-    margin-top: 10px;
-  }
-
-  .cf-confirm-panel .cf-hint {
-    max-width: 60ch;
-  }
-
-  .cf-danger-zone .cf-confirm-panel {
-    contain: inline-size;
-  }
-
-  .cf-toolbar .cf-confirm-panel {
     width: min(340px, 100%);
-    margin-top: 0;
     padding: 14px;
+  }
+
+  .cf-actions .cf-confirm-panel {
+    left: 0;
+    right: auto;
+  }
+
+  .cf-move {
+    position: relative;
+  }
+
+  .cf-move[open] > summary {
+    border-color: transparent;
+    background: var(--color-cf-paper-2);
+  }
+
+  .cf-toolbar .cf-move .cf-confirm-panel {
+    left: 0;
+    right: auto;
+    width: 300px;
+    max-width: calc(100vw - 48px);
   }
 
   .cf-hero-start {
@@ -1445,32 +1451,39 @@
     margin-top: 28px;
   }
 
-  .cf-hero-meta .cf-vis {
-    margin-top: 0;
-    color: var(--color-cf-ember);
-  }
-
   .cf-skill-title {
     max-width: none;
     font-size: clamp(32px, 4.4vw, 48px);
     overflow-wrap: anywhere;
   }
 
-  .cf-hero-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 18px;
-    margin-top: 16px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-cf-ember);
+  .cf-project-title,
+  .cf-project-title + .cf-hero-lede {
+    overflow-wrap: anywhere;
   }
 
-  .cf-hero-note {
-    margin-top: 12px;
-    font-size: 14px;
-    color: var(--color-cf-ember);
+  .cf-hero-lede + .cf-search {
+    margin-top: 36px;
+  }
+
+  .cf-member {
+    position: relative;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .cf-member .cf-actions {
+    position: static;
+  }
+
+  .cf-member .cf-confirm-panel {
+    left: auto;
+    right: 20px;
+    width: min(340px, 100% - 40px);
+  }
+
+  .cf-member .cf-row-main {
+    min-width: max-content;
   }
 
   .cf-skill-body {
@@ -1571,7 +1584,30 @@
     color: var(--color-cf-muted);
   }
 
-  .cf-row-version {
+  .cf-row-label {
+    flex-shrink: 0;
+    color: var(--color-cf-muted);
+  }
+
+  .cf-row-value {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    overflow-wrap: anywhere;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-row-value .cf-vis {
+    margin-top: 0;
+  }
+
+  .cf-row-version,
+  .cf-row-link {
     font-family: var(--font-mono);
     font-size: 13px;
     color: var(--color-cf-ink);
@@ -1580,7 +1616,8 @@
     text-underline-offset: 3px;
   }
 
-  .cf-row-version:hover {
+  .cf-row-version:hover,
+  .cf-row-link:hover {
     color: var(--color-cf-orange-ink);
     text-decoration-color: currentColor;
   }
@@ -1835,6 +1872,10 @@
       margin-top: 28px;
     }
 
+    .cf-hero-lede + .cf-search {
+      margin-top: 28px;
+    }
+
     .cf-command-prompt,
     .cf-command-text {
       font-size: 14px;
@@ -1982,16 +2023,6 @@
       border-bottom: 0;
     }
 
-    .cf-table .cf-table-actions {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .cf-table-actions .cf-input-sm {
-      width: 100%;
-    }
-
     .cf-table td::before {
       content: attr(data-label);
       padding-top: 2px;
@@ -2019,6 +2050,10 @@
       margin: 6px -8px -8px;
       border-top: 1px dashed var(--color-cf-line-strong);
       border-left: 0;
+    }
+
+    .cf-move {
+      position: static;
     }
   }
 
