@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSkill, getVersion } from "../src/db/queries";
 import app from "../src/index";
-import { env, GOOD_MD, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb, seedAndLogin } from "./helpers";
+import { env, GOOD_MD, installKey, ORIGIN, OTHER_MD, resetDb, seedWithSkills } from "./helpers";
 
 async function settle(path: string, init: RequestInit = {}): Promise<Response> {
   const ctx = createExecutionContext();
@@ -24,9 +24,7 @@ describe("download counting", () => {
   beforeEach(resetDb);
 
   it("counts a CLI download of a public skill, and only that skill", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
-    await publish(cookie, OTHER_MD, "public");
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "public"]);
     const path = await artifactPath("/.well-known/agent-skills/index.json", "demo-skill");
 
     expect((await settle(path)).status).toBe(200);
@@ -34,18 +32,18 @@ describe("download counting", () => {
     expect(await downloads("other-skill")).toBe(0);
   });
 
-  it("counts a keyed CLI download of a private skill", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, OTHER_MD, "private");
+  it("counts a keyed CLI download of a private skill, served uncacheable", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
     const path = await artifactPath(`/i/${await installKey(user.id)}/.well-known/agent-skills/index.json`, "other-skill");
 
-    expect((await settle(path)).status).toBe(200);
+    const res = await settle(path);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(await downloads("other-skill")).toBe(1);
   });
 
   it("counts browser downloads of the latest version and of a numbered version", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
     expect((await settle("/p/default/s/demo-skill/download")).status).toBe(200);
     expect((await settle("/p/default/s/demo-skill/v/1/download")).status).toBe(200);
@@ -53,8 +51,7 @@ describe("download counting", () => {
   });
 
   it("does not count index fetches or page views", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
+    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
     await settle("/.well-known/agent-skills/index.json");
     await settle(`/i/${await installKey(user.id)}/.well-known/agent-skills/index.json`);
@@ -64,9 +61,8 @@ describe("download counting", () => {
     expect(await downloads("demo-skill")).toBe(0);
   });
 
-  it("does not count refused requests", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, OTHER_MD, "private");
+  it("refuses a private artifact on every keyless, wrong-key and wrong-digest address, and does not count refused requests", async () => {
+    const { user, cookie } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
     const key = await installKey(user.id);
     const keyed = await artifactPath(`/i/${key}/.well-known/agent-skills/index.json`, "other-skill");
 
@@ -79,30 +75,22 @@ describe("download counting", () => {
     expect(await downloads("other-skill")).toBe(0);
   });
 
-  it("does not count a download whose stored archive is missing", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
-    const path = await artifactPath("/.well-known/agent-skills/index.json", "demo-skill");
-    await env.BUCKET.delete((await getVersion(env.DB, "default", "demo-skill", 1))!.r2_key);
-
-    expect((await settle(path)).status).toBe(404);
-    expect((await settle("/p/default/s/demo-skill/download")).status).toBe(404);
-    expect(await downloads("demo-skill")).toBe(0);
-  });
-
-  it("does not count HEAD requests", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
+  it("does not count HEAD requests, or a download whose stored archive is missing", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const path = await artifactPath("/.well-known/agent-skills/index.json", "demo-skill");
 
     expect((await settle(path, { method: "HEAD" })).status).toBe(200);
     expect((await settle("/p/default/s/demo-skill/download", { method: "HEAD" })).status).toBe(200);
     expect(await downloads("demo-skill")).toBe(0);
+
+    await env.BUCKET.delete((await getVersion(env.DB, "default", "demo-skill", 1))!.r2_key);
+    expect((await settle(path)).status).toBe(404);
+    expect((await settle("/p/default/s/demo-skill/download")).status).toBe(404);
+    expect(await downloads("demo-skill")).toBe(0);
   });
 
   it("still serves the archive when the count cannot be written", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await env.DB.prepare(
       "CREATE TRIGGER reject_count_write BEFORE UPDATE OF download_count ON skills BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
     ).run();

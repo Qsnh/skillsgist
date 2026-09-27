@@ -1,9 +1,8 @@
-import { SELF } from "cloudflare:test";
 import { expect, it } from "vitest";
-import { ORIGIN } from "./helpers";
+import { get } from "./helpers";
 
 it("responds on /healthz", async () => {
-  const res = await SELF.fetch(`${ORIGIN}/healthz`);
+  const res = await get("/healthz");
   expect(res.status).toBe(200);
   expect(await res.text()).toBe("ok");
 });
@@ -12,41 +11,27 @@ it("responds on /healthz", async () => {
 // falls back to `default-src 'self'` and a real browser refuses the external
 // images the sanitizer deliberately preserves. Rationale: src/index.ts.
 it("sets a restrictive CSP header on HTML page responses", async () => {
-  const res = await SELF.fetch(`${ORIGIN}/login`);
+  const res = await get("/login");
   expect(res.headers.get("Content-Type")).toContain("text/html");
-  const csp = res.headers.get("Content-Security-Policy");
-  expect(csp).toBe(
+  expect(res.headers.get("Content-Security-Policy")).toBe(
     "default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   );
-  expect(csp).toContain("img-src 'self' https:");
 });
 
 it("does not set a CSP header on a JSON response", async () => {
-  const res = await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/index.json`);
+  const res = await get("/.well-known/agent-skills/index.json");
   expect(res.headers.get("Content-Security-Policy")).toBeNull();
 });
 
 // Quirks mode would change the box model out from under Tailwind (see
 // src/views/layout.tsx). Every page goes through the same Layout, so
 // asserting one is enough to pin it.
-it("starts HTML pages with a doctype so browsers don't use quirks mode", async () => {
-  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+it("renders pages through the shared Layout: a doctype, same-origin deferred scripts, no Registry tag or discovery link", async () => {
+  const html = await (await get("/login")).text();
   expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="en">/);
-});
-
-it("loads the copy script from the same origin, deferred", async () => {
-  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
   expect(html).toContain(`<script src="/copy.js" defer=""></script>`);
-});
-
-it("keeps the nav and footer free of the Registry tag and the discovery link", async () => {
-  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+  expect(html).toContain(`<script src="/fold.js" defer=""></script>`);
   expect(html).not.toContain(`<span class="cf-tag cf-nav-tag">`);
   expect(html).not.toContain("Public discovery index");
   expect(html).toContain(`<a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>`);
-});
-
-it("loads the fold script from the same origin, deferred", async () => {
-  const html = await (await SELF.fetch(`${ORIGIN}/login`)).text();
-  expect(html).toContain(`<script src="/fold.js" defer=""></script>`);
 });
