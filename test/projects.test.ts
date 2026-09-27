@@ -254,6 +254,15 @@ describe("/p/:project/settings", () => {
     expect(html).not.toContain('action="/p/default/delete"');
   });
 
+  it("keeps the viewer's project role out of the page head but in the member list", async () => {
+    const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
+    const html = await (await get("/p/default/settings", lead.cookie)).text();
+    const head = /<header class="cf-head">[\s\S]*?<\/header>/.exec(html)?.[0];
+    expect(head).toContain("Default settings");
+    expect(head).not.toContain("cf-vis");
+    expect(html).toContain('<span class="cf-vis cf-vis-public">admin</span>');
+  });
+
   it("tells an instance admin outside the project that they have no key for it, and lets them join", async () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });

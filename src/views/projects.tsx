@@ -210,11 +210,7 @@ export function ProjectSettingsPage(props: {
   return (
     <Layout title={`${project.name} settings`} user={props.user}>
       <div class="cf-narrow">
-        <PageHead
-          title={`${project.name} settings`}
-          error={props.error}
-          aside={membership ? <RoleLabel role={membership.role} /> : null}
-        >
+        <PageHead title={`${project.name} settings`} error={props.error}>
           The skills in this project are listed on <a href={`/p/${project.slug}`} class="cf-link">its page</a>.
         </PageHead>
         <div class="cf-stack-lg">
