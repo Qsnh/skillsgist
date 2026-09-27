@@ -38,7 +38,6 @@ const EXEMPT = new Set([
 // below can actually fire a tokenless request at each one.
 const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => string> = {
   "POST /logout": () => "/logout",
-  "POST /me/install-key/:project": () => "/me/install-key/default",
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
@@ -50,6 +49,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /admin/users/:id/delete": ({ userId }) => `/admin/users/${userId}/delete`,
   "POST /new": () => "/new",
   "POST /projects/new": () => "/projects/new",
+  "POST /p/:project/install-key": () => "/p/default/install-key",
   "POST /p/:project/rename": () => "/p/default/rename",
   "POST /p/:project/members": () => "/p/default/members",
   "POST /p/:project/members/:userId/role": ({ userId }) => `/p/default/members/${userId}/role`,
@@ -160,7 +160,7 @@ describe("token layer", () => {
 
   it("accepts a request carrying the session's token", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postForm("/me/install-key/default", cookie);
+    const res = await postForm("/p/default/install-key", cookie);
     expect(res.status).toBe(302);
   });
 
@@ -172,7 +172,7 @@ describe("token layer", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const body = new URLSearchParams();
     if (token !== undefined) body.set("_csrf", token);
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
+    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: cookie },
       body,
@@ -188,7 +188,7 @@ describe("token layer", () => {
     const bobCookie = await login("bob", bob.password);
     const bobToken = await csrfFor(bobCookie);
 
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
+    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: aliceCookie },
       body: new URLSearchParams({ _csrf: bobToken }),
@@ -203,7 +203,7 @@ describe("token layer", () => {
   it("rejects a text/plain body, which carries no parseable token", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
-    const res = await SELF.fetch(`${ORIGIN}/me/install-key/default`, {
+    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
       method: "POST",
       headers: { "Content-Type": "text/plain", Origin: ORIGIN, Cookie: cookie },
       body: `_csrf=${token}`,
@@ -219,7 +219,7 @@ describe("Origin / Sec-Fetch-Site layer", () => {
   const postWith = async (headers: Record<string, string>) => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const token = await csrfFor(cookie);
-    return SELF.fetch(`${ORIGIN}/me/install-key/default`, {
+    return SELF.fetch(`${ORIGIN}/p/default/install-key`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, ...headers },
       body: new URLSearchParams({ _csrf: token }),

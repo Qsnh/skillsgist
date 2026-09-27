@@ -408,27 +408,23 @@ describe("home page install commands", () => {
   const commandsIn = (html: string) =>
     [...html.matchAll(/<code class="cf-command-text">([^<]*)<\/code>/g)].map((m) => m[1]);
 
-  it("shows one keyed command to a user in one project", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
+  it("shows only the public command to a user in one project, and points to the project pages", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
     const hero = await heroOf(cookie);
-    expect(hero).toContain("Install your project");
-    expect(commandsIn(hero)).toEqual([`npx skills add ${ORIGIN}/i/${await installKey(user.id)}`]);
-    expect(hero).not.toContain("cf-hero-commands");
+    expect(hero).toContain("Install public skills with one command");
+    expect(commandsIn(hero)).toEqual([`npx skills add ${ORIGIN}`]);
+    expect(hero).not.toContain("/i/");
+    expect(hero).toContain('<a href="/projects">Projects</a>');
   });
 
-  it("shows a command per project, each under the project's name, to a user in several", async () => {
+  it("shows no install key to a user in several projects", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
 
-    const hero = await heroOf(cookie);
-    expect(hero).toContain("Install a project");
-    expect(commandsIn(hero)).toEqual([
-      `npx skills add ${ORIGIN}/i/${await installKey(user.id)}`,
-      `npx skills add ${ORIGIN}/i/${"b".repeat(32)}`,
-    ]);
-    const labels = [...hero.matchAll(/<span class="cf-hero-command-project">([^<]*)<\/span>/g)].map((m) => m[1]);
-    expect(labels).toEqual(["Default", "Team B"]);
+    const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
+    expect(commandsIn(html)).toEqual([`npx skills add ${ORIGIN}`]);
+    expect(html).not.toContain("/i/");
   });
 
   it("shows the public command to a user in no project", async () => {

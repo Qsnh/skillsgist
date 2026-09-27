@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, membershipIn, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
   startSession, verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
@@ -8,8 +8,8 @@ import { page } from "../csrf";
 import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
-  getUserByUsername, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updateInstallKey,
-  updatePassword, updateUserRole,
+  getUserByUsername, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
+  updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
@@ -71,27 +71,14 @@ usersRoutes.post("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/me", requireUser, async (c) =>
-  page(c, <MePage user={c.get("user")} origin={new URL(c.req.url).origin} />),
-);
-
-usersRoutes.post("/me/install-key/:project", requireUser, async (c) => {
-  const user = c.get("user");
-  const project = c.req.param("project");
-  if (!membershipIn(user, project)) return c.notFound();
-  await updateInstallKey(c.env.DB, project, user.id, randomHex(16));
-  return c.redirect("/me", 302);
-});
+usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("user")} />));
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
   const token = `sgt_${randomHex(16)}`;
   const api_token_hash = await sha256Hex(token);
   await updateApiTokenHash(c.env.DB, user.id, api_token_hash);
-  return page(
-    c,
-    <MePage user={{ ...user, api_token_hash }} origin={new URL(c.req.url).origin} newToken={token} />,
-  );
+  return page(c, <MePage user={{ ...user, api_token_hash }} newToken={token} />);
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -102,13 +89,12 @@ usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
 usersRoutes.post("/me/password", requireUser, async (c) => {
   const user = c.get("user");
   const body = await c.req.parseBody();
-  const origin = new URL(c.req.url).origin;
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} origin={origin} error="Current password is incorrect" />, 400);
+    return page(c, <MePage user={user} error="Current password is incorrect" />, 400);
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} origin={origin} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
+    return page(c, <MePage user={user} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   await flash(c, "Your password has been changed.");

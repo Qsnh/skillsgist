@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getProject, getSkill } from "../src/db/queries";
+import { addMembership, getProject, getSkill } from "../src/db/queries";
 import {
   env, follow, GOOD_MD, installKey, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin,
   seedProject, seedUser,
@@ -117,6 +117,7 @@ describe("/p/:project", () => {
     await publish(alice.cookie, GOOD_MD, "private");
     const html = await (await get("/p/default", alice.cookie)).text();
     expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
+    expect(html).toContain('action="/p/default/install-key"');
     expect(html).toContain('href="/p/default/s/demo-skill"');
     expect(html).toContain("bob");
     expect(html).not.toContain('action="/p/default/members"');
@@ -145,8 +146,51 @@ describe("/p/:project", () => {
     const html = await (await get("/p/team-b", cookie)).text();
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
     expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("/install-key");
     expect(html).toContain(">root</option>");
     expect(html).toContain('action="/p/team-b/delete"');
+  });
+});
+
+describe("resetting an install key", () => {
+  beforeEach(resetDb);
+
+  it("resets one project's key from its page and leaves the others alone", async () => {
+    await seedProject("team-b", "Team B");
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    const before = await installKey(user.id);
+
+    const res = await postForm("/p/default/install-key", cookie);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/p/default");
+    const after = await installKey(user.id);
+    expect(after).toMatch(/^[a-f0-9]{32}$/);
+    expect(after).not.toBe(before);
+    expect(await indexStatus(before)).toBe(404);
+    expect(await indexStatus(after)).toBe(200);
+    expect(await installKey(user.id, "team-b")).toBe("b".repeat(32));
+    expect(await (await follow(res, cookie)).text()).toContain(`npx skills add ${ORIGIN}/i/${after}`);
+  });
+
+  it("404s a reset for a project the user is not in", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    expect((await postForm("/p/team-b/install-key", cookie)).status).toBe(404);
+    expect((await postForm("/p/nope/install-key", cookie)).status).toBe(404);
+  });
+
+  it("404s a reset for an instance admin outside the project", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    expect((await postForm("/p/team-b/install-key", cookie)).status).toBe(404);
+  });
+
+  it("no longer resets a key from /me", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const before = await installKey(user.id);
+    expect((await postForm("/me/install-key/default", cookie)).status).toBe(404);
+    expect(await installKey(user.id)).toBe(before);
   });
 });
 

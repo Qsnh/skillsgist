@@ -171,9 +171,12 @@ export function ProjectPage(props: {
               <>
                 <CodeBlock>npx skills add {`${props.origin}/i/${membership.install_key}`}</CodeBlock>
                 <p class="cf-hint">
-                  This key installs only {project.name}'s skills and can do nothing else. Reset it from{" "}
-                  <a href="/me" class="cf-link">your account</a> if it leaks.
+                  This key installs only {project.name}'s skills and can do nothing else: it cannot sign in, publish or
+                  delete. Reset it if you think it has leaked; the old command stops working at once.
                 </p>
+                <Form action={`/p/${project.slug}/install-key`} class="cf-actions">
+                  <Button variant="outline">Reset install key</Button>
+                </Form>
               </>
             ) : (
               <p class="cf-hint">

@@ -4,7 +4,8 @@ import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
   addMembership, createProject, deleteMembership, deleteProject, getMember, getProject, getUserById, listMembers,
-  listNonMembers, listProjectSkills, listProjectSummaries, projectNameTaken, renameProject, updateMembershipRole,
+  listNonMembers, listProjectSkills, listProjectSummaries, projectNameTaken, renameProject, updateInstallKey,
+  updateMembershipRole,
 } from "../db/queries";
 import type { ProjectRow, Viewer } from "../db/queries";
 import { flash } from "../flash";
@@ -94,6 +95,14 @@ projectsRoutes.get("/p/:project", async (c) => {
   const skills = await listProjectSkills(c.env.DB, project.slug, true);
   if (skills.length === 0) return c.notFound();
   return page(c, <PublicProjectPage user={user} project={project} origin={originOf(c)} skills={skills} />);
+});
+
+projectsRoutes.post("/p/:project/install-key", requireUser, async (c) => {
+  const user = c.get("user");
+  const project = c.req.param("project");
+  if (!membershipIn(user, project)) return c.notFound();
+  await updateInstallKey(c.env.DB, project, user.id, randomHex(16));
+  return c.redirect(`/p/${project}`, 302);
 });
 
 projectsRoutes.post("/p/:project/rename", requireUser, async (c) => {

@@ -80,12 +80,6 @@ function EmptyRegistry(props: { user: Viewer | null; q: string }) {
   );
 }
 
-function heroTitle(user: Viewer | null): string {
-  const count = user?.memberships.length ?? 0;
-  if (count === 0) return "Install public skills with one command";
-  return count === 1 ? "Install your project's skills with one command" : "Install a project's skills with one command";
-}
-
 function HeroLede(props: { user: Viewer | null }) {
   if (!props.user) {
     return (
@@ -95,8 +89,7 @@ function HeroLede(props: { user: Viewer | null }) {
       </p>
     );
   }
-  const memberships = props.user.memberships;
-  if (memberships.length === 0) {
+  if (props.user.memberships.length === 0) {
     return (
       <p class="cf-hero-lede">
         You are not in a project yet, so you have no install key. Public skills install with the address below.
@@ -105,29 +98,9 @@ function HeroLede(props: { user: Viewer | null }) {
   }
   return (
     <p class="cf-hero-lede">
-      {memberships.length === 1
-        ? `The address carries your install key for ${memberships[0].project_name}, so its private skills come along.`
-        : "Each address carries your install key for one project and installs only that project's skills."}{" "}
-      A key can only install; reset it from <a href="/me">your account</a> if it leaks.
+      Public skills install with the address below. Each project's page, listed under{" "}
+      <a href="/projects">Projects</a>, has your install command for its private skills.
     </p>
-  );
-}
-
-function HeroCommands(props: { user: Viewer | null; origin: string }) {
-  const memberships = props.user?.memberships ?? [];
-  if (memberships.length === 0) return <CodeBlock raised>npx skills add {props.origin}</CodeBlock>;
-  if (memberships.length === 1) {
-    return <CodeBlock raised>npx skills add {`${props.origin}/i/${memberships[0].install_key}`}</CodeBlock>;
-  }
-  return (
-    <ul class="cf-hero-commands">
-      {memberships.map((m) => (
-        <li class="cf-hero-command">
-          <span class="cf-hero-command-project">{m.project_name}</span>
-          <CodeBlock raised>npx skills add {`${props.origin}/i/${m.install_key}`}</CodeBlock>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -142,9 +115,9 @@ export function IndexPage(props: {
     <Layout title="Skills" user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
         <div class="cf-hero-inner cf-hero-center">
-          <h1 id="hero-title" class="cf-hero-title">{heroTitle(props.user)}</h1>
+          <h1 id="hero-title" class="cf-hero-title">Install public skills with one command</h1>
           <HeroLede user={props.user} />
-          <HeroCommands user={props.user} origin={props.origin} />
+          <CodeBlock raised>npx skills add {props.origin}</CodeBlock>
           <form method="get" action="/" class="cf-search" role="search">
             <Icon>
               <circle cx="7" cy="7" r="4.5" />

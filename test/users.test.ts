@@ -111,79 +111,23 @@ describe("/me", () => {
     expect(head).not.toContain("cf-vis");
   });
 
-  it("shows a ready-to-copy install command", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
-    const html = await res.text();
-    expect(html).toContain(`npx skills add`);
-    expect(html).toContain(`/i/${await installKey(user.id)}`);
-  });
-
-  it("puts exactly the install command inside the copyable element", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
-    const text = /<code class="cf-command-text">([^<]*)<\/code>/.exec(html)?.[1];
-    expect(text).toBe(`npx skills add ${ORIGIN}/i/${await installKey(user.id)}`);
-  });
-
   it("gives the one-time api token its own copy button", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const html = await (await postForm("/me/api-token", cookie)).text();
-    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(2);
+    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(1);
     expect(html).toMatch(/<code class="cf-command-text">sgt_[a-f0-9]{32}<\/code>/);
   });
 
-  it("shows one install command per project, labelled with its name", async () => {
+  it("shows no install key, even to a user in several projects", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
     const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
-    const commands = [...html.matchAll(/<code class="cf-command-text">([^<]*)<\/code>/g)].map((m) => m[1]);
-    expect(commands).toEqual([
-      `npx skills add ${ORIGIN}/i/${await installKey(user.id)}`,
-      `npx skills add ${ORIGIN}/i/${"b".repeat(32)}`,
-    ]);
-    expect([...html.matchAll(/<p class="cf-key-project">([^<]*)<\/p>/g)].map((m) => m[1])).toEqual(["Default", "Team B"]);
-    expect(html).toContain('action="/me/install-key/default"');
-    expect(html).toContain('action="/me/install-key/team-b"');
-  });
-
-  it("tells a member in no project that they have no install key", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice", role: "member", project: null });
-    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
-    expect(html).toContain("You are not in a project yet, so you have no install keys. Ask an admin to add you to one.");
+    expect(html).not.toContain("Install keys");
     expect(html).not.toContain("npx skills add");
-  });
-
-  it("tells an instance admin in no project to add themselves to one instead", async () => {
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
-    const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
-    expect(html).toContain(
-      "You are not in a project yet, so you have no install keys. Add yourself to a project from its page to get one.",
-    );
-    expect(html).not.toContain("npx skills add");
-  });
-
-  it("resets one project's install key and leaves the others alone", async () => {
-    await seedProject("team-b", "Team B");
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
-    const before = await installKey(user.id);
-
-    const res = await postForm("/me/install-key/default", cookie);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/me");
-    const after = await installKey(user.id);
-    expect(after).toMatch(/^[a-f0-9]{32}$/);
-    expect(after).not.toBe(before);
-    expect(await installKey(user.id, "team-b")).toBe("b".repeat(32));
-  });
-
-  it("404s a reset for a project the user is not in", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    expect((await postForm("/me/install-key/team-b", cookie)).status).toBe(404);
-    expect((await postForm("/me/install-key/nope", cookie)).status).toBe(404);
+    expect(html).not.toContain(await installKey(user.id));
+    expect(html).not.toContain("b".repeat(32));
+    expect(html).not.toContain("install-key");
   });
 
   it("issues an api token once and stores only its hash", async () => {

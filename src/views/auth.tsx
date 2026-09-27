@@ -53,39 +53,13 @@ export function RoleLabel(props: { role: UserRow["role"] }) {
   return <span class={props.role === "admin" ? "cf-vis cf-vis-public" : "cf-vis cf-vis-private"}>{props.role}</span>;
 }
 
-export function MePage(props: { user: Viewer; origin: string; newToken?: string; error?: string }) {
+export function MePage(props: { user: Viewer; newToken?: string; error?: string }) {
   return (
     <Layout title="Account" user={props.user}>
       <div class="cf-narrow">
         <PageHead title="Account" error={props.error} />
 
         <div class="cf-stack-lg">
-          <Panel title="Install keys">
-            {props.user.memberships.length === 0 ? (
-              <p class="cf-hint">
-                {props.user.role === "admin"
-                  ? "You are not in a project yet, so you have no install keys. Add yourself to a project from its page to get one."
-                  : "You are not in a project yet, so you have no install keys. Ask an admin to add you to one."}
-              </p>
-            ) : (
-              <>
-                {props.user.memberships.map((m) => (
-                  <div class="cf-key">
-                    <p class="cf-key-project">{m.project_name}</p>
-                    <CodeBlock>npx skills add {`${props.origin}/i/${m.install_key}`}</CodeBlock>
-                    <Form action={`/me/install-key/${m.project}`} class="cf-actions">
-                      <Button variant="outline">Reset install key<span class="sr-only"> for {m.project_name}</span></Button>
-                    </Form>
-                  </div>
-                ))}
-                <p class="cf-hint">
-                  Each key installs one project's skills and can do nothing else: it cannot sign in, publish or delete.
-                  Reset a key if you think it has leaked.
-                </p>
-              </>
-            )}
-          </Panel>
-
           <Panel title="API token (for publishing with curl)">
             {props.newToken ? (
               <>
