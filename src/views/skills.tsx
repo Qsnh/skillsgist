@@ -99,8 +99,8 @@ function HeroLede(props: { user: Viewer | null }) {
   }
   return (
     <p class="cf-hero-lede">
-      Your install commands are on each project page, listed under <a href="/projects">Projects</a>, and on each skill
-      page.
+      Each project you are in has your install command on its page, listed under <a href="/projects">Projects</a>, and
+      so do its skills.
     </p>
   );
 }

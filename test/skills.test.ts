@@ -406,6 +406,8 @@ describe("home page hero", () => {
   const homeOf = async (path: string, cookie?: string) =>
     (await SELF.fetch(`${ORIGIN}${path}`, cookie ? { headers: { Cookie: cookie } } : {})).text();
   const heroOf = (html: string) => /<section class="cf-hero"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  const MEMBER_LEDE =
+    'Each project you are in has your install command on its page, listed under <a href="/projects">Projects</a>, and so do its skills.';
   const expectNoCommand = (hero: string) => {
     expect(hero).toContain('<h1 id="hero-title" class="cf-hero-title">Find a skill to install</h1>');
     expect(hero).toContain('<form method="get" action="/" class="cf-search" role="search">');
@@ -429,10 +431,19 @@ describe("home page hero", () => {
     const html = await homeOf("/", cookie);
     const hero = heroOf(html);
     expectNoCommand(hero);
-    expect(hero).toContain(
-      'Your install commands are on each project page, listed under <a href="/projects">Projects</a>, and on each skill page.',
-    );
+    expect(hero).toContain(MEMBER_LEDE);
     expect(html).not.toContain("/i/");
+  });
+
+  it("tells an instance admin only about the projects they are in, though they see other projects' private skills", async () => {
+    await seedProject("team-b", "Team B");
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(bob.cookie, GOOD_MD, "private", "team-b");
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+
+    const html = await homeOf("/", root.cookie);
+    expect(html).toContain('href="/p/team-b/s/demo-skill"');
+    expect(heroOf(html)).toContain(MEMBER_LEDE);
   });
 
   it("shows no install command or key anywhere on the page to a user in several projects", async () => {
