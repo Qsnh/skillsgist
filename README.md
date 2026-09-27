@@ -130,8 +130,6 @@ Each membership has its own role:
 
 **Deleting an account reassigns its skills and the author records on its versions to the admin who deletes it**, because neither may point at a user that no longer exists. The original authorship is lost.
 
-To withdraw someone's access and keep their authorship, reset their password, remove them from their projects and revoke their API token. Their keys and token stop working at once. A browser that is already signed in, however, keeps its session until it expires, up to 30 days after sign-in. To end every session immediately, delete the account instead, or rotate `SESSION_SECRET`, which signs out everyone.
-
 ## Security model
 
 - **The install key sits in the URL.** `npx skills` sends no custom headers, so the credential for a private install can only live in the path. That is why the key can do nothing but install, why each key reaches only one project's skills, and why it resets in one click.
