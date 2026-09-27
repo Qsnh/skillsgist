@@ -24,6 +24,9 @@ colors:
   cf-danger-line: "#f4c7c3"
   white: "#ffffff"
   selection: "#ffd6c2"
+  mark-violet: "#7b5cff"
+  mark-rose: "#ff3d7f"
+  mark-amber: "#ffb61e"
 typography:
   display:
     fontFamily: "Schibsted Grotesk, ui-sans-serif, system-ui, sans-serif"
