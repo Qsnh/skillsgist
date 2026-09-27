@@ -1,8 +1,10 @@
 import { raw } from "hono/html";
 import { useContext } from "hono/jsx";
-import { Form } from "../csrf";
+import { Form, OriginContext } from "../csrf";
 import type { UserRow } from "../db/queries";
 import { FlashContext } from "../flash";
+
+const TAGLINE = "A private registry for Agent Skills, running on Cloudflare Workers.";
 
 export function Icon(props: { children?: unknown }) {
   return (
@@ -55,6 +57,7 @@ export function Layout(props: {
   hideSignIn?: boolean;
   children?: unknown;
 }) {
+  const origin = useContext(OriginContext);
   return (
     <>
       {raw("<!DOCTYPE html>")}
@@ -66,6 +69,16 @@ export function Layout(props: {
           <title>{props.title} · skillsgist</title>
           <link rel="icon" type="image/png" href="/favicon.png" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+          <meta name="description" content={TAGLINE} />
+          <meta property="og:site_name" content="skillsgist" />
+          <meta property="og:type" content="website" />
+          <meta property="og:title" content={`${props.title} · skillsgist`} />
+          <meta property="og:description" content={TAGLINE} />
+          <meta property="og:image" content={`${origin}/og.png`} />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content="skillsgist: your private Agent Skills registry" />
+          <meta name="twitter:card" content="summary_large_image" />
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
           <script src="/copy.js" defer />
@@ -100,7 +113,7 @@ export function Layout(props: {
                   <img src="/logo.png" width="18" height="18" alt="" class="cf-wordmark-mark" />
                   skillsgist
                 </a>
-                <span>A private registry for Agent Skills, running on Cloudflare Workers.</span>
+                <span>{TAGLINE}</span>
               </p>
               <nav class="cf-footer-links" aria-label="Footer">
                 <a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>

@@ -23,8 +23,8 @@
 
       html,
       body {
-        width: 1280px;
-        height: 640px;
+        width: 100vw;
+        height: 100vh;
         background: #fdfdfc;
       }
 
@@ -118,6 +118,15 @@
       .cmd span {
         color: #c73a02;
       }
+
+      .og .hero {
+        justify-content: center;
+        padding: 0 72px 56px;
+      }
+
+      .og .cmd {
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -127,5 +136,8 @@
       <p>Self-hosted on Cloudflare. Installed with the stock CLI.</p>
       <div class="cmd"><span>$</span>npx skills add https://skills.example.com/i/&lt;install_key&gt;</div>
     </div>
+    <script>
+      if (location.hash === "#og") document.documentElement.classList.add("og");
+    </script>
   </body>
 </html>

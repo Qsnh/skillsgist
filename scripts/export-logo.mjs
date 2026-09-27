@@ -45,20 +45,25 @@ for (const [file, pngs] of files) {
   process.stdout.write(`${file}\n`);
 }
 
-const preview = join(root, "docs", "images", "social-preview.png");
-execFileSync(
-  chrome,
-  [
-    "--headless=new",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    "--allow-file-access-from-files",
-    "--force-device-scale-factor=1",
-    "--window-size=1280,640",
-    "--virtual-time-budget=3000",
-    `--screenshot=${preview}`,
-    pathToFileURL(join(here, "social-preview.html")).href,
-  ],
-  { stdio: "ignore" },
-);
-process.stdout.write("docs/images/social-preview.png\n");
+function capture(url, width, height, file) {
+  execFileSync(
+    chrome,
+    [
+      "--headless=new",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--allow-file-access-from-files",
+      "--force-device-scale-factor=1",
+      `--window-size=${width},${height}`,
+      "--virtual-time-budget=3000",
+      `--screenshot=${join(root, file)}`,
+      url,
+    ],
+    { stdio: "ignore" },
+  );
+  process.stdout.write(`${file}\n`);
+}
+
+const social = pathToFileURL(join(here, "social-preview.html")).href;
+capture(social, 1280, 640, "docs/images/social-preview.png");
+capture(`${social}#og`, 1200, 630, "public/og.png");

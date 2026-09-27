@@ -42,4 +42,7 @@ it("renders pages through the shared Layout: a doctype, same-origin deferred scr
   expect(html).toContain(
     `<a href="/" class="cf-footer-mark"><img src="/logo.png" width="18" height="18" alt="" class="cf-wordmark-mark"/>skillsgist</a>`,
   );
+  expect(html).toContain(`<meta property="og:title" content="Sign in · skillsgist"/>`);
+  expect(html).toContain(`<meta property="og:image" content="http://localhost/og.png"/>`);
+  expect(html).toContain(`<meta name="twitter:card" content="summary_large_image"/>`);
 });
