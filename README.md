@@ -14,8 +14,9 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 ## Why skillsgist
 
 - **Private by default.** A new skill is visible only to the members of its project. Making one public is a deliberate switch on that one skill.
+- **Access controlled per project.** Each project has its own members and admins, and project admins manage its people and skills without being instance admins. An install key reaches only one project, so one team's key never opens another team's skills.
 - **Your infrastructure, nearly free.** One Worker, one D1 database and one R2 bucket. The default limits fit the Workers Free plan.
-- **Managed from the browser.** Publishing, editing, versions, visibility and accounts are all web pages. There is no config file to maintain.
+- **Managed from the browser.** Publishing, editing, versions, visibility, projects and accounts are all web pages. There is no config file to maintain.
 
 ## Features
 
