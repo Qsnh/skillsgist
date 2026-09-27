@@ -21,30 +21,21 @@ const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
 });
 
 describe("password hashing", () => {
-  it("round-trips a password", async () => {
-    const stored = await hashPassword("correct horse battery");
-    expect(await verifyPassword("correct horse battery", stored)).toBe(true);
-    expect(await verifyPassword("wrong password xx", stored)).toBe(false);
+  it("round-trips a password, at the stored iteration count", async () => {
+    for (const stored of [await hashPassword("correct horse battery"), await hashPassword("correct horse battery", 1000)]) {
+      expect(await verifyPassword("correct horse battery", stored)).toBe(true);
+      expect(await verifyPassword("wrong password xx", stored)).toBe(false);
+    }
   });
 
-  it("encodes scheme, iterations, salt and hash", async () => {
+  it("encodes scheme, iterations, salt and hash, with a fresh salt each time", async () => {
     const stored = await hashPassword("correct horse battery");
     const parts = stored.split("$");
     expect(parts[0]).toBe("pbkdf2");
     expect(Number(parts[1])).toBe(PBKDF2_ITERATIONS);
     expect(parts).toHaveLength(4);
-  });
-
-  it("uses a fresh salt each time", async () => {
-    const a = await hashPassword("correct horse battery");
-    const b = await hashPassword("correct horse battery");
-    expect(a).not.toBe(b);
-  });
-
-  it("verifies hashes stored with a different iteration count", async () => {
-    const stored = await hashPassword("correct horse battery", 1000);
-    expect(stored).toContain("$1000$");
-    expect(await verifyPassword("correct horse battery", stored)).toBe(true);
+    expect(await hashPassword("correct horse battery")).not.toBe(stored);
+    expect(await hashPassword("correct horse battery", 1000)).toContain("$1000$");
   });
 
   it("rejects malformed stored hashes without throwing", async () => {
@@ -68,49 +59,36 @@ describe("sha256Hex", () => {
   });
 });
 
+const inDefault = viewer({ memberships: [member("default")] });
+const inOther = viewer({ memberships: [member("other")] });
+const instanceAdmin = viewer({ id: "u2", role: "admin" });
+
 describe("canView", () => {
-  it("shows a public skill to everyone, in its project or not", () => {
-    expect(canView(null, skill({ visibility: "public" }))).toBe(true);
-    expect(canView(viewer({ memberships: [member("other")] }), skill({ visibility: "public" }))).toBe(true);
-  });
-
-  it("shows a private skill to its project's members only", () => {
-    expect(canView(null, skill())).toBe(false);
-    expect(canView(viewer({ memberships: [member("default")] }), skill())).toBe(true);
-    expect(canView(viewer({ memberships: [member("other")] }), skill())).toBe(false);
-    expect(canView(viewer(), skill())).toBe(false);
-  });
-
-  it("shows an instance admin every private skill", () => {
-    expect(canView(viewer({ role: "admin" }), skill())).toBe(true);
-  });
-
-  it("does not mistake an inherited property name for a membership", () => {
-    expect(canView(viewer(), skill({ project: "constructor" }))).toBe(false);
+  it.each<[string, Viewer | null, Partial<SkillRow>, boolean]>([
+    ["a public skill to an anonymous visitor", null, { visibility: "public" }, true],
+    ["a public skill to another project's member", inOther, { visibility: "public" }, true],
+    ["a private skill to an anonymous visitor", null, {}, false],
+    ["a private skill to its project's member", inDefault, {}, true],
+    ["a private skill to another project's member", inOther, {}, false],
+    ["a private skill to a user in no project", viewer(), {}, false],
+    ["a private skill to an instance admin", instanceAdmin, {}, true],
+    ["a skill whose project is an inherited property name", viewer(), { project: "constructor" }, false],
+  ])("shows %s", (_label, who, over, expected) => {
+    expect(canView(who, skill(over))).toBe(expected);
   });
 });
 
 describe("canManage", () => {
-  it("lets an owner manage their skill while they are in its project", () => {
-    expect(canManage(viewer({ memberships: [member("default")] }), skill())).toBe(true);
-  });
-
-  it("stops an owner who is no longer in the project", () => {
-    expect(canManage(viewer(), skill())).toBe(false);
-  });
-
-  it("stops a project member managing someone else's skill", () => {
-    expect(canManage(viewer({ id: "u2", memberships: [member("default")] }), skill())).toBe(false);
-  });
-
-  it("lets a project admin manage every skill in that project and no other", () => {
-    const lead = viewer({ id: "u2", memberships: [member("default", "admin")] });
-    expect(canManage(lead, skill())).toBe(true);
-    expect(canManage(lead, skill({ project: "other" }))).toBe(false);
-  });
-
-  it("lets an instance admin manage anything", () => {
-    expect(canManage(viewer({ id: "u2", role: "admin" }), skill({ project: "other" }))).toBe(true);
+  const lead = viewer({ id: "u2", memberships: [member("default", "admin")] });
+  it.each<[string, Viewer, Partial<SkillRow>, boolean]>([
+    ["an owner, while they are in its project", inDefault, {}, true],
+    ["an owner no longer in the project", viewer(), {}, false],
+    ["a project member, on someone else's skill", viewer({ id: "u2", memberships: [member("default")] }), {}, false],
+    ["a project admin, on a skill in that project", lead, {}, true],
+    ["a project admin, on a skill in another project", lead, { project: "other" }, false],
+    ["an instance admin, on anything", instanceAdmin, { project: "other" }, true],
+  ])("answers %s", (_label, who, over, expected) => {
+    expect(canManage(who, skill(over))).toBe(expected);
   });
 });
 

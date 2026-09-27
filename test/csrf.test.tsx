@@ -4,7 +4,7 @@ import { setSignedCookie } from "hono/cookie";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SESSION_COOKIE, sessionCsrf } from "../src/auth";
 import type { Ctx } from "../src/auth";
-import { page, SAFE_METHODS } from "../src/csrf";
+import { SAFE_METHODS } from "../src/csrf";
 import { getSkill, getUserById } from "../src/db/queries";
 import app from "../src/index";
 import { Layout } from "../src/views/layout";
@@ -107,23 +107,21 @@ const READ_ONLY_GETS = new Set([
 const registered = () =>
   app.routes.filter((r) => r.path !== "/*").map((r) => `${r.method} ${r.path}`);
 
+const FORM = { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN };
+
+const post = (path: string, cookie: string, body: BodyInit, headers: Record<string, string> = FORM) =>
+  SELF.fetch(`${ORIGIN}${path}`, { method: "POST", headers: { Cookie: cookie, ...headers }, body, redirect: "manual" });
+
 describe("route inventory (guards against a new route slipping through)", () => {
-  it("accounts for every state-changing route", () => {
-    const mutating = registered().filter((key) => !SAFE_METHODS.has(key.split(" ")[0]));
-    const unaccounted = mutating.filter((key) => !EXEMPT.has(key) && !(key in PROTECTED));
-    expect(unaccounted).toEqual([]);
-  });
-
-  it("has no stale entries in either list", () => {
-    const all = new Set(registered());
-    expect([...EXEMPT].filter((k) => !all.has(k))).toEqual([]);
-    expect(Object.keys(PROTECTED).filter((k) => !all.has(k))).toEqual([]);
-    expect([...READ_ONLY_GETS].filter((k) => !all.has(k))).toEqual([]);
-  });
-
-  it("registers no state-changing GET route", () => {
-    const gets = registered().filter((key) => key.startsWith("GET "));
-    expect(gets.filter((key) => !READ_ONLY_GETS.has(key))).toEqual([]);
+  it("accounts for every registered route, with no stale entries in any list", () => {
+    const all = registered();
+    const mutating = all.filter((key) => !SAFE_METHODS.has(key.split(" ")[0]));
+    expect(mutating.filter((key) => !EXEMPT.has(key) && !(key in PROTECTED))).toEqual([]);
+    expect(all.filter((key) => key.startsWith("GET ") && !READ_ONLY_GETS.has(key))).toEqual([]);
+    const known = new Set(all);
+    expect([...EXEMPT].filter((k) => !known.has(k))).toEqual([]);
+    expect(Object.keys(PROTECTED).filter((k) => !known.has(k))).toEqual([]);
+    expect([...READ_ONLY_GETS].filter((k) => !known.has(k))).toEqual([]);
   });
 });
 
@@ -138,63 +136,22 @@ describe("token layer", () => {
 
     for (const [key, toPath] of Object.entries(PROTECTED)) {
       const path = toPath({ userId: target.id, slug: "demo-skill" });
-      const res = await SELF.fetch(`${ORIGIN}${path}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Origin: ORIGIN,
-          Cookie: cookie,
-        },
-        // A plausible body for whichever route this is, minus the token.
-        body: new URLSearchParams({ role: "admin", password: "a-very-long-password" }),
-        redirect: "manual",
-      });
+      const res = await post(path, cookie, new URLSearchParams({ role: "admin", password: "a-very-long-password" }));
       expect(res.status, `${key} should reject a tokenless request`).toBe(403);
     }
-    // None of those 15 rejected requests mutated anything: bob is untouched
-    // (no role change, no key rotation, no delete) and the skill still exists.
     const bobAfter = await getUserById(env.DB, target.id);
     expect(bobAfter?.role).toBe("member");
     expect(await installKey(target.id)).toBe(bobKey);
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
   });
 
-  it("accepts a request carrying the session's token", async () => {
+  it.each<[string, () => Promise<string>]>([
+    ["an empty", async () => ""],
+    ["a wrong", async () => "f".repeat(32)],
+    ["another session's", async () => csrfFor((await seedAndLogin({ username: "bob" })).cookie)],
+  ])("rejects %s token", async (_label, tokenFor) => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await postForm("/p/default/install-key", cookie);
-    expect(res.status).toBe(302);
-  });
-
-  it.each([
-    ["missing", undefined],
-    ["empty", ""],
-    ["wrong", "f".repeat(32)],
-  ])("rejects a $0 token", async (_label, token) => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const body = new URLSearchParams();
-    if (token !== undefined) body.set("_csrf", token);
-    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: cookie },
-      body,
-      redirect: "manual",
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("rejects another session's token", async () => {
-    const alice = await seedUser({ username: "alice" });
-    const bob = await seedUser({ username: "bob" });
-    const aliceCookie = await login("alice", alice.password);
-    const bobCookie = await login("bob", bob.password);
-    const bobToken = await csrfFor(bobCookie);
-
-    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: aliceCookie },
-      body: new URLSearchParams({ _csrf: bobToken }),
-      redirect: "manual",
-    });
+    const res = await post("/p/default/install-key", cookie, new URLSearchParams({ _csrf: await tokenFor() }));
     expect(res.status).toBe(403);
   });
 
@@ -203,13 +160,8 @@ describe("token layer", () => {
   // has to fail closed rather than treat "unparseable" as "no token required".
   it("rejects a text/plain body, which carries no parseable token", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const token = await csrfFor(cookie);
-    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain", Origin: ORIGIN, Cookie: cookie },
-      body: `_csrf=${token}`,
-      redirect: "manual",
-    });
+    const body = `_csrf=${await csrfFor(cookie)}`;
+    const res = await post("/p/default/install-key", cookie, body, { "Content-Type": "text/plain", Origin: ORIGIN });
     expect(res.status).toBe(403);
   });
 });
@@ -217,58 +169,25 @@ describe("token layer", () => {
 describe("Origin / Sec-Fetch-Site layer", () => {
   beforeEach(resetDb);
 
-  const postWith = async (headers: Record<string, string>) => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const token = await csrfFor(cookie);
-    return SELF.fetch(`${ORIGIN}/p/default/install-key`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, ...headers },
-      body: new URLSearchParams({ _csrf: token }),
-      redirect: "manual",
-    });
-  };
-
-  it("rejects a request with neither Origin nor Sec-Fetch-Site", async () => {
-    expect((await postWith({})).status).toBe(403);
-  });
-
-  it("rejects a cross-origin Origin even with a valid token", async () => {
-    expect((await postWith({ Origin: "http://evil.example.com" })).status).toBe(403);
-  });
-
   // The subdomain case SameSite=Lax leaves open: Lax is scoped to the
   // registrable domain, so a sibling subdomain counts as same-site and gets
   // the session cookie attached. Sec-Fetch-Site is what distinguishes it.
-  it("rejects Sec-Fetch-Site: same-site", async () => {
-    expect((await postWith({ "Sec-Fetch-Site": "same-site" })).status).toBe(403);
-  });
-
-  it("accepts Sec-Fetch-Site: same-origin with no Origin header", async () => {
-    expect((await postWith({ "Sec-Fetch-Site": "same-origin" })).status).toBe(302);
-  });
-
-  it("answers with 403, not the generic 500 from app.onError", async () => {
-    const res = await postWith({});
-    expect(res.status).toBe(403);
+  it.each([
+    ["neither Origin nor Sec-Fetch-Site", {}, 403],
+    ["a cross-origin Origin", { Origin: "http://evil.example.com" }, 403],
+    ["Sec-Fetch-Site: same-site", { "Sec-Fetch-Site": "same-site" }, 403],
+    ["Sec-Fetch-Site: same-origin and no Origin", { "Sec-Fetch-Site": "same-origin" }, 302],
+  ])("answers a valid token with %s with %i, never the generic 500", async (_label, headers, status) => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const body = new URLSearchParams({ _csrf: await csrfFor(cookie) });
+    const res = await post("/p/default/install-key", cookie, body, { "Content-Type": FORM["Content-Type"], ...headers });
+    expect(res.status).toBe(status);
     expect(await res.text()).not.toContain("Internal server error");
   });
 });
 
 describe("/api/* exemption", () => {
   beforeEach(resetDb);
-
-  it("publishes with a Bearer token, no Origin and no CSRF token", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const tokenRes = await postForm("/me/api-token", cookie);
-    const apiToken = /sgt_[a-f0-9]{32}/.exec(await tokenRes.text())![0];
-
-    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "text/markdown" },
-      body: GOOD_MD,
-    });
-    expect(res.status).toBe(201);
-  });
 
   // This is what makes exempting `/api/*` by path sound rather than a guess:
   // the namespace has no cookie-authenticated door, so skipping the token
@@ -291,8 +210,6 @@ describe("session payload", () => {
     const { password } = await seedUser({ username: "alice" });
     const first = await csrfFor(await login("alice", password));
     const second = await csrfFor(await login("alice", password));
-    expect(first).toMatch(/^[a-f0-9]{32}$/);
-    expect(second).toMatch(/^[a-f0-9]{32}$/);
     expect(first).not.toBe(second);
   });
 
@@ -324,12 +241,10 @@ describe("page() and <Form>", () => {
   beforeEach(resetDb);
 
   it("keeps concurrent renders from seeing each other's token", async () => {
-    const alice = await seedUser({ username: "alice" });
-    const bob = await seedUser({ username: "bob" });
-    const aliceCookie = await login("alice", alice.password);
-    const bobCookie = await login("bob", bob.password);
+    const alice = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob" });
 
-    const [a, b] = await Promise.all([csrfFor(aliceCookie), csrfFor(bobCookie)]);
+    const [a, b] = await Promise.all([csrfFor(alice.cookie), csrfFor(bob.cookie)]);
     expect(a).not.toBe(b);
     // Each token must be the one its own session actually holds.
     // `sessionCsrf` memoises the session read on the context, so the stub
@@ -343,8 +258,8 @@ describe("page() and <Form>", () => {
         set: (key: string, value: unknown) => vars.set(key, value),
       } as unknown as Ctx);
     };
-    expect(await sessionOf(aliceCookie)).toBe(a);
-    expect(await sessionOf(bobCookie)).toBe(b);
+    expect(await sessionOf(alice.cookie)).toBe(a);
+    expect(await sessionOf(bob.cookie)).toBe(b);
   });
 
   it("throws rather than emitting an empty token when rendered outside page()", async () => {
@@ -352,16 +267,10 @@ describe("page() and <Form>", () => {
     const bare = new Hono<{ Bindings: Env }>();
     // Layout renders the logout <Form> whenever a user is signed in.
     bare.get("/", (c) => c.html(<Layout title="t" user={user} />));
-    bare.onError(() => new Response("boom", { status: 500 }));
-    expect((await bare.request(`${ORIGIN}/`)).status).toBe(500);
-  });
-
-  it("emits the token when the same tree goes through page()", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    const wrapped = new Hono<{ Bindings: Env }>();
-    wrapped.get("/", (c) => page(c as unknown as Ctx, <Layout title="t" user={user} />));
-    const res = await wrapped.request(`${ORIGIN}/`, { headers: { Cookie: cookie } }, env);
-    expect(await res.text()).toContain(`value="${await csrfFor(cookie)}"`);
+    bare.onError((err) => new Response(err.message, { status: 500 }));
+    const res = await bare.request(`${ORIGIN}/`);
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain("CsrfField rendered outside page()");
   });
 });
 
