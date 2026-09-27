@@ -142,6 +142,22 @@ describe("/me", () => {
     expect(after?.api_token_hash).not.toContain(match![0]);
   });
 
+  it("puts token revocation behind a confirm step, and offers none without a token", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const page = async () => (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
+    expect(await page()).not.toContain("/me/api-token/revoke");
+
+    await postForm("/me/api-token", cookie);
+    const html = await page();
+    const blocks = html.match(/<details class="cf-confirm" name="revoke-api-token">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain('<summary class="cf-btn cf-btn-danger">Revoke</summary>');
+    expect(blocks[0]).toContain('<p class="cf-hint">Revoking stops your current token from working at once');
+    expect(blocks[0]).toContain('action="/me/api-token/revoke"');
+    expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Revoke API token</button>');
+    expect(html.split("/me/api-token/revoke")).toHaveLength(2);
+  });
+
   it("changes the password when the current one is supplied", async () => {
     const { password, cookie } = await seedAndLogin({ username: "alice" });
     const res = await postForm("/me/password", cookie, {
@@ -493,6 +509,30 @@ describe("/admin/users/:id", () => {
     expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);
     expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
     expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger">Delete carol</button>`);
+  });
+
+  it("puts API token revocation behind a confirm step that names the user", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const carol = await seedAndLogin({ username: "carol", role: "member" });
+    await postForm("/me/api-token", carol.cookie);
+    await postForm("/me/api-token", root.cookie);
+    const blocksOn = async (id: string) => {
+      const html = await (await view(id, root.cookie)).text();
+      expect(html.split(`/admin/users/${id}/api-token/revoke`)).toHaveLength(2);
+      return html.match(/<details class="cf-confirm" name="revoke-api-token">[\s\S]*?<\/details>/g) ?? [];
+    };
+
+    const other = await blocksOn(carol.user.id);
+    expect(other).toHaveLength(1);
+    expect(other[0]).toContain('<summary class="cf-btn cf-btn-danger">Revoke API token</summary>');
+    expect(other[0]).toContain('<p class="cf-hint">Revoking stops carol&#39;s current token from working at once');
+    expect(other[0]).toContain(`action="/admin/users/${carol.user.id}/api-token/revoke"`);
+    expect(other[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Revoke carol&#39;s token</button>');
+
+    const own = await blocksOn(root.user.id);
+    expect(own).toHaveLength(1);
+    expect(own[0]).toContain('<p class="cf-hint">Revoking stops your current token from working at once');
+    expect(own[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Revoke your token</button>');
   });
 
   it("lets an admin generate a token for another account, shows it once and replaces the old one", async () => {

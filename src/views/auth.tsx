@@ -83,9 +83,15 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
                 <Button variant="outline">Generate a new token</Button>
               </Form>
               {props.user.api_token_hash ? (
-                <Form action="/me/api-token/revoke">
-                  <Button variant="danger">Revoke</Button>
-                </Form>
+                <ConfirmDelete
+                  action="/me/api-token/revoke"
+                  label="Revoke"
+                  confirm="Revoke API token"
+                  name="revoke-api-token"
+                >
+                  Revoking stops your current token from working at once, so publishing with it fails until you
+                  generate a new one.
+                </ConfirmDelete>
               ) : null}
             </div>
           </Panel>
@@ -237,9 +243,14 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
                 <Button variant="outline">Generate a new token</Button>
               </Form>
               {target.api_token_hash ? (
-                <Form action={`${path}/api-token/revoke`}>
-                  <Button variant="danger">Revoke API token</Button>
-                </Form>
+                <ConfirmDelete
+                  action={`${path}/api-token/revoke`}
+                  label="Revoke API token"
+                  confirm={isSelf ? "Revoke your token" : `Revoke ${target.username}'s token`}
+                  name="revoke-api-token"
+                >
+                  {`Revoking stops ${isSelf ? "your" : `${target.username}'s`} current token from working at once, so publishing with it fails until a new one is generated.`}
+                </ConfirmDelete>
               ) : null}
             </div>
           </Panel>
