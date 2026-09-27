@@ -101,6 +101,24 @@ describe("accounts, projects and memberships", () => {
     await expect(q.rotateInstallKeys(env.DB, "u1", () => "x")).resolves.toBeUndefined();
   });
 
+  it("summarises the projects each account is in and the skills it owns", async () => {
+    await seedU1();
+    await q.createUser(env.DB, { id: "u2", username: "bob", passwordHash: "h", role: "member" });
+    await q.createProject(env.DB, { slug: "team-b", name: "Team B" });
+    await join("u1", q.DEFAULT_PROJECT, "k1");
+    await join("u1", "team-b", "k2");
+    await q.insertVersion(env.DB, base);
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "other", name: "other" });
+    await q.insertVersion(env.DB, { ...base, authorId: "u2" });
+    expect((await q.listUserSummaries(env.DB)).map((u) => [u.username, u.projects, u.skills])).toEqual([
+      ["alice", 2, 2],
+      ["bob", 0, 0],
+    ]);
+    expect(await q.getUserSummary(env.DB, "u2")).toMatchObject({ username: "bob", role: "member", projects: 0, skills: 0 });
+    expect(await q.getUserSummary(env.DB, "u1")).not.toHaveProperty("password_hash");
+    expect(await q.getUserSummary(env.DB, "nobody")).toBeNull();
+  });
+
   it("deletes a user who belongs to a project, reassigning their skills", async () => {
     await seedU1();
     await q.createUser(env.DB, { id: "u2", username: "bob", passwordHash: "h", role: "member" });

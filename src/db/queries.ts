@@ -144,6 +144,25 @@ export async function listUsers(db: D1Database): Promise<UserRow[]> {
   return results;
 }
 
+export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_hash" | "created_at" | "last_login_at"> & {
+  projects: number;
+  skills: number;
+};
+
+const USER_SUMMARY_SQL = `SELECT u.id, u.username, u.role, u.api_token_hash, u.created_at, u.last_login_at,
+         (SELECT COUNT(*) FROM memberships m WHERE m.user_id = u.id) AS projects,
+         (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills
+  FROM users u`;
+
+export async function listUserSummaries(db: D1Database): Promise<UserSummary[]> {
+  const { results } = await db.prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`).all<UserSummary>();
+  return results;
+}
+
+export function getUserSummary(db: D1Database, id: string): Promise<UserSummary | null> {
+  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?`).bind(id).first<UserSummary>();
+}
+
 export async function countAdmins(db: D1Database): Promise<number> {
   const row = await db
     .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'")
