@@ -310,18 +310,20 @@ export function ProjectSettingsPage(props: {
               {props.hasSkills ? (
                 <p class="cf-hint">A project that still has skills cannot be deleted. Move or delete its skills first.</p>
               ) : (
-                <ConfirmDelete
-                  action={`/p/${project.slug}/delete`}
-                  label="Delete project"
-                  confirm={`Delete ${project.name}`}
-                  name="delete-project"
-                >
-                  Deleting removes {project.name} and every membership in it. Its members' install keys for it stop
-                  working at once.
-                  {project.slug === DEFAULT_PROJECT
-                    ? " The old PUT /api/skills/<name> address and /s/<name> links publish into and point at this project, and stop working once it is deleted."
-                    : null}
-                </ConfirmDelete>
+                <div class="cf-actions">
+                  <ConfirmDelete
+                    action={`/p/${project.slug}/delete`}
+                    label="Delete project"
+                    confirm={`Delete ${project.name}`}
+                    name="delete-project"
+                  >
+                    Deleting removes {project.name} and every membership in it. Its members' install keys for it stop
+                    working at once.
+                    {project.slug === DEFAULT_PROJECT
+                      ? " The old PUT /api/skills/<name> address and /s/<name> links publish into and point at this project, and stop working once it is deleted."
+                      : null}
+                  </ConfirmDelete>
+                </div>
               )}
             </Panel>
           ) : null}

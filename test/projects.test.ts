@@ -281,6 +281,32 @@ describe("/p/:project/settings", () => {
     expect(html).not.toContain('action="/p/default/delete"');
   });
 
+  it("puts member removal behind a confirm step that names the member, inside the row's actions", async () => {
+    const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
+    const { user: bob } = await seedUser({ username: "bob", role: "member" });
+    const html = await (await get("/p/default/settings", lead.cookie)).text();
+    const row = html.split('<li class="cf-row cf-member">').find((r) => r.includes(">bob</span>")) ?? "";
+    const blocks =
+      row.match(/<div class="cf-actions">[\s\S]*?<details class="cf-confirm" name="remove-member">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain('<summary class="cf-btn cf-btn-danger cf-btn-sm">Remove</summary>');
+    expect(blocks[0]).toContain('<p class="cf-hint">bob loses access to Default');
+    expect(blocks[0]).toContain(`action="/p/default/members/${bob.id}/remove"`);
+    expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger cf-btn-sm">Remove bob</button>');
+  });
+
+  it("puts project deletion behind a confirm step in an actions row that names the project", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await get("/p/team-b/settings", cookie)).text();
+    const blocks =
+      html.match(/<div class="cf-actions"><details class="cf-confirm" name="delete-project">[\s\S]*?<\/details><\/div>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain('<summary class="cf-btn cf-btn-danger">Delete project</summary>');
+    expect(blocks[0]).toContain('action="/p/team-b/delete"');
+    expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Delete Team B</button>');
+  });
+
   it("keeps the viewer's project role out of the page head but in the member list", async () => {
     const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
     const html = await (await get("/p/default/settings", lead.cookie)).text();

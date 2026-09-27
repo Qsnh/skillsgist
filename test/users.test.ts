@@ -486,7 +486,8 @@ describe("/admin/users/:id", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const { user: carol } = await seedUser({ username: "carol", role: "member" });
     const html = await (await view(carol.id, cookie)).text();
-    const blocks = html.match(/<details class="cf-confirm" name="delete-user">[\s\S]*?<\/details>/g) ?? [];
+    const blocks =
+      html.match(/<div class="cf-actions"><details class="cf-confirm" name="delete-user">[\s\S]*?<\/details><\/div>/g) ?? [];
     expect(blocks).toHaveLength(1);
     expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger">Delete account</summary>`);
     expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);

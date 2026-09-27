@@ -245,7 +245,7 @@
   }
 
   .cf-menu-panel,
-  .cf-toolbar .cf-confirm-panel {
+  .cf-confirm-panel {
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
@@ -912,6 +912,7 @@
   }
 
   .cf-actions {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1394,17 +1395,13 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
-    margin-top: 10px;
-  }
-
-  .cf-confirm-panel .cf-hint {
-    max-width: 60ch;
-  }
-
-  .cf-toolbar .cf-confirm-panel {
     width: min(340px, 100%);
-    margin-top: 0;
     padding: 14px;
+  }
+
+  .cf-actions .cf-confirm-panel {
+    left: 0;
+    right: auto;
   }
 
   .cf-move {
@@ -1456,8 +1453,19 @@
   }
 
   .cf-member {
+    position: relative;
     flex-wrap: wrap;
     row-gap: 8px;
+  }
+
+  .cf-member .cf-actions {
+    position: static;
+  }
+
+  .cf-member .cf-confirm-panel {
+    left: auto;
+    right: 20px;
+    width: min(340px, 100% - 40px);
   }
 
   .cf-member .cf-row-main {

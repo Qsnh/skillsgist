@@ -261,15 +261,18 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
 
           {isSelf ? null : (
             <Panel title="Delete this account">
-              <ConfirmDelete
-                action={`${path}/delete`}
-                label="Delete account"
-                confirm={`Delete ${target.username}`}
-                name="delete-user"
-              >
-                Deleting reassigns this user's skills and their published versions' author records to you. To keep the
-                author records, remove this user from their projects and reset their password instead of deleting.
-              </ConfirmDelete>
+              <div class="cf-actions">
+                <ConfirmDelete
+                  action={`${path}/delete`}
+                  label="Delete account"
+                  confirm={`Delete ${target.username}`}
+                  name="delete-user"
+                >
+                  Deleting reassigns this user's skills and their published versions' author records to you. To keep
+                  the author records, remove this user from their projects and reset their password instead of
+                  deleting.
+                </ConfirmDelete>
+              </div>
             </Panel>
           )}
         </div>
