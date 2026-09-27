@@ -14,5 +14,6 @@ export const zhCN: Messages = {
     users: "用户",
     signOut: "退出登录",
     source: "GitHub 上的源代码",
+    language: "语言",
   },
 };

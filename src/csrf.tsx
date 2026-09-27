@@ -6,11 +6,19 @@ import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
 import { FlashContext, takeFlash } from "./flash";
 import { LocaleContext, localeOf } from "./i18n";
+import { returnPath } from "./paths";
 
 
 const CsrfContext = createContext<string>("");
 
 export const OriginContext = createContext<string>("");
+
+export const ReturnPathContext = createContext<string>("/");
+
+export function OptionalCsrfField() {
+  const token = useContext(CsrfContext);
+  return token ? <input type="hidden" name={CSRF_FIELD} value={token} /> : null;
+}
 
 export function CsrfField() {
   const token = useContext(CsrfContext);
@@ -42,11 +50,13 @@ export async function page(
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
   return c.html(
     <LocaleContext.Provider value={localeOf(c)}>
-      <OriginContext.Provider value={new URL(c.req.url).origin}>
-        <CsrfContext.Provider value={token ?? ""}>
-          <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
-        </CsrfContext.Provider>
-      </OriginContext.Provider>
+      <ReturnPathContext.Provider value={returnPath(c.req.method, c.req.url, c.req.header("Referer"))}>
+        <OriginContext.Provider value={new URL(c.req.url).origin}>
+          <CsrfContext.Provider value={token ?? ""}>
+            <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
+          </CsrfContext.Provider>
+        </OriginContext.Provider>
+      </ReturnPathContext.Provider>
     </LocaleContext.Provider>,
     status,
   );

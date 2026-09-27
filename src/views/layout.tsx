@@ -1,9 +1,10 @@
 import { raw } from "hono/html";
 import { useContext } from "hono/jsx";
-import { Form, OriginContext } from "../csrf";
+import { Form, OptionalCsrfField, OriginContext, ReturnPathContext } from "../csrf";
 import type { UserRow } from "../db/queries";
 import { FlashContext } from "../flash";
 import { useLocale, useT } from "../i18n";
+import { LOCALE_NAMES, LOCALES } from "../i18n/locales";
 
 export function Icon(props: { children?: unknown }) {
   return (
@@ -47,6 +48,27 @@ function AccountMenu(props: { user: UserRow }) {
         </Form>
       </div>
     </details>
+  );
+}
+
+function LanguageForm() {
+  const locale = useLocale();
+  const t = useT();
+  const next = useContext(ReturnPathContext);
+  return (
+    <form method="post" action="/lang" class="cf-lang" aria-label={t.layout.language}>
+      <OptionalCsrfField />
+      <input type="hidden" name="next" value={next} />
+      {LOCALES.map((option) =>
+        option === locale ? (
+          <span class="cf-lang-option" aria-current="true" lang={option}>{LOCALE_NAMES[option]}</span>
+        ) : (
+          <button type="submit" name="lang" value={option} class="cf-lang-option" lang={option}>
+            {LOCALE_NAMES[option]}
+          </button>
+        ),
+      )}
+    </form>
   );
 }
 
@@ -117,9 +139,12 @@ export function Layout(props: {
                 </a>
                 <span>{t.layout.tagline}</span>
               </p>
-              <nav class="cf-footer-links" aria-label={t.layout.footerNav}>
-                <a href="https://github.com/Qsnh/skillsgist">{t.layout.source}</a>
-              </nav>
+              <div class="cf-footer-end">
+                <LanguageForm />
+                <nav class="cf-footer-links" aria-label={t.layout.footerNav}>
+                  <a href="https://github.com/Qsnh/skillsgist">{t.layout.source}</a>
+                </nav>
+              </div>
             </div>
           </footer>
         </body>

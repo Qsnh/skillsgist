@@ -14,5 +14,6 @@ export const ja: Messages = {
     users: "ユーザー",
     signOut: "サインアウト",
     source: "GitHub のソースコード",
+    language: "言語",
   },
 };

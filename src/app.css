@@ -818,6 +818,39 @@
     text-decoration: underline;
   }
 
+  .cf-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 24px;
+  }
+
+  .cf-lang {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 16px;
+  }
+
+  .cf-lang-option {
+    color: var(--color-cf-ink-2);
+    text-underline-offset: 3px;
+  }
+
+  button.cf-lang-option {
+    cursor: pointer;
+  }
+
+  button.cf-lang-option:hover {
+    color: var(--color-cf-ink);
+    text-decoration: underline;
+  }
+
+  .cf-lang-option[aria-current] {
+    font-weight: 600;
+    color: var(--color-cf-ink);
+  }
+
   .cf-page-body {
     padding-block: 56px 112px;
   }

@@ -37,6 +37,7 @@ const EXEMPT = new Set([
 // below can actually fire a tokenless request at each one.
 const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => string> = {
   "POST /logout": () => "/logout",
+  "POST /lang": () => "/lang",
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
@@ -302,13 +303,15 @@ describe("rendered forms", () => {
   // Pinned so the two token-less pages read as a deliberate exemption rather
   // than an oversight. See TOKENLESS_PATHS in src/csrf.tsx.
   it("leaves the bootstrap and login forms without a token", async () => {
+    const own = (html: string, action: string) => postFormsIn(html).filter((f) => f.includes(`action="${action}"`));
+
     const setup = await (await SELF.fetch(`${ORIGIN}/setup`)).text();
-    expect(postFormsIn(setup)).toHaveLength(1);
+    expect(own(setup, "/setup")).toHaveLength(1);
     expect(setup).not.toContain('name="_csrf"');
 
     await seedUser({ username: "alice" });
     const loginHtml = await (await SELF.fetch(`${ORIGIN}/login`)).text();
-    expect(postFormsIn(loginHtml)).toHaveLength(1);
+    expect(own(loginHtml, "/login")).toHaveLength(1);
     expect(loginHtml).not.toContain('name="_csrf"');
   });
 

@@ -27,3 +27,24 @@ export function installBase(
 export function userSettingsPath(id: string): string {
   return `/admin/users/${id}`;
 }
+
+const UNSAFE_IN_PATH = /[\u0000-\u001f\u007f\\]/;
+
+export function safeNext(value: unknown): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || UNSAFE_IN_PATH.test(value)) {
+    return "/";
+  }
+  return value;
+}
+
+export function returnPath(method: string, url: string, referer: string | undefined): string {
+  const current = new URL(url);
+  if (method === "GET" || method === "HEAD") return safeNext(`${current.pathname}${current.search}`);
+  if (!referer) return "/";
+  try {
+    const from = new URL(referer);
+    return from.origin === current.origin ? safeNext(`${from.pathname}${from.search}`) : "/";
+  } catch {
+    return "/";
+  }
+}

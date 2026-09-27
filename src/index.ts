@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
 import { API_PREFIX, csrfToken } from "./csrf";
 import { detectLocale, localeOf } from "./i18n";
+import { languageRoutes } from "./routes/language";
 import { projectsRoutes } from "./routes/projects";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
@@ -29,6 +30,7 @@ app.use("*", csrf());
 app.use("*", csrfToken);
 
 app.get("/healthz", (c) => c.text("ok"));
+app.route("/", languageRoutes);
 app.route("/", registryRoutes);
 app.route("/", usersRoutes);
 app.route("/", publishRoutes);

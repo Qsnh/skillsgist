@@ -12,6 +12,7 @@ export const en = {
     users: "Users",
     signOut: "Sign out",
     source: "Source on GitHub",
+    language: "Language",
   },
 };
 

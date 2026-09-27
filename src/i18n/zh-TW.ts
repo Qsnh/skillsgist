@@ -14,5 +14,6 @@ export const zhTW: Messages = {
     users: "使用者",
     signOut: "登出",
     source: "GitHub 上的原始碼",
+    language: "語言",
   },
 };
