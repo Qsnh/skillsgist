@@ -139,11 +139,6 @@ export function getUserById(db: D1Database, id: string): Promise<UserRow | null>
   return db.prepare("SELECT * FROM users WHERE id = ?").bind(id).first<UserRow>();
 }
 
-export async function listUsers(db: D1Database): Promise<UserRow[]> {
-  const { results } = await db.prepare("SELECT * FROM users ORDER BY created_at").all<UserRow>();
-  return results;
-}
-
 export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_hash" | "created_at" | "last_login_at"> & {
   projects: number;
   skills: number;

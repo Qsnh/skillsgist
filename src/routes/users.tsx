@@ -8,7 +8,7 @@ import { page } from "../csrf";
 import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
-  getUserByUsername, getUserSummary, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
+  getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
@@ -105,7 +105,7 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
 });
 
 usersRoutes.get("/admin/users", requireAdmin, async (c) =>
-  page(c, <UsersPage user={c.get("user")} users={await listUsers(c.env.DB)} />),
+  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB)} />),
 );
 
 usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));

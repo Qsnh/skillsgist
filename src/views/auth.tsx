@@ -111,13 +111,12 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
   );
 }
 
-export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: string }) {
+export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
   return (
     <Layout title="Users" user={props.user}>
       <PageHead
         title="Users"
         compact
-        error={props.error}
         aside={
           <>
             <span class="cf-count">{props.users.length}</span>
@@ -131,80 +130,32 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
             <tr>
               <th scope="col">Username</th>
               <th scope="col">Role</th>
+              <th scope="col">Projects</th>
+              <th scope="col">Skills</th>
+              <th scope="col">Joined</th>
               <th scope="col">Last sign-in</th>
-              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {props.users.map((u) => {
-              const isSelf = u.id === props.user.id;
-              return (
-                <tr>
-                  <td data-label="Username">
-                    <span class="cf-user">
-                      <span class="cf-user-name">{u.username}</span>
-                      {isSelf ? <span class="cf-tag">You</span> : null}
-                    </span>
-                  </td>
-                  <td data-label="Role">
-                    <RoleLabel role={u.role} />
-                  </td>
-                  <td data-label="Last sign-in" class="cf-table-date">
-                    {u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "—"}
-                  </td>
-                  <td data-label="Actions" class="cf-table-actions">
-                    <div class="cf-user-actions">
-                      <div class="cf-actions">
-                        {isSelf ? null : (
-                          <Form action={`/admin/users/${u.id}/role`}>
-                            <input type="hidden" name="role" value={u.role === "admin" ? "member" : "admin"} />
-                            <Button variant="outline" size="sm">
-                              {u.role === "admin" ? "Demote to member" : "Promote to admin"}
-                            </Button>
-                          </Form>
-                        )}
-                        <Form action={`/admin/users/${u.id}/install-key`}>
-                          <Button variant="outline" size="sm">Rotate install keys</Button>
-                        </Form>
-                        {u.api_token_hash ? (
-                          <Form action={`/admin/users/${u.id}/api-token/revoke`}>
-                            <Button variant="outline" size="sm">Revoke API token</Button>
-                          </Form>
-                        ) : null}
-                      </div>
-                      <Form action={`/admin/users/${u.id}/password`} class="cf-actions">
-                        <label class="sr-only" for={`pw-${u.id}`}>New password for {u.username}</label>
-                        <input
-                          id={`pw-${u.id}`}
-                          type="password"
-                          name="password"
-                          placeholder="New password (at least 12 characters)"
-                          autocomplete="new-password"
-                          class="cf-input cf-input-sm"
-                          required
-                        />
-                        <Button variant="outline" size="sm">Reset password</Button>
-                      </Form>
-                      {isSelf ? null : (
-                        <div class="cf-danger-zone">
-                          <ConfirmDelete
-                            action={`/admin/users/${u.id}/delete`}
-                            label="Delete account"
-                            confirm={`Delete ${u.username}`}
-                            size="sm"
-                            name="delete-user"
-                          >
-                            Deleting reassigns this user's skills and their published versions' author records to you.
-                            To keep the author records, remove this user from their projects and reset their
-                            password instead of deleting.
-                          </ConfirmDelete>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {props.users.map((u) => (
+              <tr>
+                <td data-label="Username">
+                  <span class="cf-user">
+                    <a href={userSettingsPath(u.id)} class="cf-link cf-user-name">{u.username}</a>
+                    {u.id === props.user.id ? <span class="cf-tag">You</span> : null}
+                  </span>
+                </td>
+                <td data-label="Role">
+                  <RoleLabel role={u.role} />
+                </td>
+                <td data-label="Projects" class="cf-table-date">{u.projects}</td>
+                <td data-label="Skills" class="cf-table-date">{u.skills}</td>
+                <td data-label="Joined" class="cf-table-date">{DATE.format(new Date(u.created_at))}</td>
+                <td data-label="Last sign-in" class="cf-table-date">
+                  {u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "—"}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

@@ -296,36 +296,36 @@ describe("/admin/users", () => {
     expect(await getUserByUsername(env.DB, "carol")).toBeNull();
   });
 
-  // The UI side of adminTarget's self-targeting refusal: the role-toggle and
-  // delete forms must be absent from the viewer's own row while remaining
-  // present on every other row.
-  it("hides the role-toggle and delete controls on the viewer's own row only", async () => {
+  it("lists each account's role, projects, created skills, join date and last sign-in, linked to its settings", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
-    const cookie = root.cookie;
-    await seedUser({ username: "carol", role: "member" });
-    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+    await seedProject("team-b", "Team B");
+    const carol = await seedAndLogin({ username: "carol", role: "member" });
+    await addMembership(env.DB, { project: "team-b", userId: carol.user.id, role: "member", installKey: "c".repeat(32) });
+    await publishMarkdown(carol.cookie, GOOD_MD, "private", "default");
+    await env.DB.prepare("UPDATE users SET created_at = ?, last_login_at = NULL WHERE id = ?")
+      .bind(Date.UTC(2026, 8, 1), carol.user.id)
+      .run();
 
-    expect(html).toContain(`/admin/users/${root.user.id}/install-key`);
-    expect(html).not.toContain(`/admin/users/${root.user.id}/role`);
-    expect(html).not.toContain(`/admin/users/${root.user.id}/delete`);
+    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: root.cookie } })).text();
+    const row = (name: string) => html.split("<tr>").find((r) => r.includes(`>${name}</a>`));
 
-    const carol = await getUserByUsername(env.DB, "carol");
-    expect(html).toContain(`/admin/users/${carol!.id}/role`);
-    expect(html).toContain(`/admin/users/${carol!.id}/delete`);
-  });
+    const theirs = row("carol");
+    expect(theirs).toContain(`<a href="/admin/users/${carol.user.id}" class="cf-link cf-user-name">carol</a>`);
+    expect(theirs).toContain('<span class="cf-vis cf-vis-private">member</span>');
+    expect(theirs).toContain('<td data-label="Projects" class="cf-table-date">2</td>');
+    expect(theirs).toContain('<td data-label="Skills" class="cf-table-date">1</td>');
+    expect(theirs).toContain('<td data-label="Joined" class="cf-table-date">Sep 1, 2026</td>');
+    expect(theirs).toContain('<td data-label="Last sign-in" class="cf-table-date">—</td>');
 
-  it("puts account deletion behind a confirm step that names the user", async () => {
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const { user: carol } = await seedUser({ username: "carol", role: "member" });
-    const html = await (await SELF.fetch(`${ORIGIN}/admin/users`, { headers: { Cookie: cookie } })).text();
+    const own = row("root");
+    expect(own).toContain(`<a href="/admin/users/${root.user.id}" class="cf-link cf-user-name">root</a>`);
+    expect(own).toContain('<span class="cf-tag">You</span>');
+    expect(own).toContain('<td data-label="Skills" class="cf-table-date">0</td>');
 
-    const blocks = html.match(/<details class="cf-confirm" name="delete-user">[\s\S]*?<\/details>/g) ?? [];
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger cf-btn-sm">Delete account</summary>`);
-    expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);
-    expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
-    expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger cf-btn-sm">Delete carol</button>`);
-    expect(html.split(`/admin/users/${carol.id}/delete`)).toHaveLength(2);
+    expect(html).not.toContain('<th scope="col">Actions</th>');
+    for (const action of ["role", "password", "install-key", "api-token/revoke", "delete"]) {
+      expect(html).not.toContain(`/${action}"`);
+    }
   });
 });
 

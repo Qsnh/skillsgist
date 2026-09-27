@@ -961,12 +961,6 @@
     color: var(--color-cf-muted);
   }
 
-  .cf-input-sm {
-    width: min(100%, 300px);
-    height: 32px;
-    font-size: 13.5px;
-  }
-
   .cf-textarea {
     height: auto;
     min-height: 280px;
@@ -1391,17 +1385,6 @@
     overflow-wrap: anywhere;
   }
 
-  .cf-user-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .cf-danger-zone {
-    padding-top: 12px;
-    border-top: 1px dashed var(--color-cf-line-strong);
-  }
-
   .cf-confirm[open] > summary {
     border-color: var(--color-cf-danger);
   }
@@ -1416,10 +1399,6 @@
 
   .cf-confirm-panel .cf-hint {
     max-width: 60ch;
-  }
-
-  .cf-danger-zone .cf-confirm-panel {
-    contain: inline-size;
   }
 
   .cf-toolbar .cf-confirm-panel {
@@ -2029,16 +2008,6 @@
       gap: 12px;
       padding: 6px 0;
       border-bottom: 0;
-    }
-
-    .cf-table .cf-table-actions {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .cf-table-actions .cf-input-sm {
-      width: 100%;
     }
 
     .cf-table td::before {
