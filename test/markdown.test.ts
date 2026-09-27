@@ -19,40 +19,13 @@ async function expectHrefKept(href: string) {
 }
 
 describe("renderMarkdown", () => {
-  it("renders headings and code blocks", async () => {
-    const html = await renderMarkdown("# Title\n\n```js\nconst a = 1;\n```\n");
-    expect(html).toContain("<h1");
-    expect(html).toContain("const a = 1;");
-  });
-
-  it("strips script tags and their content", async () => {
-    const html = await renderMarkdown("before\n\n<script>alert(1)</script>\n\nafter");
-    expect(html).not.toContain("<script");
-    expect(html).not.toContain("alert(1)");
-    expect(html).toContain("before");
-    expect(html).toContain("after");
-  });
-
-  it("strips inline event handlers", async () => {
-    const html = await renderMarkdown('<div onclick="steal()">hi</div>');
-    expect(html).not.toContain("onclick");
+  it.each([
+    ["inline event handlers", '<div onclick="steal()">hi</div>', "onclick"],
+    ["the style attribute", '<div style="background:url(https://evil.example/beacon)">hi</div>', "style="],
+  ])("strips %s", async (_label, md, attr) => {
+    const html = await renderMarkdown(md);
+    expect(html).not.toContain(attr);
     expect(html).toContain("hi");
-  });
-
-  it("strips javascript: links", async () => {
-    const html = await renderMarkdown('<a href="javascript:alert(1)">click</a>');
-    expect(html).not.toContain("javascript:");
-    expect(html).toContain("click");
-  });
-
-  it("strips iframes", async () => {
-    const html = await renderMarkdown('<iframe src="https://evil.example"></iframe>');
-    expect(html).not.toContain("<iframe");
-  });
-
-  it("keeps ordinary links intact", async () => {
-    const html = await renderMarkdown("[docs](https://example.com/docs)");
-    expect(html).toContain('href="https://example.com/docs"');
   });
 
   it("escapes code-fence content rather than executing it", async () => {
@@ -68,6 +41,7 @@ describe("renderMarkdown", () => {
   // bypass payloads that defeated it.
   describe("dangerous-scheme obfuscation", () => {
     it.each([
+      ["a plain javascript: href", "javascript:alert(1)"],
       ["a javascript: href obfuscated with a raw tab", "java\tscript:alert(1)"],
       ["a javascript: href obfuscated with a raw newline", "java\nscript:alert(1)"],
       ["a javascript: href obfuscated with an HTML tab entity", "java&#9;script:alert(1)"],
@@ -115,30 +89,6 @@ describe("renderMarkdown", () => {
     ])("keeps the relative or https href %s intact", (href) => expectHrefKept(href));
   });
 
-  // An uninspected `style` lets `style="background:url(...)"` beacon out to an
-  // attacker-controlled host on every page view.
-  it("strips the style attribute", async () => {
-    const html = await renderMarkdown('<div style="background:url(https://evil.example/beacon)">hi</div>');
-    expect(html).not.toContain("style=");
-    expect(html).toContain("hi");
-  });
-
-  // A blocked tag other than script/iframe, to confirm el.remove() taking
-  // children with it isn't special-cased to just those two tags. `form` is
-  // not on ALLOWED_TAGS, so it's still removed; the nested `input`
-  // is now individually allowed (GFM task lists emit one), but it never
-  // gets a chance to survive on its own because removing `form` drops its
-  // entire subtree regardless of what any nested element's own handler
-  // would have decided.
-  it("strips form/input and their content together", async () => {
-    const html = await renderMarkdown("before<form><input value=\"stolen\"></form>after");
-    expect(html).not.toContain("<form");
-    expect(html).not.toContain("<input");
-    expect(html).not.toContain("stolen");
-    expect(html).toContain("before");
-    expect(html).toContain("after");
-  });
-
   // Spec §10 requires an allowlist for the tag layer, matching what the
   // attribute layer already does. These pin that ordinary markdown constructs
   // still render correctly under it, and that unlisted elements are removed by
@@ -178,86 +128,41 @@ describe("renderMarkdown", () => {
       ].join("\n");
       const html = await renderMarkdown(md);
 
-      expect(html).toContain("<h1>H1</h1>");
-      expect(html).toContain("<h2>H2</h2>");
-      expect(html).toContain("<strong>bold</strong>");
-      expect(html).toContain("<em>em</em>");
-      expect(html).toContain("<code>inline code</code>");
-      expect(html).toContain("<pre>");
-      expect(html).toContain("const a = 1;");
-      expect(html).toContain('href="https://example.com/x"');
-      expect(html).toContain('<img src="https://example.com/img.png" alt="alt text">');
-      expect(html).toContain("<blockquote>");
-      expect(html).toContain("<p>a blockquote</p>");
-      expect(html).toContain("<ul>");
-      expect(html).toContain("<li>one</li>");
-      expect(html).toContain("<ol>");
-      expect(html).toContain("<li>first</li>");
-      expect(html).toContain("<table>");
-      expect(html).toContain("<thead>");
-      expect(html).toContain("<tbody>");
-      expect(html).toContain("<th>A</th>");
-      expect(html).toContain("<td>1</td>");
-      expect(html).toContain('type="checkbox"');
-      expect(html).toContain("todo item");
-      expect(html).toContain("done item");
+      for (const fragment of [
+        "<h1>H1</h1>", "<h2>H2</h2>", "<strong>bold</strong>", "<em>em</em>", "<code>inline code</code>", "<pre>",
+        "const a = 1;", 'href="https://example.com/x"', '<img src="https://example.com/img.png" alt="alt text">',
+        "<blockquote>", "<p>a blockquote</p>", "<ul>", "<li>one</li>", "<ol>", "<li>first</li>", "<table>", "<thead>",
+        "<tbody>", "<th>A</th>", "<td>1</td>", 'type="checkbox"', "todo item", "done item",
+      ]) expect(html).toContain(fragment);
     });
 
-    it("removes an unlisted element (marquee) and its children", async () => {
-      const html = await renderMarkdown("before<marquee>scrolling <b>text</b></marquee>after");
-      expect(html).not.toContain("<marquee");
-      expect(html).not.toContain("scrolling");
-      expect(html).toContain("before");
-      expect(html).toContain("after");
-    });
-
-    it("removes an unlisted element (object) and its children", async () => {
-      const html = await renderMarkdown('before<object data="https://evil.example/x.swf">fallback</object>after');
-      expect(html).not.toContain("<object");
-      expect(html).not.toContain("fallback");
-      expect(html).toContain("before");
-      expect(html).toContain("after");
-    });
-
-    it("removes an unlisted element (form) and its children", async () => {
-      const html = await renderMarkdown('before<form action="/steal"><b>gone</b></form>after');
-      expect(html).not.toContain("<form");
-      expect(html).not.toContain("gone");
-      expect(html).toContain("before");
-      expect(html).toContain("after");
+    it.each([
+      ["a script element", "before\n\n<script>alert(1)</script>\n\nafter", ["<script", "alert(1)"], ["before", "after"]],
+      ["an iframe", '<iframe src="https://evil.example"></iframe>', ["<iframe"], []],
+      ["a form and the input inside it", 'before<form><input value="stolen"></form>after', ["<form", "<input", "stolen"], ["before", "after"]],
+      ["an unlisted marquee element", "before<marquee>scrolling <b>text</b></marquee>after", ["<marquee", "scrolling"], ["before", "after"]],
+      ["an unlisted object element", 'before<object data="https://evil.example/x.swf">fallback</object>after', ["<object", "fallback"], ["before", "after"]],
+      ["an unlisted form element", 'before<form action="/steal"><b>gone</b></form>after', ["<form", "gone"], ["before", "after"]],
+    ])("removes %s along with everything inside it", async (_label, md, gone, kept) => {
+      const html = await renderMarkdown(md);
+      for (const text of gone) expect(html).not.toContain(text);
+      for (const text of kept) expect(html).toContain(text);
     });
   });
 });
 
 describe("renderSkillMd", () => {
-  it("drops the frontmatter and renders the body", async () => {
-    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\n# Demo\n\nBody.\n");
-    expect(html).not.toContain("name: demo-skill");
-    expect(html).not.toContain("<hr");
-    expect(html).toContain("<h1>Demo</h1>");
-    expect(html).toContain("<p>Body.</p>");
-  });
+  const FM = "---\nname: demo-skill\ndescription: A demo skill.\n---\n";
 
-  it("drops CRLF frontmatter", async () => {
-    const html = await renderSkillMd("---\r\nname: demo-skill\r\ndescription: A demo skill.\r\n---\r\n\r\n# Demo\r\n");
-    expect(html).not.toContain("name: demo-skill");
-    expect(html).toContain("<h1>Demo</h1>");
-  });
-
-  it("keeps a body that starts right after the closing fence", async () => {
-    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\nFirst line.\n");
-    expect(html).toContain("<p>First line.</p>");
-  });
-
-  it("keeps thematic breaks inside the body", async () => {
-    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\nAbove\n\n---\n\nBelow\n");
-    expect(html).toContain("<hr>");
-    expect(html).toContain("<p>Above</p>");
-    expect(html).toContain("<p>Below</p>");
-  });
-
-  it("still sanitizes the body", async () => {
-    const html = await renderSkillMd("---\nname: demo-skill\ndescription: A demo skill.\n---\n\n<script>alert(1)</script>\n");
-    expect(html).not.toContain("<script");
+  it.each([
+    ["drops the frontmatter and renders the body", `${FM}\n# Demo\n\nBody.\n`, ["<h1>Demo</h1>", "<p>Body.</p>"], ["name: demo-skill", "<hr"]],
+    ["drops CRLF frontmatter", "---\r\nname: demo-skill\r\ndescription: A demo skill.\r\n---\r\n\r\n# Demo\r\n", ["<h1>Demo</h1>"], ["name: demo-skill"]],
+    ["keeps a body that starts right after the closing fence", `${FM}First line.\n`, ["<p>First line.</p>"], []],
+    ["keeps thematic breaks inside the body", `${FM}\nAbove\n\n---\n\nBelow\n`, ["<hr>", "<p>Above</p>", "<p>Below</p>"], []],
+    ["still sanitizes the body", `${FM}\n<script>alert(1)</script>\n`, [], ["<script"]],
+  ])("%s", async (_label, md, present, absent) => {
+    const html = await renderSkillMd(md);
+    for (const text of present) expect(html).toContain(text);
+    for (const text of absent) expect(html).not.toContain(text);
   });
 });
