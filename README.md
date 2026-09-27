@@ -259,13 +259,9 @@ Open `http://localhost:8787/setup` to create a local admin.
 npm test                   # unit and integration tests
 npm run typecheck
 npm run verify:cli         # a contract test against the real npx skills
-npm run logo               # redraws the mark from scripts/logo.html into public/ and docs/images/
-npm run screenshots        # retakes docs/images/home.png and skill.png from a throwaway instance
 ```
 
 `verify:cli` starts its own `wrangler dev` with a throwaway session secret, so it needs no `.dev.vars`.
-
-`logo` and `screenshots` drive headless Chrome. They look for Chrome at the macOS default path; set `CHROME_PATH` to use another. `screenshots` also needs port 8799 and 9333 free and the `zip` command.
 
 ## Contributing
 
