@@ -463,7 +463,8 @@ describe("/admin/users/:id", () => {
     expect(html).toContain(`action="/admin/users/${id}/install-key"`);
     expect(html).toContain(`action="/admin/users/${id}/password"`);
     expect(html).toContain(`action="/admin/users/${id}/api-token"`);
-    expect(html).toContain("Generating a token replaces your current one at once.");
+    expect(html).toContain("The new token is shown only once, on this page.");
+    expect(html).not.toContain("replaces your current one");
     expect(html).not.toContain(`/admin/users/${id}/role`);
     expect(html).not.toContain(`/admin/users/${id}/delete`);
     expect(html).toContain("Only another admin can change your role.");
@@ -478,6 +479,7 @@ describe("/admin/users/:id", () => {
     expect(html).toContain('<span class="cf-status-value">not generated</span>');
     expect(html).not.toContain(`/admin/users/${dave.id}/api-token/revoke`);
     expect(html).toContain(`action="/admin/users/${dave.id}/api-token"`);
+    expect(html).not.toContain("replaces dave");
   });
 
   it("puts account deletion behind a confirm step that names the user", async () => {

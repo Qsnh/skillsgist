@@ -225,8 +225,10 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
                   </span>
                 </p>
                 <p class="cf-hint">
-                  Generating a token replaces {isSelf ? "your" : `${target.username}'s`} current one at once. The new
-                  token is shown only once, on this page.
+                  {target.api_token_hash
+                    ? `Generating a token replaces ${isSelf ? "your" : `${target.username}'s`} current one at once. `
+                    : null}
+                  The new token is shown only once, on this page.
                 </p>
               </>
             )}
