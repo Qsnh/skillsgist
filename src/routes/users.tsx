@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, newInstallKey, randomHex, requireAdmin, requireUser, roleOf,
   startSession, verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
@@ -23,7 +23,12 @@ const DUMMY_PASSWORD_HASH =
 
 export const usersRoutes = new Hono<AppEnv>();
 
-const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
+async function issueApiToken(db: D1Database, userId: string): Promise<{ token: string; hash: string }> {
+  const token = `sgt_${randomHex(16)}`;
+  const hash = await sha256Hex(token);
+  await updateApiTokenHash(db, userId, hash);
+  return { token, hash };
+}
 
 const userSettings = async (
   c: Ctx,
@@ -57,7 +62,7 @@ usersRoutes.post("/setup", async (c) => {
   }
   const id = randomHex(8);
   const inserted = await createFirstAdmin(c.env.DB, {
-    id, username, passwordHash: await hashPassword(password), installKey: randomHex(16),
+    id, username, passwordHash: await hashPassword(password), installKey: newInstallKey(),
   });
   if (!inserted) return c.notFound();
   await startSession(c, id);
@@ -86,10 +91,8 @@ usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("us
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
-  const token = `sgt_${randomHex(16)}`;
-  const api_token_hash = await sha256Hex(token);
-  await updateApiTokenHash(c.env.DB, user.id, api_token_hash);
-  return page(c, <MePage user={{ ...user, api_token_hash }} newToken={token} />);
+  const { token, hash } = await issueApiToken(c.env.DB, user.id);
+  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />);
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -189,7 +192,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
 usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  await rotateInstallKeys(c.env.DB, guard.target.id, () => randomHex(16));
+  await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
   await flash(c, `Install keys rotated for ${guard.target.username}. The old install commands no longer work.`);
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
@@ -197,8 +200,7 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
 usersRoutes.post("/admin/users/:id/api-token", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  const token = `sgt_${randomHex(16)}`;
-  await updateApiTokenHash(c.env.DB, guard.target.id, await sha256Hex(token));
+  const { token } = await issueApiToken(c.env.DB, guard.target.id);
   return userSettings(c, guard.target.id, { newToken: token });
 });
 

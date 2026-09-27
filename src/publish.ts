@@ -1,4 +1,4 @@
-import { canManage, canPublishTo, randomHex } from "./auth";
+import { canAccessProject, canManage, randomHex } from "./auth";
 import { getProject, getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { VersionRow, Viewer } from "./db/queries";
 import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
@@ -44,11 +44,12 @@ export async function publishBytes(
     );
   }
 
-  if (!canPublishTo(user, opts.project) || !(await getProject(env.DB, opts.project))) {
+  const [project, existing] = canAccessProject(user, opts.project)
+    ? await Promise.all([getProject(env.DB, opts.project), getSkill(env.DB, opts.project, normalized.name)])
+    : [null, null];
+  if (!project) {
     throw new ForbiddenError(`There is no project named ${opts.project} that you can publish to`);
   }
-
-  const existing = await getSkill(env.DB, opts.project, normalized.name);
   if (existing && !canManage(user, existing)) {
     throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
   }
@@ -70,16 +71,16 @@ export async function publishBytes(
     await setVisibility(env.DB, existing.project, existing.slug, opts.visibility);
   }
 
-  if (unchanged) {
-    return {
-      project: latest.project,
-      slug: latest.slug,
-      version: latest.version,
-      digest: normalized.digest,
-      unchanged: true,
-      files: normalized.files,
-    };
-  }
+  const outcome = (version: number) => ({
+    project: opts.project,
+    slug: normalized.name,
+    version,
+    digest: normalized.digest,
+    unchanged,
+    files: normalized.files,
+  });
+
+  if (unchanged) return outcome(latest.version);
 
   const html = await renderSkillMd(normalized.skillMd);
   const { version, r2Key } = await insertVersion(env.DB, {
@@ -102,14 +103,7 @@ export async function publishBytes(
     httpMetadata: { contentType: "application/zip" },
   });
 
-  return {
-    project: opts.project,
-    slug: normalized.name,
-    version,
-    digest: normalized.digest,
-    unchanged: false,
-    files: normalized.files,
-  };
+  return outcome(version);
 }
 
 export async function repackWithSkillMd(

@@ -89,3 +89,5 @@ CREATE INDEX idx_skills_visibility ON skills(visibility);
 CREATE INDEX idx_skills_slug ON skills(slug);
 
 CREATE INDEX idx_memberships_user ON memberships(user_id);
+
+CREATE INDEX idx_skills_owner ON skills(owner_id);

@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as q from "../src/db/queries";
-import { env, resetDb } from "./helpers";
+import { env, joinProject, resetDb } from "./helpers";
 
 const seedU1 = () => q.createUser(env.DB, { id: "u1", username: "alice", passwordHash: "h", role: "admin" });
-
-const join = (userId: string, project: string, installKey: string, role: "admin" | "member" = "member") =>
-  q.addMembership(env.DB, { project, userId, role, installKey });
 
 const digest = (c: string) => "sha256:" + c.repeat(64);
 
@@ -46,7 +43,7 @@ describe("accounts, projects and memberships", () => {
 
   it("finds a membership by its install key", async () => {
     await seedU1();
-    await join("u1", q.DEFAULT_PROJECT, "k1", "admin");
+    await joinProject("u1", q.DEFAULT_PROJECT, "k1", "admin");
     expect(await q.getMembershipByInstallKey(env.DB, "k1")).toMatchObject({
       project: "default", user_id: "u1", role: "admin",
     });
@@ -56,8 +53,8 @@ describe("accounts, projects and memberships", () => {
   it("loads a viewer with their memberships and project names, ordered by name", async () => {
     await seedU1();
     await q.createProject(env.DB, { slug: "aaa", name: "Zebra" });
-    await join("u1", "aaa", "kz");
-    await join("u1", q.DEFAULT_PROJECT, "kd");
+    await joinProject("u1", "aaa", "kz");
+    await joinProject("u1", q.DEFAULT_PROJECT, "kd");
     const viewer = await q.getViewer(env.DB, "u1");
     expect(viewer?.username).toBe("alice");
     expect(viewer?.memberships.map((m) => [m.project, m.project_name, m.install_key])).toEqual([
@@ -69,7 +66,7 @@ describe("accounts, projects and memberships", () => {
 
   it("loads a viewer by api token hash", async () => {
     await seedU1();
-    await join("u1", q.DEFAULT_PROJECT, "kd");
+    await joinProject("u1", q.DEFAULT_PROJECT, "kd");
     await q.updateApiTokenHash(env.DB, "u1", "hash-1");
     expect((await q.getViewerByApiTokenHash(env.DB, "hash-1"))?.memberships).toHaveLength(1);
     expect(await q.getViewerByApiTokenHash(env.DB, "hash-2")).toBeNull();
@@ -88,8 +85,8 @@ describe("accounts, projects and memberships", () => {
   it("gives each of a user's memberships a fresh, distinct install key", async () => {
     await seedU1();
     await q.createProject(env.DB, { slug: "team-b", name: "Team B" });
-    await join("u1", q.DEFAULT_PROJECT, "old-1");
-    await join("u1", "team-b", "old-2");
+    await joinProject("u1", q.DEFAULT_PROJECT, "old-1");
+    await joinProject("u1", "team-b", "old-2");
     let n = 0;
     await q.rotateInstallKeys(env.DB, "u1", () => `new-${++n}`);
     const keys = (await q.getViewer(env.DB, "u1"))?.memberships.map((m) => m.install_key).sort();
@@ -105,8 +102,8 @@ describe("accounts, projects and memberships", () => {
     await seedU1();
     await q.createUser(env.DB, { id: "u2", username: "bob", passwordHash: "h", role: "member" });
     await q.createProject(env.DB, { slug: "team-b", name: "Team B" });
-    await join("u1", q.DEFAULT_PROJECT, "k1");
-    await join("u1", "team-b", "k2");
+    await joinProject("u1", q.DEFAULT_PROJECT, "k1");
+    await joinProject("u1", "team-b", "k2");
     await q.insertVersion(env.DB, base);
     await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "other", name: "other" });
     await q.insertVersion(env.DB, { ...base, authorId: "u2" });
@@ -122,7 +119,7 @@ describe("accounts, projects and memberships", () => {
   it("deletes a user who belongs to a project, reassigning their skills", async () => {
     await seedU1();
     await q.createUser(env.DB, { id: "u2", username: "bob", passwordHash: "h", role: "member" });
-    await join("u2", q.DEFAULT_PROJECT, "kb");
+    await joinProject("u2", q.DEFAULT_PROJECT, "kb");
     await q.insertVersion(env.DB, { ...base, authorId: "u2" });
     await q.deleteUserReassigning(env.DB, "u2", "u1");
     expect(await q.getUserById(env.DB, "u2")).toBeNull();
@@ -165,7 +162,7 @@ describe("skills", () => {
   });
 
   it("lists skills with author and project name, by scope and search", async () => {
-    await join("u1", q.DEFAULT_PROJECT, "k1");
+    await joinProject("u1", q.DEFAULT_PROJECT, "k1");
     await q.insertVersion(env.DB, { ...base, slug: "mine", name: "mine" });
     await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", slug: "theirs", name: "theirs" });
     await q.insertVersion(env.DB, {
@@ -185,7 +182,7 @@ describe("skills", () => {
   });
 
   it("narrows the list to one project, keeping scope and search", async () => {
-    await join("u1", q.DEFAULT_PROJECT, "k1");
+    await joinProject("u1", q.DEFAULT_PROJECT, "k1");
     await q.insertVersion(env.DB, { ...base, slug: "mine", name: "mine" });
     await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", slug: "theirs", name: "theirs" });
     await q.insertVersion(env.DB, {

@@ -1,12 +1,12 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
-import { addMembership, countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
+import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import {
-  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown,
-  resetDb, seedAndLogin, seedProject, seedUser,
+  apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, indexStatus, installKey, joinProject, login, membership,
+  ORIGIN, postForm, publishMarkdown, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
 // `/setup` and `/login` are the two mutating routes with no session-bound CSRF
@@ -28,13 +28,9 @@ describe("/setup", () => {
     expect(res.headers.get("Set-Cookie")).toContain("sg_session=");
     const user = await getUserByUsername(env.DB, "root");
     expect(user?.role).toBe("admin");
-    const membership = await env.DB.prepare(
-      "SELECT role, install_key FROM memberships WHERE project = 'default' AND user_id = ?",
-    )
-      .bind(user!.id)
-      .first<{ role: string; install_key: string }>();
-    expect(membership?.role).toBe("member");
-    expect(membership?.install_key).toMatch(/^[a-f0-9]{32}$/);
+    const joined = await membership(user!.id);
+    expect(joined?.role).toBe("member");
+    expect(joined?.install_key).toMatch(/^[a-f0-9]{32}$/);
   });
 
   it("rejects passwords shorter than 12 characters", async () => {
@@ -122,7 +118,7 @@ describe("/me", () => {
   it("shows no install key, even to a user in several projects", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    await joinProject(user.id, "team-b", "b".repeat(32));
     const html = await (await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } })).text();
     expect(html).not.toContain("Install keys");
     expect(html).not.toContain("npx skills add");
@@ -317,7 +313,7 @@ describe("/admin/users", () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
     await seedProject("team-b", "Team B");
     const carol = await seedAndLogin({ username: "carol", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: carol.user.id, role: "member", installKey: "c".repeat(32) });
+    await joinProject(carol.user.id, "team-b", "c".repeat(32));
     await publishMarkdown(carol.cookie, GOOD_MD, "private", "default");
     await env.DB.prepare("UPDATE users SET created_at = ?, last_login_at = NULL WHERE id = ?")
       .bind(Date.UTC(2026, 8, 1), carol.user.id)
@@ -724,11 +720,10 @@ describe("/admin/users/:id/*", () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "dave", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: target.user.id, role: "member", installKey: "b".repeat(32) });
+    await joinProject(target.user.id, "team-b", "b".repeat(32));
     const keys = () => Promise.all([installKey(target.user.id), installKey(target.user.id, "team-b")]);
-    const index = (key: string) => SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`);
     const oldKeys = await keys();
-    for (const key of oldKeys) expect((await index(key)).status).toBe(200);
+    for (const key of oldKeys) expect(await indexStatus(key)).toBe(200);
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
@@ -738,12 +733,12 @@ describe("/admin/users/:id/*", () => {
       /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old install commands no longer work\.<\/span><\/p>/,
     );
 
-    for (const key of oldKeys) expect((await index(key)).status).toBe(404);
+    for (const key of oldKeys) expect(await indexStatus(key)).toBe(404);
     const newKeys = await keys();
     expect(newKeys[0]).not.toBe(newKeys[1]);
     for (const key of newKeys) {
       expect(oldKeys).not.toContain(key);
-      expect((await index(key)).status).toBe(200);
+      expect(await indexStatus(key)).toBe(200);
     }
   });
 

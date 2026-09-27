@@ -163,13 +163,15 @@ try {
   const csrf = /name="_csrf" value="([a-f0-9]{32})"/.exec(meHtml)?.[1];
   if (!csrf) throw new Error("could not read the CSRF token");
 
-  const tokenHtml = await (
-    await fetch(`${ORIGIN}/me/api-token`, {
+  const postPage = (path, fields) =>
+    fetch(`${ORIGIN}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, Origin: ORIGIN },
-      body: new URLSearchParams({ _csrf: csrf }),
-    })
-  ).text();
+      body: new URLSearchParams({ ...fields, _csrf: csrf }),
+      redirect: "manual",
+    });
+
+  const tokenHtml = await (await postPage("/me/api-token", {})).text();
   const token = /sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0];
   if (!token) throw new Error("could not generate an api token");
 
@@ -179,14 +181,6 @@ try {
     if (!key) throw new Error(`could not read the install key for project ${project}`);
     return key;
   };
-
-  const postPage = (path, fields) =>
-    fetch(`${ORIGIN}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookie, Origin: ORIGIN },
-      body: new URLSearchParams({ ...fields, _csrf: csrf }),
-      redirect: "manual",
-    });
 
   const installKey = await projectKey("default");
   log(`install key: ${installKey.slice(0, 8)}…`);

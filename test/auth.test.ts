@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canManage, canManageProject, canPublishTo, canView, hashPassword, PBKDF2_ITERATIONS, randomHex, skillScope,
+  canAccessProject, canManage, canManageProject, canView, hashPassword, PBKDF2_ITERATIONS, randomHex, skillScope,
   verifyPassword,
 } from "../src/auth";
 import { sha256Hex } from "../src/hash";
@@ -114,7 +114,7 @@ describe("canManage", () => {
   });
 });
 
-describe("canManageProject and canPublishTo", () => {
+describe("canManageProject and canAccessProject", () => {
   it("lets project admins and instance admins manage a project", () => {
     expect(canManageProject(viewer({ memberships: [member("default", "admin")] }), "default")).toBe(true);
     expect(canManageProject(viewer({ memberships: [member("default")] }), "default")).toBe(false);
@@ -122,9 +122,9 @@ describe("canManageProject and canPublishTo", () => {
   });
 
   it("lets every member, and instance admins, publish to a project", () => {
-    expect(canPublishTo(viewer({ memberships: [member("default")] }), "default")).toBe(true);
-    expect(canPublishTo(viewer({ memberships: [member("default")] }), "other")).toBe(false);
-    expect(canPublishTo(viewer({ role: "admin" }), "other")).toBe(true);
+    expect(canAccessProject(viewer({ memberships: [member("default")] }), "default")).toBe(true);
+    expect(canAccessProject(viewer({ memberships: [member("default")] }), "other")).toBe(false);
+    expect(canAccessProject(viewer({ role: "admin" }), "other")).toBe(true);
   });
 });
 

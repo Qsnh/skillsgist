@@ -74,6 +74,8 @@ export function randomHex(byteLength: number): string {
   return toHex(crypto.getRandomValues(new Uint8Array(byteLength)));
 }
 
+export const newInstallKey = () => randomHex(16);
+
 /**
  * The signed-cookie session payload. `csrf` is the per-session CSRF token:
  * binding it to the session (rather than to a second, independent cookie) is
@@ -167,19 +169,21 @@ export function canManageProject(viewer: Viewer, project: string): boolean {
   return viewer.role === "admin" || membershipIn(viewer, project)?.role === "admin";
 }
 
-export function canPublishTo(viewer: Viewer, project: string): boolean {
+export function canAccessProject(viewer: Viewer, project: string): boolean {
   return viewer.role === "admin" || membershipIn(viewer, project) !== undefined;
 }
 
 export function canView(viewer: Viewer | null, skill: Pick<SkillRow, "visibility" | "project">): boolean {
   if (skill.visibility === "public") return true;
-  return viewer !== null && canPublishTo(viewer, skill.project);
+  return viewer !== null && canAccessProject(viewer, skill.project);
 }
 
 export function canManage(viewer: Viewer, skill: Pick<SkillRow, "project" | "owner_id">): boolean {
   if (canManageProject(viewer, skill.project)) return true;
   return skill.owner_id === viewer.id && membershipIn(viewer, skill.project) !== undefined;
 }
+
+export const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
 
 export function skillScope(viewer: Viewer | null): SkillScope {
   if (viewer === null) return { kind: "public" };

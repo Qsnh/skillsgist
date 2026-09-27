@@ -54,6 +54,29 @@ export function RoleLabel(props: { role: UserRow["role"] }) {
   return <span class={props.role === "admin" ? "cf-vis cf-vis-public" : "cf-vis cf-vis-private"}>{props.role}</span>;
 }
 
+function ShownOnceToken(props: { token: string }) {
+  return (
+    <>
+      <CodeBlock prompt={false}>{props.token}</CodeBlock>
+      <p class="cf-notice">
+        <AlertIcon />
+        This token is shown once. Save it now.
+      </p>
+    </>
+  );
+}
+
+function TokenStatus(props: { active: boolean }) {
+  return (
+    <p class="cf-status">
+      Status:{" "}
+      <span class={props.active ? "cf-status-value cf-status-on" : "cf-status-value"}>
+        {props.active ? "active" : "not generated"}
+      </span>
+    </p>
+  );
+}
+
 export function MePage(props: { user: Viewer; newToken?: string; error?: string }) {
   return (
     <Layout title="Account" user={props.user}>
@@ -63,20 +86,9 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
         <div class="cf-stack-lg">
           <Panel title="API token (for publishing with curl)">
             {props.newToken ? (
-              <>
-                <CodeBlock prompt={false}>{props.newToken}</CodeBlock>
-                <p class="cf-notice">
-                  <AlertIcon />
-                  This token is shown once. Save it now.
-                </p>
-              </>
+              <ShownOnceToken token={props.newToken} />
             ) : (
-              <p class="cf-status">
-                Status:{" "}
-                <span class={props.user.api_token_hash ? "cf-status-value cf-status-on" : "cf-status-value"}>
-                  {props.user.api_token_hash ? "active" : "not generated"}
-                </span>
-              </p>
+              <TokenStatus active={props.user.api_token_hash !== null} />
             )}
             <div class="cf-actions">
               <Form action="/me/api-token">
@@ -215,21 +227,10 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
 
           <Panel title="API token">
             {props.newToken ? (
-              <>
-                <CodeBlock prompt={false}>{props.newToken}</CodeBlock>
-                <p class="cf-notice">
-                  <AlertIcon />
-                  This token is shown once. Save it now.
-                </p>
-              </>
+              <ShownOnceToken token={props.newToken} />
             ) : (
               <>
-                <p class="cf-status">
-                  Status:{" "}
-                  <span class={target.api_token_hash ? "cf-status-value cf-status-on" : "cf-status-value"}>
-                    {target.api_token_hash ? "active" : "not generated"}
-                  </span>
-                </p>
+                <TokenStatus active={target.api_token_hash !== null} />
                 <p class="cf-hint">
                   {target.api_token_hash
                     ? `Generating a token replaces ${isSelf ? "your" : `${target.username}'s`} current one at once. `

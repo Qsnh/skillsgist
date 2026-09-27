@@ -2,9 +2,10 @@ import { Hono } from "hono";
 import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
 import {
-  getArtifactByDigest, getMembershipByInstallKey, getPublicArtifact, listPublishedForIndex,
+  getArtifactByDigest, getArtifactByInstallKey, getMembershipByInstallKey, getPublicArtifact, listPublishedForIndex,
 } from "../db/queries";
 import type { ArtifactRef, IndexFilter } from "../db/queries";
+import { installKeyPath, projectPath } from "../paths";
 import { buildIndex } from "../registry";
 import { serveDownload } from "./download";
 
@@ -23,7 +24,14 @@ function indexResponse(body: unknown): Response {
   });
 }
 
-async function sendArtifact(c: Ctx, artifact: ArtifactRef | null, cacheable: boolean): Promise<Response> {
+async function sendArtifact(
+  c: Ctx,
+  file: string,
+  lookup: (digest: string) => Promise<ArtifactRef | null>,
+  cacheable: boolean,
+): Promise<Response> {
+  const digest = digestFromArtifactFile(file);
+  const artifact = digest ? await lookup(digest) : null;
   if (!artifact) return notFound();
   const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return notFound();
@@ -62,11 +70,11 @@ async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   if (req.scope.kind === "key") {
     const membership = await getMembershipByInstallKey(c.env.DB, req.scope.key);
     if (!membership) return notFound();
-    base = `${origin}/i/${req.scope.key}`;
+    base = `${origin}${installKeyPath(req.scope.key)}`;
     filter = { kind: "project", project: membership.project, publicOnly: false };
   }
   if (req.scope.kind === "project") {
-    base = `${origin}/p/${req.scope.project}`;
+    base = `${origin}${projectPath(req.scope.project)}`;
     filter = { kind: "project", project: req.scope.project, publicOnly: true };
   }
   const rows = await listPublishedForIndex(c.env.DB, filter);
@@ -83,29 +91,30 @@ for (const suffix of INDEX_SUFFIXES) {
   registryRoutes.get(`/p/:project${suffix}`, indexRoute);
 }
 
-registryRoutes.get("/d/:slug/:file", async (c) => {
-  const digest = digestFromArtifactFile(c.req.param("file"));
-  const artifact = digest ? await getPublicArtifact(c.env.DB, c.req.param("slug"), digest) : null;
-  return sendArtifact(c, artifact, true);
-});
+registryRoutes.get("/d/:slug/:file", (c) =>
+  sendArtifact(c, c.req.param("file"), (digest) => getPublicArtifact(c.env.DB, c.req.param("slug"), digest), true),
+);
 
-registryRoutes.get("/p/:project/d/:slug/:file", async (c) => {
-  const digest = digestFromArtifactFile(c.req.param("file"));
-  const artifact = digest
-    ? await getArtifactByDigest(c.env.DB, c.req.param("project"), c.req.param("slug"), digest)
-    : null;
-  return sendArtifact(c, artifact?.visibility === "public" ? artifact : null, true);
-});
+registryRoutes.get("/p/:project/d/:slug/:file", (c) =>
+  sendArtifact(
+    c,
+    c.req.param("file"),
+    async (digest) => {
+      const artifact = await getArtifactByDigest(c.env.DB, c.req.param("project"), c.req.param("slug"), digest);
+      return artifact?.visibility === "public" ? artifact : null;
+    },
+    true,
+  ),
+);
 
-registryRoutes.get("/i/:key/d/:slug/:file", async (c) => {
-  const membership = await getMembershipByInstallKey(c.env.DB, c.req.param("key"));
-  if (!membership) return c.notFound();
-  const digest = digestFromArtifactFile(c.req.param("file"));
-  const artifact = digest
-    ? await getArtifactByDigest(c.env.DB, membership.project, c.req.param("slug"), digest)
-    : null;
-  return sendArtifact(c, artifact, false);
-});
+registryRoutes.get("/i/:key/d/:slug/:file", (c) =>
+  sendArtifact(
+    c,
+    c.req.param("file"),
+    (digest) => getArtifactByInstallKey(c.env.DB, c.req.param("key"), c.req.param("slug"), digest),
+    false,
+  ),
+);
 
 for (const prefix of INDEX_PREFIXES) {
   registryRoutes.get(`${prefix}/*`, indexRoute);

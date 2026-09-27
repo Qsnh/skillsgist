@@ -4,7 +4,8 @@ import { setVisibility } from "../src/db/queries";
 import { buildIndex } from "../src/registry";
 import type { IndexSource } from "../src/registry";
 import {
-  env, GOOD_MD, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb, seedAndLogin, seedProject,
+  env, GOOD_MD, indexStatus, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb, seedAndLogin,
+  seedProject,
 } from "./helpers";
 
 const NAME_RE = /^[a-z0-9-]+$/;
@@ -306,7 +307,7 @@ describe("project install addresses", () => {
     const url = (await indexAt(`/i/${key}`))[0].url;
     await env.DB.prepare("DELETE FROM memberships WHERE user_id = ?").bind(user.id).run();
 
-    expect((await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status).toBe(404);
+    expect(await indexStatus(key)).toBe(404);
     expect((await SELF.fetch(url)).status).toBe(404);
   });
 

@@ -1,25 +1,15 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { addMembership, getProject, getSkill } from "../src/db/queries";
+import { getProject, getSkill } from "../src/db/queries";
 import {
-  env, follow, GOOD_MD, installKey, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin,
-  seedProject, seedUser,
+  cellMeta, env, follow, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD, postForm,
+  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
 const get = (path: string, cookie?: string) =>
   SELF.fetch(`${ORIGIN}${path}`, { headers: cookie ? { Cookie: cookie } : {}, redirect: "manual" });
 
-const membership = (project: string, userId: string) =>
-  env.DB.prepare("SELECT role, install_key FROM memberships WHERE project = ? AND user_id = ?")
-    .bind(project, userId)
-    .first<{ role: string; install_key: string }>();
-
-const indexStatus = async (key: string) =>
-  (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
-
 const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
-
-const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
 
 describe("/projects", () => {
   beforeEach(resetDb);
@@ -90,7 +80,7 @@ describe("/projects/new", () => {
     expect(res.headers.get("Location")).toBe("/p/team-b");
     expect(await getProject(env.DB, "team-b")).toMatchObject({ slug: "team-b", name: "Team B" });
     expect((await get("/p/team-b", cookie)).status).toBe(200);
-    expect(await membership("team-b", user.id)).toBeNull();
+    expect(await membership(user.id, "team-b")).toBeNull();
   });
 
   it.each([
@@ -334,7 +324,7 @@ describe("resetting an install key", () => {
   it("resets one project's key from its page and leaves the others alone", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    await joinProject(user.id, "team-b", "b".repeat(32));
     const before = await installKey(user.id);
 
     const res = await postForm("/p/default/install-key", cookie);
@@ -424,7 +414,7 @@ describe("project membership", () => {
     const html = await (await follow(res, lead.cookie)).text();
     expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Added bob to Team B\.<\/span><\/p>/);
 
-    const row = await membership("team-b", bob.id);
+    const row = await membership(bob.id, "team-b");
     expect(row?.role).toBe("member");
     expect(row?.install_key).toMatch(/^[a-f0-9]{32}$/);
     expect(row?.install_key).not.toBe(await installKey(bob.id));
@@ -438,7 +428,7 @@ describe("project membership", () => {
     const again = await postForm("/p/default/members", cookie, { user: bob.id, role: "admin" });
     expect(again.status).toBe(400);
     expect(await again.text()).toContain("bob is already a member");
-    expect((await membership("default", bob.id))?.role).toBe("member");
+    expect((await membership(bob.id))?.role).toBe("member");
 
     const unknown = await postForm("/p/default/members", cookie, { user: "nobody", role: "member" });
     expect(unknown.status).toBe(400);
@@ -452,8 +442,8 @@ describe("project membership", () => {
     expect((await postForm("/p/default/members", alice.cookie, { user: carol.id, role: "member" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/role`, alice.cookie, { role: "admin" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/remove`, alice.cookie)).status).toBe(403);
-    expect(await membership("default", carol.id)).toBeNull();
-    expect((await membership("default", bob.id))?.role).toBe("member");
+    expect(await membership(carol.id)).toBeNull();
+    expect((await membership(bob.id))?.role).toBe("member");
   });
 
   it("404s the member forms for someone outside the project", async () => {
@@ -461,7 +451,7 @@ describe("project membership", () => {
     const outsider = await seedAndLogin({ username: "alice", role: "member" });
     const { user: bob } = await seedUser({ username: "bob", role: "member", project: "team-b" });
     expect((await postForm(`/p/team-b/members/${bob.id}/remove`, outsider.cookie)).status).toBe(404);
-    expect(await membership("team-b", bob.id)).not.toBeNull();
+    expect(await membership(bob.id, "team-b")).not.toBeNull();
   });
 
   it("promotes a member to project admin, who can then manage others' skills", async () => {
@@ -472,7 +462,7 @@ describe("project membership", () => {
     expect((await postForm("/p/default/s/demo-skill/visibility", bob.cookie)).status).toBe(403);
 
     expect((await postForm(`/p/default/members/${bob.user.id}/role`, cookie, { role: "admin" })).status).toBe(302);
-    expect((await membership("default", bob.user.id))?.role).toBe("admin");
+    expect((await membership(bob.user.id))?.role).toBe("admin");
     expect((await postForm("/p/default/s/demo-skill/visibility", bob.cookie)).status).toBe(302);
   });
 
@@ -496,7 +486,7 @@ describe("project membership", () => {
     const res = await postForm(`/p/default/members/${lead.user.id}/remove`, lead.cookie);
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/projects");
-    expect(await membership("default", lead.user.id)).toBeNull();
+    expect(await membership(lead.user.id)).toBeNull();
   });
 });
 
@@ -541,7 +531,7 @@ describe("deleting a project", () => {
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Default still has skills. Move or delete them first.");
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
-    expect(await membership("default", user.id)).not.toBeNull();
+    expect(await membership(user.id)).not.toBeNull();
   });
 
   it("deletes an empty project and every membership in it", async () => {
@@ -555,7 +545,7 @@ describe("deleting a project", () => {
     expect(res.headers.get("Location")).toBe("/projects");
     expect(await (await follow(res, cookie)).text()).toContain("Deleted project Team B.");
     expect((await get("/p/team-b", cookie)).status).toBe(404);
-    expect(await membership("team-b", bob.id)).toBeNull();
+    expect(await membership(bob.id, "team-b")).toBeNull();
     expect(await indexStatus(key)).toBe(404);
   });
 

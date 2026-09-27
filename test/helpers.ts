@@ -76,9 +76,7 @@ export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow;
   const id = randomHex(8);
   await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
   const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
-  if (project !== null) {
-    await addMembership(env.DB, { project, userId: id, role: opts.projectRole ?? "member", installKey: randomHex(16) });
-  }
+  if (project !== null) await joinProject(id, project, randomHex(16), opts.projectRole);
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
@@ -203,10 +201,25 @@ export async function follow(res: Response, cookie: string): Promise<Response> {
 
 export const seedProject = (slug: string, name: string = slug) => createProject(env.DB, { slug, name });
 
-export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
-  const row = await env.DB.prepare("SELECT install_key FROM memberships WHERE project = ? AND user_id = ?")
+export const joinProject = (
+  userId: string,
+  project: string,
+  key: string = randomHex(16),
+  role: "admin" | "member" = "member",
+) => addMembership(env.DB, { project, userId, role, installKey: key });
+
+export const membership = (userId: string, project: string = DEFAULT_PROJECT) =>
+  env.DB.prepare("SELECT role, install_key FROM memberships WHERE project = ? AND user_id = ?")
     .bind(project, userId)
-    .first<{ install_key: string }>();
+    .first<{ role: string; install_key: string }>();
+
+export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
+  const row = await membership(userId, project);
   if (!row) throw new Error(`${userId} is not a member of ${project}`);
   return row.install_key;
 }
+
+export const indexStatus = async (key: string) =>
+  (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
+
+export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];

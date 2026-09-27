@@ -1,10 +1,10 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { randomHex } from "../src/auth";
-import { addMembership, getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
+import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
-  env, installKey, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin, seedProject,
+  cellMeta, env, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish, resetDb, seedAndLogin,
+  seedProject,
 } from "./helpers";
 
 // This file asserts the rendered body reaches the page, so it wants a heading
@@ -12,8 +12,6 @@ import {
 const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the test suite.\n---\n\n# Demo Heading\n";
 
 const COUNT_TEXT = /\d[\d,]* downloads?\b/;
-
-const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
 
 const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
@@ -473,7 +471,7 @@ describe("home page hero", () => {
   it("shows no install command or key anywhere on the page to a user in several projects", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
+    await joinProject(user.id, "team-b", "b".repeat(32));
 
     const html = await homeOf("/", cookie);
     expectNoCommand(heroOf(html));
@@ -567,7 +565,7 @@ describe("moving a skill", () => {
   const inTwoProjects = async (username = "alice") => {
     await seedProject("team-b", "Team B");
     const login = await seedAndLogin({ username, role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: login.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(login.user.id, "team-b");
     return login;
   };
   const indexNames = async (key: string) =>
@@ -596,7 +594,7 @@ describe("moving a skill", () => {
   it("offers the other projects without a skill of that name in a Move control", async () => {
     const alice = await inTwoProjects();
     await seedProject("team-c", "Team C");
-    await addMembership(env.DB, { project: "team-c", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-c");
     await publish(alice.cookie, GOOD_MD, "private", "default");
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-c" });
     await publish(bob.cookie, GOOD_MD, "private");
@@ -640,7 +638,7 @@ describe("moving a skill", () => {
     const alice = await inTwoProjects();
     await publish(alice.cookie, GOOD_MD, "private", "default");
     const bob = await seedAndLogin({ username: "bob", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: bob.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(bob.user.id, "team-b");
     expect((await postForm("/p/default/s/demo-skill/move", bob.cookie, { project: "team-b" })).status).toBe(403);
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
   });

@@ -1,6 +1,6 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
-import { skillPath } from "../paths";
+import { installBase, projectPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -52,28 +52,34 @@ function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
   );
 }
 
+export function NoMatches(props: { q: string; within?: string; clearHref: string }) {
+  return (
+    <div class="cf-empty">
+      <p class="cf-empty-title">
+        No skills{props.within ? ` in ${props.within}` : null} match &ldquo;{props.q}&rdquo;.
+      </p>
+      <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
+      <a href={props.clearHref} class="cf-btn cf-btn-outline">Clear search</a>
+    </div>
+  );
+}
+
+export function NoSkillsYet(props: { within?: string; publishHref: string }) {
+  return (
+    <div class="cf-empty">
+      <p class="cf-empty-title">No skills{props.within ? ` in ${props.within}` : null} yet.</p>
+      <p class="cf-empty-body">
+        Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
+        from your account.
+      </p>
+      <a href={props.publishHref} class="cf-btn cf-btn-primary">Publish the first skill</a>
+    </div>
+  );
+}
+
 function EmptyRegistry(props: { user: Viewer | null; q: string }) {
-  if (props.q) {
-    return (
-      <div class="cf-empty">
-        <p class="cf-empty-title">No skills match &ldquo;{props.q}&rdquo;.</p>
-        <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
-        <a href="/" class="cf-btn cf-btn-outline">Clear search</a>
-      </div>
-    );
-  }
-  if (props.user) {
-    return (
-      <div class="cf-empty">
-        <p class="cf-empty-title">No skills yet.</p>
-        <p class="cf-empty-body">
-          Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
-          from your account.
-        </p>
-        <a href="/new" class="cf-btn cf-btn-primary">Publish the first skill</a>
-      </div>
-    );
-  }
+  if (props.q) return <NoMatches q={props.q} clearHref="/" />;
+  if (props.user) return <NoSkillsYet publishHref="/new" />;
   return (
     <div class="cf-empty">
       <p class="cf-empty-title">No public skills yet.</p>
@@ -315,11 +321,7 @@ export function SkillPage(props: {
   const isLatest = version.version === skill.latest_version;
   const path = skillPath(skill);
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
-  const base = membership
-    ? `${props.origin}/i/${membership.install_key}`
-    : skill.visibility === "public"
-      ? `${props.origin}/p/${skill.project}`
-      : null;
+  const base = installBase(props.origin, skill.project, membership?.install_key, skill.visibility === "public");
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
@@ -404,7 +406,7 @@ export function SkillPage(props: {
                 <div class="cf-row">
                   <dt class="cf-row-label">Project</dt>
                   <dd class="cf-row-value">
-                    <a href={`/p/${skill.project}`} class="cf-row-link">{skill.project_name}</a>
+                    <a href={projectPath(skill.project)} class="cf-row-link">{skill.project_name}</a>
                   </dd>
                 </div>
                 <div class="cf-row">

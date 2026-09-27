@@ -1,10 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { randomHex } from "../src/auth";
-import { addMembership, getSkill, getVersion, listVersions } from "../src/db/queries";
+import { getSkill, getVersion, listVersions } from "../src/db/queries";
 import { readZip } from "../src/skills/zip";
 import {
-  env, fixture, GOOD_MD, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject,
+  env, fixture, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject,
 } from "./helpers";
 
 function putSkill(
@@ -621,7 +620,7 @@ describe("publishing into a project", () => {
   const inTwoProjects = async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndToken({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     return alice;
   };
 
@@ -705,7 +704,7 @@ describe("the project select on /new", () => {
     await seedProject("team-b", "Team B");
     await seedProject("team-c", "Team C");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-c", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-c");
     expect(await optionsOn(alice.cookie)).toEqual([["default", "Default"], ["team-c", "Team C"]]);
   });
 
@@ -718,7 +717,7 @@ describe("the project select on /new", () => {
   it("shows a disabled placeholder selected when a member in several projects has not chosen one yet", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     const html = await (await SELF.fetch(`${ORIGIN}/new`, { headers: { Cookie: alice.cookie } })).text();
     expect(html).toContain('<option value="" disabled="" selected="">Choose a project</option>');
   });
@@ -726,7 +725,7 @@ describe("the project select on /new", () => {
   it("preselects the project named in ?project=", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     const html = await (await SELF.fetch(`${ORIGIN}/new?project=team-b`, { headers: { Cookie: alice.cookie } })).text();
     expect(html).toContain('<option value="team-b" selected="">Team B</option>');
     expect(html).toContain('<option value="" disabled="">Choose a project</option>');
@@ -736,7 +735,7 @@ describe("the project select on /new", () => {
     await seedProject("team-b", "Team B");
     await seedProject("team-c", "Team C");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-c", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-c");
     const html = await (await SELF.fetch(`${ORIGIN}/new?project=team-b`, { headers: { Cookie: alice.cookie } })).text();
     expect(html).toContain('<option value="" disabled="" selected="">Choose a project</option>');
     expect(html).not.toContain("Team B");
@@ -752,7 +751,7 @@ describe("the project select on /new", () => {
   it("publishes into the chosen project and lands on the skill there", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     const res = await postMultipart("/new", alice.cookie, { markdown: GOOD_MD, visibility: "private", project: "team-b" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/p/team-b/s/demo-skill");
@@ -762,7 +761,7 @@ describe("the project select on /new", () => {
   it("asks a user in several projects to choose one when the form sends none", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     const res = await postMultipart("/new", alice.cookie, { markdown: GOOD_MD });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Choose which project this skill goes into");
@@ -771,7 +770,7 @@ describe("the project select on /new", () => {
   it("keeps the chosen project when it re-renders with an error", async () => {
     await seedProject("team-b", "Team B");
     const alice = await seedAndLogin({ username: "alice", role: "member" });
-    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    await joinProject(alice.user.id, "team-b");
     const res = await postMultipart("/new", alice.cookie, { markdown: "no frontmatter", project: "team-b" });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain('<option value="team-b" selected="">Team B</option>');

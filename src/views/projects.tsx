@@ -2,10 +2,10 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { DEFAULT_PROJECT } from "../db/queries";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
-import { projectSettingsPath } from "../paths";
+import { installBase, installKeyPath, projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
 import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
-import { SearchForm, SkillRegistry } from "./skills";
+import { NoMatches, NoSkillsYet, SearchForm, SkillRegistry } from "./skills";
 
 export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }) {
   const admin = props.user.role === "admin";
@@ -130,28 +130,9 @@ function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPubli
 }
 
 function EmptyProject(props: { project: ProjectRow; q: string }) {
-  const path = `/p/${props.project.slug}`;
-  if (props.q) {
-    return (
-      <div class="cf-empty">
-        <p class="cf-empty-title">
-          No skills in {props.project.name} match &ldquo;{props.q}&rdquo;.
-        </p>
-        <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
-        <a href={path} class="cf-btn cf-btn-outline">Clear search</a>
-      </div>
-    );
-  }
-  return (
-    <div class="cf-empty">
-      <p class="cf-empty-title">No skills in {props.project.name} yet.</p>
-      <p class="cf-empty-body">
-        Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
-        from your account.
-      </p>
-      <a href={`/new?project=${props.project.slug}`} class="cf-btn cf-btn-primary">Publish the first skill</a>
-    </div>
-  );
+  const { project } = props;
+  if (props.q) return <NoMatches q={props.q} within={project.name} clearHref={projectPath(project.slug)} />;
+  return <NoSkillsYet within={project.name} publishHref={`/new?project=${project.slug}`} />;
 }
 
 export function ProjectPage(props: {
@@ -163,13 +144,9 @@ export function ProjectPage(props: {
   hasPublicSkills: boolean;
 }) {
   const { user, project } = props;
-  const path = `/p/${project.slug}`;
+  const path = projectPath(project.slug);
   const membership = user ? membershipIn(user, project.slug) : undefined;
-  const base = membership
-    ? `${props.origin}/i/${membership.install_key}`
-    : props.hasPublicSkills
-      ? `${props.origin}${path}`
-      : null;
+  const base = installBase(props.origin, project.slug, membership?.install_key, props.hasPublicSkills);
   return (
     <Layout title={project.name} user={user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
@@ -203,23 +180,24 @@ export function ProjectSettingsPage(props: {
   error?: string;
 }) {
   const { project } = props;
+  const path = projectPath(project.slug);
   const membership = membershipIn(props.user, project.slug);
   return (
     <Layout title={`${project.name} settings`} user={props.user}>
       <div class="cf-narrow">
         <PageHead title={`${project.name} settings`} error={props.error}>
-          The skills in this project are listed on <a href={`/p/${project.slug}`} class="cf-link">its page</a>.
+          The skills in this project are listed on <a href={path} class="cf-link">its page</a>.
         </PageHead>
         <div class="cf-stack-lg">
           <Panel title="Install this project's skills">
             {membership ? (
               <>
-                <CodeBlock>npx skills add {`${props.origin}/i/${membership.install_key}`}</CodeBlock>
+                <CodeBlock>npx skills add {`${props.origin}${installKeyPath(membership.install_key)}`}</CodeBlock>
                 <p class="cf-hint">
                   This key installs only {project.name}'s skills and can do nothing else: it cannot sign in, publish or
                   delete. Reset it if you think it has leaked; the old command stops working at once.
                 </p>
-                <Form action={`/p/${project.slug}/install-key`} class="cf-actions">
+                <Form action={`${path}/install-key`} class="cf-actions">
                   <Button variant="outline">Reset install key</Button>
                 </Form>
               </>
@@ -247,12 +225,12 @@ export function ProjectSettingsPage(props: {
                     <RoleLabel role={m.role} />
                     {props.canManage ? (
                       <div class="cf-actions">
-                        <Form action={`/p/${project.slug}/members/${m.user_id}/role`}>
+                        <Form action={`${path}/members/${m.user_id}/role`}>
                           <input type="hidden" name="role" value={m.role === "admin" ? "member" : "admin"} />
                           <Button variant="outline" size="sm">{m.role === "admin" ? "Make member" : "Make admin"}</Button>
                         </Form>
                         <ConfirmDelete
-                          action={`/p/${project.slug}/members/${m.user_id}/remove`}
+                          action={`${path}/members/${m.user_id}/remove`}
                           label="Remove"
                           confirm={`Remove ${m.username}`}
                           size="sm"
@@ -271,7 +249,7 @@ export function ProjectSettingsPage(props: {
 
           {props.canManage && props.candidates.length > 0 ? (
             <Panel title="Add a member">
-              <Form action={`/p/${project.slug}/members`} class="cf-stack cf-stack-form">
+              <Form action={`${path}/members`} class="cf-stack cf-stack-form">
                 <Select label="Account" name="user">
                   {props.candidates.map((u) => (
                     <option value={u.id}>{u.username}</option>
@@ -290,13 +268,13 @@ export function ProjectSettingsPage(props: {
 
           {props.canManage ? (
             <Panel title="Rename this project">
-              <Form action={`/p/${project.slug}/rename`} class="cf-stack cf-stack-form">
+              <Form action={`${path}/rename`} class="cf-stack cf-stack-form">
                 <Field
                   label="Name"
                   name="name"
                   value={project.name}
                   autocomplete="off"
-                  hint={`Up to 64 characters. The address, /p/${project.slug}, stays the same.`}
+                  hint={`Up to 64 characters. The address, ${path}, stays the same.`}
                 />
                 <div>
                   <Button>Save</Button>
@@ -312,7 +290,7 @@ export function ProjectSettingsPage(props: {
               ) : (
                 <div class="cf-actions">
                   <ConfirmDelete
-                    action={`/p/${project.slug}/delete`}
+                    action={`${path}/delete`}
                     label="Delete project"
                     confirm={`Delete ${project.name}`}
                     name="delete-project"
