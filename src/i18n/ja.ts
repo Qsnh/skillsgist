@@ -234,4 +234,71 @@ export const ja: Messages = {
     stillHasSkills: (name) => `${name} にはまだスキルがあります。先に移動または削除してください。`,
     deletedProject: (name) => `プロジェクト ${name} を削除しました。`,
   },
+  publish: {
+    title: "スキルを公開",
+    noProjectBody:
+      "スキルはすべていずれかのプロジェクトに属し、公開できるのはそのプロジェクトのメンバーだけです。管理者にプロジェクトへの追加を依頼してください。",
+    archiveHint:
+      ".zip と .tar.gz に対応しています。アーカイブには SKILL.md が必要です（1 階層のフォルダーに入っていても構いません）。最大 2 MB。",
+    pasteSkillMd: "または SKILL.md を直接貼り付け",
+    placeholder: "---\nname: my-skill\ndescription: このスキルが何をするかを一文で\n---\n\n# 本文",
+    project: "プロジェクト",
+    chooseProject: "プロジェクトを選択",
+    visibility: "公開範囲",
+    privateDetail: "プロジェクトのメンバーだけが閲覧できます",
+    publicDetail: "誰でも閲覧・インストールできます",
+    submit: "公開",
+    editTitle: (slug) => `${slug} を編集`,
+    editLede: (upload) => [
+      "保存すると新しいバージョンが公開され、古いバージョンも残ります。アーカイブ全体を置き換える場合（SKILL.md 以外のファイルを変更したときなど）は",
+      upload,
+      "を使ってください。",
+    ],
+    carryOver: "次のファイルはそのまま新しいバージョンに引き継がれます:",
+    saveVersion: "新しいバージョンとして保存",
+    uploadTitle: (slug) => `新しいバージョンをアップロード · ${slug}`,
+    uploadHeading: (slug) => `新しいバージョンをアップロード: ${slug}`,
+    uploadLede: (edit) => [
+      "アーカイブ全体の置き換えです。新しいバージョンの内容はこのアーカイブとまったく同じになり、古いバージョンも残ります。SKILL.md だけを変更する場合は",
+      edit,
+      "を使ってください。",
+    ],
+    edit: "編集",
+    archive: "アーカイブ",
+    uploadHint: (slug) =>
+      `.zip と .tar.gz に対応しています。アーカイブには SKILL.md が必要で（1 階層のフォルダーに入っていても構いません）、その name フィールドは ${slug} のままにしてください。最大 2 MB。`,
+    publishVersion: "新しいバージョンとして公開",
+  },
+  publishErrors: {
+    emptyUpload: () => "アップロードされた内容が空です",
+    tooLarge: (size, limit) => `アップロードがサイズ上限を超えています: ${size} バイト > ${limit} バイト`,
+    invalidPath: (path) => `アーカイブ内のパスが無効です: ${path}`,
+    absolutePath: (path) => `アーカイブ内のパスが無効です（絶対パス）: ${path}`,
+    driveLetterPath: (path) => `アーカイブ内のパスが無効です（ドライブレター）: ${path}`,
+    backslashPath: (path) => `アーカイブ内のパスが無効です（バックスラッシュ）: ${path}`,
+    escapingPath: (path) => `アーカイブ内のパスが無効です（ルートの外を指しています）: ${path}`,
+    unreadableArchive: (detail) => `アーカイブを読み取れません: ${detail}`,
+    noUsableFiles: () => "アーカイブに使用できるファイルがありません",
+    tooManyFiles: (count, limit) => `ファイル数が上限を超えています: ${count} > ${limit}`,
+    unpackedTooLarge: (size, limit) => `展開後のサイズが上限を超えています: ${size} バイト > ${limit} バイト`,
+    missingSkillMd: () => "アーカイブのルートに SKILL.md がありません",
+    invalidName: () =>
+      "SKILL.md の frontmatter の name が無効です: ^[a-z0-9-]+$ に一致し、1〜64 文字で、先頭と末尾にハイフンを置かず、ハイフンを連続させないでください",
+    invalidDescription: () =>
+      "SKILL.md の frontmatter の description が無効です: 空にせず、1024 文字以内にしてください",
+    slugMismatch: (url, declared) =>
+      `URL のスラッグは ${url} ですが、SKILL.md の name は ${declared} です。両者を一致させてください`,
+    noSuchProject: (project) => `公開先として使える ${project} というプロジェクトはありません`,
+    notYours: (name) => `スキル ${name} は別のユーザーのものなので、上書きできません`,
+    unchanged: (version, slug) =>
+      `${slug} の最新バージョン v${version} と同一のため、新しいバージョンは公開されませんでした`,
+    archiveMissing: (version) =>
+      `v${version} のアーカイブがストレージにないため、SKILL.md 以外のファイルを引き継げません。完全なアーカイブをアップロードしてください。`,
+    nothingToPublish: () => "アーカイブをアップロードするか、SKILL.md をテキストボックスに貼り付けてください",
+    noProjectToPublish: () =>
+      "まだどのプロジェクトにも所属していないため、公開先がありません。管理者にプロジェクトへの追加を依頼してください。",
+    chooseProject: () => "このスキルを入れるプロジェクトを選んでください",
+    emptySkillMd: () => "SKILL.md を空にすることはできません",
+    chooseArchive: () => "アーカイブを選んでください",
+  },
 };

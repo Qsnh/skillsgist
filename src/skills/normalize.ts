@@ -1,5 +1,8 @@
 import { DIGEST_PREFIX } from "../artifact";
 import { sha256Hex } from "../hash";
+import { en } from "../i18n/en";
+import { issue, issueText } from "../i18n/issues";
+import type { Issue } from "../i18n/issues";
 import { isValidDescription, isValidSkillName, parseFrontmatter } from "./frontmatter";
 import { isGzip, readTarGz } from "./tar";
 import { ArchiveError, readZip, writeZip, type ArchiveEntry } from "./zip";
@@ -11,9 +14,11 @@ export const MAX_FILES = 200;
 export class UploadError extends Error {
   readonly status = 400;
   readonly code = "invalid_upload";
-  constructor(message: string) {
-    super(message);
+  readonly issue: Issue;
+  constructor(found: Issue) {
+    super(issueText(en, found));
     this.name = "UploadError";
+    this.issue = found;
   }
 }
 
@@ -37,13 +42,13 @@ function isJunk(path: string): boolean {
 }
 
 function cleanPath(raw: string): string {
-  if (!raw || raw.includes("\0")) throw new UploadError(`Invalid path in archive: ${raw}`);
-  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(`Invalid path in archive (absolute): ${raw}`);
-  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(`Invalid path in archive (drive letter): ${raw}`);
-  if (raw.includes("\\")) throw new UploadError(`Invalid path in archive (backslash): ${raw}`);
+  if (!raw || raw.includes("\0")) throw new UploadError(issue("invalidPath", raw));
+  if (raw.startsWith("/") || raw.startsWith("\\")) throw new UploadError(issue("absolutePath", raw));
+  if (/^[A-Za-z]:/.test(raw)) throw new UploadError(issue("driveLetterPath", raw));
+  if (raw.includes("\\")) throw new UploadError(issue("backslashPath", raw));
   const parts = raw.split("/").filter((p) => p !== "" && p !== ".");
-  if (parts.length === 0) throw new UploadError(`Invalid path in archive: ${raw}`);
-  if (parts.includes("..")) throw new UploadError(`Invalid path in archive (escapes the root): ${raw}`);
+  if (parts.length === 0) throw new UploadError(issue("invalidPath", raw));
+  if (parts.includes("..")) throw new UploadError(issue("escapingPath", raw));
   return parts.join("/");
 }
 
@@ -68,7 +73,7 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
     if (isGzip(bytes)) return await readTarGz(bytes);
     if (isZip(bytes)) return await readZip(bytes);
   } catch (err) {
-    if (err instanceof ArchiveError) throw new UploadError(err.message);
+    if (err instanceof ArchiveError) throw new UploadError(issue("unreadableArchive", err.message));
     throw err;
   }
   // Decoding and re-encoding normalises invalid UTF-8 bytes into replacement characters, which keeps the digest stable.
@@ -77,9 +82,9 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
 }
 
 export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkill> {
-  if (bytes.length === 0) throw new UploadError("Upload is empty");
+  if (bytes.length === 0) throw new UploadError(issue("emptyUpload"));
   if (bytes.length > MAX_UPLOAD_BYTES) {
-    throw new UploadError(`Upload exceeds the size limit: ${bytes.length} bytes > ${MAX_UPLOAD_BYTES} bytes`);
+    throw new UploadError(issue("tooLarge", bytes.length, MAX_UPLOAD_BYTES));
   }
 
   const raw = await extract(bytes);
@@ -95,29 +100,27 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
   // stripped, and `isJunk` matches on a leading prefix.
   const filtered = dropJunk(stripWrapperDir(cleaned));
 
-  if (filtered.size === 0) throw new UploadError("Archive contains no usable files");
+  if (filtered.size === 0) throw new UploadError(issue("noUsableFiles"));
   if (filtered.size > MAX_FILES) {
-    throw new UploadError(`File count exceeds the limit: ${filtered.size} > ${MAX_FILES}`);
+    throw new UploadError(issue("tooManyFiles", filtered.size, MAX_FILES));
   }
 
   let unpacked = 0;
   for (const data of filtered.values()) unpacked += data.byteLength;
   if (unpacked > MAX_UNPACKED_BYTES) {
-    throw new UploadError(`Unpacked size exceeds the limit: ${unpacked} bytes > ${MAX_UNPACKED_BYTES} bytes`);
+    throw new UploadError(issue("unpackedTooLarge", unpacked, MAX_UNPACKED_BYTES));
   }
 
   const skillMdBytes = filtered.get("SKILL.md");
-  if (!skillMdBytes) throw new UploadError("SKILL.md is missing from the archive root");
+  if (!skillMdBytes) throw new UploadError(issue("missingSkillMd"));
   const skillMd = new TextDecoder().decode(skillMdBytes);
 
   const { data } = parseFrontmatter(skillMd);
   if (!isValidSkillName(data.name)) {
-    throw new UploadError(
-      "Invalid name in SKILL.md frontmatter: must match ^[a-z0-9-]+$, be 1-64 characters, not start or end with a hyphen, and not contain consecutive hyphens",
-    );
+    throw new UploadError(issue("invalidName"));
   }
   if (!isValidDescription(data.description)) {
-    throw new UploadError("Invalid description in SKILL.md frontmatter: must be non-empty and at most 1024 characters");
+    throw new UploadError(issue("invalidDescription"));
   }
 
   const entries: ArchiveEntry[] = [...filtered].map(([path, bytes]) => ({ path, data: bytes }));

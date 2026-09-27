@@ -7,7 +7,7 @@ import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { follow, GOOD_MD, ORIGIN, postForm, resetDb, seedAndLogin, seedProject, seedUser, seedWithSkills } from "./helpers";
+import { follow, GOOD_MD, ORIGIN, postForm, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject, seedUser, seedWithSkills } from "./helpers";
 
 const fetchIn = (path: string, headers: Record<string, string> = {}) =>
   SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
@@ -243,5 +243,57 @@ describe("project pages", () => {
     const res = await postForm("/p/default/rename", withLang(cookie, "ja"), { name: "X" });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe(ja.projects.adminsOnly);
+  });
+});
+
+describe("publishing", () => {
+  beforeEach(resetDb);
+
+  it("renders the publish form in Japanese", async () => {
+    const { cookie } = await seedAndLogin();
+    const html = await htmlIn("/new", { Cookie: withLang(cookie, "ja") });
+    expect(html).toContain(ja.publish.title);
+    expect(html).toContain(ja.publish.privateDetail);
+    expect(html).toContain(`<span class="cf-choice-title">${ja.skills.public}</span>`);
+  });
+
+  it("explains a refused upload in Chinese", async () => {
+    const { cookie } = await seedAndLogin();
+    const res = await postMultipart("/new", withLang(cookie, "zh-CN"), {
+      markdown: "---\nname: Bad Name\ndescription: x\n---\n",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain(zhCN.publishErrors.invalidName());
+  });
+
+  it("wraps an unreadable archive's detail in Japanese", async () => {
+    const { cookie } = await seedAndLogin();
+    const broken = new File([new Uint8Array([0x50, 0x4b, 0x03])], "broken.zip");
+    const res = await postMultipart("/new", withLang(cookie, "ja"), { file: broken });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain(ja.publishErrors.unreadableArchive("Not a valid zip: file too short"));
+  });
+
+  it("names the unchanged version in Japanese on the edit page", async () => {
+    const { cookie } = await seedWithSkills({}, [GOOD_MD, "private"]);
+    const res = await postMultipart("/p/default/s/demo-skill/edit", withLang(cookie, "ja"), { markdown: GOOD_MD });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain(ja.publishErrors.unchanged(1, "demo-skill"));
+  });
+
+  it("keeps the API's error messages in English whatever the language", async () => {
+    const { token } = await seedAndToken();
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "text/markdown",
+        "Accept-Language": "ja",
+        Cookie: "sg_lang=ja",
+      },
+      body: "",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_upload", message: "Upload is empty" });
   });
 });

@@ -1,6 +1,9 @@
 import { canAccessProject, canManage, randomHex } from "./auth";
 import { getProject, getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { VersionRow, Viewer } from "./db/queries";
+import { en } from "./i18n/en";
+import { issue, issueText } from "./i18n/issues";
+import type { Issue } from "./i18n/issues";
 import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
@@ -9,16 +12,16 @@ import type { Env } from "./types";
 export class ForbiddenError extends Error {
   readonly status = 403;
   readonly code = "forbidden";
-  constructor(message: string) {
-    super(message);
+  readonly issue: Issue;
+  constructor(found: Issue) {
+    super(issueText(en, found));
     this.name = "ForbiddenError";
+    this.issue = found;
   }
 }
 
 export function unchangedError(latest: VersionRow): UploadError {
-  return new UploadError(
-    `This is identical to v${latest.version}, the latest version of ${latest.slug}, so no new version was published`,
-  );
+  return new UploadError(issue("unchanged", latest.version, latest.slug));
 }
 
 export interface PublishOutcome {
@@ -39,19 +42,17 @@ export async function publishBytes(
   const normalized = await normalizeUpload(bytes);
 
   if (opts.expectedSlug && opts.expectedSlug !== normalized.name) {
-    throw new UploadError(
-      `The slug in the URL is ${opts.expectedSlug} but SKILL.md declares name ${normalized.name}; they must agree`,
-    );
+    throw new UploadError(issue("slugMismatch", opts.expectedSlug, normalized.name));
   }
 
   const [project, existing] = canAccessProject(user, opts.project)
     ? await Promise.all([getProject(env.DB, opts.project), getSkill(env.DB, opts.project, normalized.name)])
     : [null, null];
   if (!project) {
-    throw new ForbiddenError(`There is no project named ${opts.project} that you can publish to`);
+    throw new ForbiddenError(issue("noSuchProject", opts.project));
   }
   if (existing && !canManage(user, existing)) {
-    throw new ForbiddenError(`skill ${normalized.name} belongs to another user; you cannot overwrite it`);
+    throw new ForbiddenError(issue("notYours", normalized.name));
   }
 
   const latest = existing ? await getVersion(env.DB, existing.project, existing.slug, existing.latest_version) : null;
@@ -117,9 +118,7 @@ export async function repackWithSkillMd(
 
   const object = await env.BUCKET.get(latest.r2_key);
   if (!object) {
-    throw new UploadError(
-      `The archive for v${latest.version} is missing from storage, so the files other than SKILL.md cannot be preserved. Upload a complete archive instead.`,
-    );
+    throw new UploadError(issue("archiveMissing", latest.version));
   }
 
   const entries = await readZip(new Uint8Array(await object.arrayBuffer()));

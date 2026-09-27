@@ -3,6 +3,8 @@ import { publishableProjects, requireManagedSkill, requireUser, userFromApiToken
 import type { AppEnv, Ctx } from "../auth";
 import { API_PREFIX, page } from "../csrf";
 import { getVersion } from "../db/queries";
+import { messages } from "../i18n";
+import { issue, issueText } from "../i18n/issues";
 import type { VersionRow, Viewer } from "../db/queries";
 import { skillPath } from "../paths";
 import { ForbiddenError, publishBytes, repackWithSkillMd, unchangedError } from "../publish";
@@ -38,17 +40,13 @@ async function bytesFromForm(body: Record<string, unknown>): Promise<Uint8Array>
   }
   const markdown = typeof body.markdown === "string" ? withLf(body.markdown).trim() : "";
   if (markdown) return new TextEncoder().encode(`${markdown}\n`);
-  throw new UploadError("Upload an archive, or paste SKILL.md into the text box");
+  throw new UploadError(issue("nothingToPublish"));
 }
 
 function chosenProject(user: Viewer, value: unknown): string {
   if (typeof value === "string" && value !== "") return value;
   if (user.memberships.length === 1) return user.memberships[0].project;
-  throw new UploadError(
-    user.memberships.length === 0
-      ? "You are not in a project yet, so there is nowhere to publish. Ask an admin to add you to one."
-      : "Choose which project this skill goes into",
-  );
+  throw new UploadError(user.memberships.length === 0 ? issue("noProjectToPublish") : issue("chooseProject"));
 }
 
 const projectsFor = (c: Ctx) => publishableProjects(c.env.DB, c.get("user"));
@@ -82,7 +80,7 @@ publishRoutes.post("/new", requireUser, async (c) => {
         user={user}
         projects={await projectsFor(c)}
         project={selected}
-        error={failure.message}
+        error={issueText(messages(c), failure.issue)}
         markdown={markdown}
       />,
       failure.status,
@@ -113,7 +111,7 @@ publishRoutes.post("/p/:project/s/:slug/edit", requireUser, async (c) => {
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
   try {
     const text = withLf(markdown).trim();
-    if (!text) throw new UploadError("SKILL.md cannot be empty");
+    if (!text) throw new UploadError(issue("emptySkillMd"));
     if (text === withLf(latest.skill_md).trim()) throw unchangedError(latest);
     // This page can only change SKILL.md; the other files come from the previous version's archive.
     const bytes = await repackWithSkillMd(c.env, latest, `${text}\n`);
@@ -129,7 +127,7 @@ publishRoutes.post("/p/:project/s/:slug/edit", requireUser, async (c) => {
         skill={skill}
         markdown={markdown}
         files={siblingPaths(latest)}
-        error={failure.message}
+        error={issueText(messages(c), failure.issue)}
       />,
       failure.status,
     );
@@ -151,7 +149,7 @@ publishRoutes.post("/p/:project/s/:slug/upload", requireUser, async (c) => {
   try {
     const file = body.file;
     if (!(file instanceof File) || file.size === 0) {
-      throw new UploadError("Choose an archive");
+      throw new UploadError(issue("chooseArchive"));
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     await publishBytes(c.env, user, bytes, { project: skill.project, expectedSlug: skill.slug, rejectUnchanged: true });
@@ -159,7 +157,7 @@ publishRoutes.post("/p/:project/s/:slug/upload", requireUser, async (c) => {
   } catch (err) {
     const failure = publishFailure(err);
     if (!failure) throw err;
-    return page(c, <UploadVersionPage user={user} skill={skill} error={failure.message} />, failure.status);
+    return page(c, <UploadVersionPage user={user} skill={skill} error={issueText(messages(c), failure.issue)} />, failure.status);
   }
 });
 

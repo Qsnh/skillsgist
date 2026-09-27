@@ -235,6 +235,74 @@ export const en = {
     stillHasSkills: (name: string) => `${name} still has skills. Move or delete them first.`,
     deletedProject: (name: string) => `Deleted project ${name}.`,
   },
+  publish: {
+    title: "Publish a skill",
+    noProjectBody:
+      "Every skill belongs to a project, and only a project's members can publish to it. Ask an admin to add you to one.",
+    archiveHint:
+      ".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum.",
+    pasteSkillMd: "Or paste SKILL.md directly",
+    placeholder: "---\nname: my-skill\ndescription: One sentence on what this skill does\n---\n\n# Body",
+    project: "Project",
+    chooseProject: "Choose a project",
+    visibility: "Visibility",
+    privateDetail: "Visible to the project's members only",
+    publicDetail: "Anyone can see and install it",
+    submit: "Publish",
+    editTitle: (slug: string) => `Edit ${slug}`,
+    editLede: (upload: Slot) => [
+      "Saving publishes a new version; the old ones stay. To replace the whole archive (say, because you changed files other than SKILL.md), use ",
+      upload,
+      ".",
+    ],
+    carryOver: "These files carry over to the new version unchanged:",
+    saveVersion: "Save as a new version",
+    uploadTitle: (slug: string) => `Upload a new version · ${slug}`,
+    uploadHeading: (slug: string) => `Upload a new version: ${slug}`,
+    uploadLede: (edit: Slot) => [
+      "Whole-archive replacement: the new version is exactly what this archive contains; the old ones stay. To change only SKILL.md, use ",
+      edit,
+      ".",
+    ],
+    edit: "Edit",
+    archive: "Archive",
+    uploadHint: (slug: string) =>
+      `.zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory, and the name field in that SKILL.md must still be ${slug}. 2 MB maximum.`,
+    publishVersion: "Publish as a new version",
+  },
+  publishErrors: {
+    emptyUpload: () => "Upload is empty",
+    tooLarge: (size: number, limit: number) => `Upload exceeds the size limit: ${size} bytes > ${limit} bytes`,
+    invalidPath: (path: string) => `Invalid path in archive: ${path}`,
+    absolutePath: (path: string) => `Invalid path in archive (absolute): ${path}`,
+    driveLetterPath: (path: string) => `Invalid path in archive (drive letter): ${path}`,
+    backslashPath: (path: string) => `Invalid path in archive (backslash): ${path}`,
+    escapingPath: (path: string) => `Invalid path in archive (escapes the root): ${path}`,
+    unreadableArchive: (detail: string) => detail,
+    noUsableFiles: () => "Archive contains no usable files",
+    tooManyFiles: (count: number, limit: number) => `File count exceeds the limit: ${count} > ${limit}`,
+    unpackedTooLarge: (size: number, limit: number) =>
+      `Unpacked size exceeds the limit: ${size} bytes > ${limit} bytes`,
+    missingSkillMd: () => "SKILL.md is missing from the archive root",
+    invalidName: () =>
+      "Invalid name in SKILL.md frontmatter: must match ^[a-z0-9-]+$, be 1-64 characters, not start or end with a hyphen, and not contain consecutive hyphens",
+    invalidDescription: () =>
+      "Invalid description in SKILL.md frontmatter: must be non-empty and at most 1024 characters",
+    slugMismatch: (url: string, declared: string) =>
+      `The slug in the URL is ${url} but SKILL.md declares name ${declared}; they must agree`,
+    noSuchProject: (project: string) => `There is no project named ${project} that you can publish to`,
+    notYours: (name: string) => `skill ${name} belongs to another user; you cannot overwrite it`,
+    unchanged: (version: number, slug: string) =>
+      `This is identical to v${version}, the latest version of ${slug}, so no new version was published`,
+    archiveMissing: (version: number) =>
+      `The archive for v${version} is missing from storage, so the files other than SKILL.md cannot be preserved. Upload a complete archive instead.`,
+    nothingToPublish: () => "Upload an archive, or paste SKILL.md into the text box",
+    noProjectToPublish: () =>
+      "You are not in a project yet, so there is nowhere to publish. Ask an admin to add you to one.",
+    chooseProject: () => "Choose which project this skill goes into",
+    emptySkillMd: () => "SKILL.md cannot be empty",
+    chooseArchive: () => "Choose an archive",
+  },
 };
 
 export type Messages = typeof en;
