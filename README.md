@@ -1,3 +1,5 @@
+<img src="docs/images/logo.png" width="72" height="72" alt="">
+
 # skillsgist
 
 A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.
@@ -257,9 +259,12 @@ Open `http://localhost:8787/setup` to create a local admin.
 npm test                   # unit and integration tests
 npm run typecheck
 npm run verify:cli         # a contract test against the real npx skills
+npm run logo               # redraws the mark from scripts/logo.html into public/ and docs/images/
 ```
 
 `verify:cli` starts its own `wrangler dev` with a throwaway session secret, so it needs no `.dev.vars`.
+
+`logo` drives headless Chrome. It looks for Chrome at the macOS default path; set `CHROME_PATH` to use another.
 
 ## Contributing
 
