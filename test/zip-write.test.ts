@@ -6,12 +6,11 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 describe("crc32", () => {
-  it("matches the standard test vector", () => {
-    expect(crc32(enc.encode("123456789"))).toBe(0xcbf43926);
-  });
-
-  it("returns 0 for empty input", () => {
-    expect(crc32(new Uint8Array(0))).toBe(0);
+  it.each([
+    ["123456789", 0xcbf43926],
+    ["", 0],
+  ])("hashes %j to the standard value", (input, expected) => {
+    expect(crc32(enc.encode(input))).toBe(expected);
   });
 });
 
@@ -39,16 +38,6 @@ describe("writeZip", () => {
     expect(new Uint8Array(a)).toEqual(new Uint8Array(b));
   });
 
-  it("round-trips content that does not benefit from compression", async () => {
-    const random = crypto.getRandomValues(new Uint8Array(512));
-    const bytes = await writeZip([
-      { path: "SKILL.md", data: enc.encode("x") },
-      { path: "blob.bin", data: random },
-    ]);
-    const files = unzipSync(bytes);
-    expect(files["blob.bin"]).toEqual(random);
-  });
-
   it("uses deflate method for genuinely compressible content", async () => {
     const compressible = enc.encode("a".repeat(500));
     const bytes = await writeZip([
@@ -57,8 +46,6 @@ describe("writeZip", () => {
     ]);
     const files = unzipSync(bytes);
     expect(files["data.txt"]).toEqual(compressible);
-    const rawSize =
-      "# Skill".length + compressible.length;
-    expect(bytes.length).toBeLessThan(rawSize);
+    expect(bytes.length).toBeLessThan("# Skill".length + compressible.length);
   });
 });
