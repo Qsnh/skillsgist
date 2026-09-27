@@ -53,9 +53,12 @@ function chosenProject(user: Viewer, value: unknown): string {
 
 const projectsFor = (c: Ctx) => publishableProjects(c.env.DB, c.get("user"));
 
-publishRoutes.get("/new", requireUser, async (c) =>
-  page(c, <NewSkillPage user={c.get("user")} projects={await projectsFor(c)} />),
-);
+publishRoutes.get("/new", requireUser, async (c) => {
+  const projects = await projectsFor(c);
+  const wanted = c.req.query("project");
+  const project = projects.some((p) => p.slug === wanted) ? wanted : undefined;
+  return page(c, <NewSkillPage user={c.get("user")} projects={projects} project={project} />);
+});
 
 publishRoutes.post("/new", requireUser, async (c) => {
   const user = c.get("user");

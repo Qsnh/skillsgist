@@ -723,6 +723,25 @@ describe("the project select on /new", () => {
     expect(html).toContain('<option value="" disabled="" selected="">Choose a project</option>');
   });
 
+  it("preselects the project named in ?project=", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await addMembership(env.DB, { project: "team-b", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    const html = await (await SELF.fetch(`${ORIGIN}/new?project=team-b`, { headers: { Cookie: alice.cookie } })).text();
+    expect(html).toContain('<option value="team-b" selected="">Team B</option>');
+    expect(html).toContain('<option value="" disabled="">Choose a project</option>');
+  });
+
+  it("ignores a ?project= the user cannot publish to", async () => {
+    await seedProject("team-b", "Team B");
+    await seedProject("team-c", "Team C");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await addMembership(env.DB, { project: "team-c", userId: alice.user.id, role: "member", installKey: randomHex(16) });
+    const html = await (await SELF.fetch(`${ORIGIN}/new?project=team-b`, { headers: { Cookie: alice.cookie } })).text();
+    expect(html).toContain('<option value="" disabled="" selected="">Choose a project</option>');
+    expect(html).not.toContain("Team B");
+  });
+
   it("shows no placeholder when a member is in exactly one project", async () => {
     const alice = await seedAndLogin({ username: "alice", role: "member" });
     const html = await (await SELF.fetch(`${ORIGIN}/new`, { headers: { Cookie: alice.cookie } })).text();
