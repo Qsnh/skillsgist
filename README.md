@@ -7,7 +7,7 @@ A private Agent Skills registry you self-host on Cloudflare. Manage skills in th
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Qsnh/skillsgist)
 
-![The skillsgist home page: the install command for public skills, a search box, and the skill list](docs/images/home.png)
+![The skillsgist home page: a search box and the skill list](docs/images/home.png)
 
 skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh). You upload a skill in the browser; everyone on the team installs it with the same `npx skills add` they already use. There is no custom CLI, plugin or fork, and nothing is published to a shared public registry. The Worker, the database, the storage bucket and the credentials all live in your own Cloudflare account.
 
@@ -74,7 +74,7 @@ To serve the instance on your own domain, add a route to `wrangler.jsonc` and de
 
 ## Install skills
 
-Every skill belongs to a project, and every member of a project has an install key for it. Each project's page at `/p/<project>` shows your install command for that project, and `/projects` lists your projects. The home page shows only the command for public skills, so it stays short however many projects you are in. The examples below use `skills.example.com` as the instance's address.
+Every skill belongs to a project, and every member of a project has an install key for it. Each project's page at `/p/<project>` shows your install command for that project, and `/projects` lists your projects. The home page shows no install command; each skill's page shows the one for that skill. The examples below use `skills.example.com` as the instance's address.
 
 ```bash
 # Every skill in the key's project, public and private
@@ -176,7 +176,7 @@ Each membership has its own role:
 - **Project members** see, install and publish the project's skills, and manage the ones they own.
 - **Project admins** can also manage every skill in the project, rename the project, and add, remove, promote and demote its members.
 
-`/projects` lists your projects, and instance admins create new ones at `/projects/new`. A project's page, `/p/<project>`, works like the home page for that one project: your install command for it, a search box and a grid of its skills. Its settings page, `/p/<project>/settings`, has a button to reset your key for it and lists its members, and its admins manage the project there. Anyone can open the page of a project that has public skills, and sees only those. Move a skill to another project with Move on its page. A project can be deleted once it has no skills.
+`/projects` lists your projects, and instance admins create new ones at `/projects/new`. A project's page, `/p/<project>`, holds your install command for that project, a search box and a grid of its skills. Its settings page, `/p/<project>/settings`, has a button to reset your key for it and lists its members, and its admins manage the project there. Anyone can open the page of a project that has public skills, and sees only those. Move a skill to another project with Move on its page. A project can be deleted once it has no skills.
 
 `/admin/users` lists accounts. From there an admin can switch roles, reset passwords, rotate install keys, revoke API tokens and delete accounts; `/admin/users/new` creates them. A new account is in no project until someone adds it to one. The last remaining admin can never be demoted or deleted.
 
