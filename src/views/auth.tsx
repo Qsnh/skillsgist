@@ -174,7 +174,6 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
         <PageHead title={`${target.username} settings`} error={props.error}>
           Joined {DATE.format(new Date(target.created_at))},{" "}
           {target.last_login_at ? `last signed in ${DATE.format(new Date(target.last_login_at))}` : "never signed in"}.
-          Every account is listed on <a href="/admin/users" class="cf-link">the Users page</a>.
         </PageHead>
         <div class="cf-stack-lg">
           <Panel title="Role">

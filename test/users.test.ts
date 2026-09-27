@@ -442,7 +442,8 @@ describe("/admin/users/:id", () => {
     const html = await res.text();
     const id = carol.user.id;
     expect(html).toContain('<h1 class="cf-head-title">carol settings</h1>');
-    expect(html).toContain('<a href="/admin/users" class="cf-link">');
+    expect(html).toMatch(/<div class="cf-head-lede">Joined [A-Z][a-z]{2} \d{1,2}, \d{4}, last signed in [A-Z][a-z]{2} \d{1,2}, \d{4}\.<\/div>/);
+    expect(html).not.toContain("Every account is listed on");
     expect(html).toContain(`action="/admin/users/${id}/role"`);
     expect(html).toContain("Promote to admin");
     expect(html).toContain(`action="/admin/users/${id}/install-key"`);
