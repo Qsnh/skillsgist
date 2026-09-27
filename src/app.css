@@ -1440,11 +1440,6 @@
     margin-top: 28px;
   }
 
-  .cf-hero-meta .cf-vis {
-    margin-top: 0;
-    color: var(--color-cf-ember);
-  }
-
   .cf-skill-title {
     max-width: none;
     font-size: clamp(32px, 4.4vw, 48px);
@@ -1458,28 +1453,6 @@
 
   .cf-hero-lede + .cf-search {
     margin-top: 36px;
-  }
-
-  .cf-hero-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 18px;
-    margin-top: 16px;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-cf-ember);
-  }
-
-  .cf-hero-project {
-    color: inherit;
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
-
-  .cf-hero-project:hover {
-    text-decoration-thickness: 2px;
   }
 
   .cf-member {
@@ -1589,7 +1562,30 @@
     color: var(--color-cf-muted);
   }
 
-  .cf-row-version {
+  .cf-row-label {
+    flex-shrink: 0;
+    color: var(--color-cf-muted);
+  }
+
+  .cf-row-value {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    overflow-wrap: anywhere;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-row-value .cf-vis {
+    margin-top: 0;
+  }
+
+  .cf-row-version,
+  .cf-row-link {
     font-family: var(--font-mono);
     font-size: 13px;
     color: var(--color-cf-ink);
@@ -1598,7 +1594,8 @@
     text-underline-offset: 3px;
   }
 
-  .cf-row-version:hover {
+  .cf-row-version:hover,
+  .cf-row-link:hover {
     color: var(--color-cf-orange-ink);
     text-decoration-color: currentColor;
   }

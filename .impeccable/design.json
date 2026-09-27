@@ -460,7 +460,7 @@
       },
       "mono-meta-lg": {
         "displayName": "Mono Meta Large",
-        "purpose": "The skill-page meta line and version links in the Versions list, tabular."
+        "purpose": "The values in the skill page's Details panel and version links in the Versions list, tabular."
       },
       "mono-path": {
         "displayName": "Mono Path",
@@ -722,7 +722,7 @@
       },
       {
         "name": "The Ember Text Rule",
-        "body": "Running copy on the orange panel is set in Ember (5.52:1), never in white and never in gray. That includes the skill-page meta line, where the Visibility label turns Ember whatever its value. White on the panel is reserved for the display headline, the white command box and the white search button.",
+        "body": "Running copy on the orange panel is set in Ember (5.52:1), never in white and never in gray. White on the panel is reserved for the display headline, the white command box and the white search button.",
         "section": "colors"
       },
       {

@@ -13,8 +13,9 @@ const GOOD_MD = "---\nname: demo-skill\ndescription: A demo skill used by the te
 
 const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 
-const metaRow = (html: string, kind: "cell" | "hero") =>
-  new RegExp(`<p class="cf-${kind}-meta">([\\s\\S]*?)</p>`).exec(html)?.[1];
+const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+
+const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
 describe("GET /", () => {
   beforeEach(resetDb);
@@ -60,7 +61,7 @@ describe("GET /", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
-    const meta = metaRow(html, "cell");
+    const meta = cellMeta(html);
     expect(meta).toContain("<span>alice</span>");
     expect(meta).not.toContain("Default");
     expect(meta).not.toContain("v1");
@@ -73,7 +74,7 @@ describe("GET /", () => {
     await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
 
     const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    const meta = metaRow(html, "cell");
+    const meta = cellMeta(html);
     expect(meta).toContain("alice");
     expect(meta).toContain("1,234 downloads");
   });
@@ -82,22 +83,26 @@ describe("GET /", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, OTHER_MD, "private");
     const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    expect(metaRow(html, "cell")).toContain("0 downloads");
+    expect(cellMeta(html)).toContain("0 downloads");
   });
 });
 
 describe("GET /p/:project/s/:slug", () => {
   beforeEach(resetDb);
 
-  it("shows the author and visibility but no version or date in the panel meta", async () => {
+  it("shows the author and visibility but no version or date in the Details panel, not on the orange panel", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
     const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`)).text();
-    const meta = metaRow(html, "hero");
-    expect(meta).toContain("alice");
+    expect(html).toContain('<h2 class="cf-panel-title">Details</h2>');
+    const meta = details(html);
+    expect(meta).toContain('<dd class="cf-row-value">alice</dd>');
     expect(meta).toContain("Public");
     expect(meta).not.toContain("v1");
     expect(meta).not.toContain("<time");
+    const hero = /<section class="cf-hero"[\s\S]*?<\/section>/.exec(html)?.[0];
+    expect(hero).not.toContain("alice");
+    expect(hero).not.toContain("cf-vis");
   });
 
   it("re-renders html stored by an older renderer and saves it", async () => {
@@ -275,7 +280,7 @@ describe("GET /p/:project/s/:slug", () => {
     await publish(cookie, GOOD_MD, "public");
     for (const init of [{}, { headers: { Cookie: cookie } }]) {
       const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, init)).text();
-      expect(metaRow(html, "hero")).toContain('<a href="/p/default" class="cf-hero-project">Default</a>');
+      expect(details(html)).toContain('<a href="/p/default" class="cf-row-link">Default</a>');
     }
   });
 
@@ -290,7 +295,7 @@ describe("GET /p/:project/s/:slug", () => {
     const theirs = await (await SELF.fetch(`${ORIGIN}/p/team-b/s/demo-skill`)).text();
     expect(ours).toContain("Demo Heading");
     expect(theirs).toContain("Team B Heading");
-    expect(metaRow(theirs, "hero")).toContain("bob");
+    expect(details(theirs)).toContain("bob");
     expect(ours).toContain('<h1 id="skill-title" class="cf-hero-title cf-skill-title">Default/demo-skill</h1>');
     expect(theirs).toContain('<h1 id="skill-title" class="cf-hero-title cf-skill-title">Team B/demo-skill</h1>');
     expect(theirs).toContain("<title>Team B/demo-skill · skillsgist</title>");
@@ -324,15 +329,17 @@ describe("GET /p/:project/s/:slug", () => {
     expect((await SELF.fetch(`${ORIGIN}/p/default/s/nope`)).status).toBe(404);
   });
 
-  it("shows the download count in the hero meta to a signed-in user, singular for one", async () => {
+  it("shows a grouped download count in the Details panel to a signed-in user", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "private");
     await incrementDownloads(env.DB, "default", "demo-skill");
 
-    const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
-    const meta = metaRow(html, "hero");
-    expect(meta).toContain("1 download");
-    expect(meta).not.toContain("1 downloads");
+    let html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+    expect(details(html)).toMatch(/<dt class="cf-row-label">Downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
+
+    await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
+    html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+    expect(details(html)).toContain('<dd class="cf-row-value">1,234</dd>');
   });
 
   it("hides download counts from anonymous visitors", async () => {
@@ -340,7 +347,9 @@ describe("GET /p/:project/s/:slug", () => {
     await publish(cookie, GOOD_MD, "public");
 
     expect(await (await SELF.fetch(`${ORIGIN}/`)).text()).not.toMatch(COUNT_TEXT);
-    expect(await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`)).text()).not.toMatch(COUNT_TEXT);
+    const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`)).text();
+    expect(html).not.toMatch(COUNT_TEXT);
+    expect(details(html)).not.toContain("Downloads");
   });
 });
 

@@ -326,12 +326,6 @@ export function SkillPage(props: {
         <div class="cf-hero-inner cf-hero-start">
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
-          <p class="cf-hero-meta">
-            <a href={`/p/${skill.project}`} class="cf-hero-project">{skill.project_name}</a>
-            <span>{skill.author}</span>
-            <Visibility value={skill.visibility} />
-            {props.user ? <Downloads count={skill.download_count} /> : null}
-          </p>
           {base ? <CodeBlock raised>npx skills add {`${base}/.well-known/agent-skills/${skill.slug}`}</CodeBlock> : null}
         </div>
       </section>
@@ -405,6 +399,32 @@ export function SkillPage(props: {
           </article>
 
           <aside class="cf-stack-lg">
+            <Panel title="Details" flush>
+              <dl class="cf-rows">
+                <div class="cf-row">
+                  <dt class="cf-row-label">Project</dt>
+                  <dd class="cf-row-value">
+                    <a href={`/p/${skill.project}`} class="cf-row-link">{skill.project_name}</a>
+                  </dd>
+                </div>
+                <div class="cf-row">
+                  <dt class="cf-row-label">Author</dt>
+                  <dd class="cf-row-value">{skill.author}</dd>
+                </div>
+                <div class="cf-row">
+                  <dt class="cf-row-label">Visibility</dt>
+                  <dd class="cf-row-value">
+                    <Visibility value={skill.visibility} />
+                  </dd>
+                </div>
+                {props.user ? (
+                  <div class="cf-row">
+                    <dt class="cf-row-label">Downloads</dt>
+                    <dd class="cf-row-value">{COUNT.format(skill.download_count)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </Panel>
             <Panel
               title="Files"
               aside={<span class="cf-count">{files.length}</span>}
