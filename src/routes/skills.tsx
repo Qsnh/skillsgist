@@ -9,6 +9,7 @@ import {
   listVersions, moveSkill, projectsWithSkillNamed, setVisibility, updateVersionHtml,
 } from "../db/queries";
 import type { Viewer } from "../db/queries";
+import { messages } from "../i18n";
 import { skillPath } from "../paths";
 import { RENDER_REVISION, renderSkillMd } from "../render/markdown";
 import { IndexPage, SkillPage } from "../views/skills";
@@ -104,10 +105,10 @@ skillsRoutes.post("/p/:project/s/:slug/move", requireUser, async (c) => {
   const body = await c.req.parseBody();
   const target = await getProject(c.env.DB, typeof body.project === "string" ? body.project : "");
   if (!target || !canAccessProject(c.get("user"), target.slug)) {
-    return c.text("You cannot move a skill into that project", 403);
+    return c.text(messages(c).skills.moveForbidden, 403);
   }
   if (await getSkill(c.env.DB, target.slug, skill.slug)) {
-    return c.text(`${target.name} already has a skill named ${skill.slug}`, 409);
+    return c.text(messages(c).skills.nameTakenIn(target.name, skill.slug), 409);
   }
   await moveSkill(c.env.DB, skill.project, skill.slug, target.slug);
   return c.redirect(skillPath({ project: target.slug, slug: skill.slug }), 302);

@@ -1,4 +1,6 @@
-import type { Messages } from "./en";
+import type { Messages, SkillAction } from "./en";
+
+const ACTIONS: Record<SkillAction, string> = { modify: "変更", move: "移動", delete: "削除", edit: "編集", update: "更新" };
 
 export const ja: Messages = {
   layout: {
@@ -100,5 +102,67 @@ export const ja: Messages = {
     lastAdminDelete: "最後の管理者は削除できません",
     deleted: (username) => `${username} を削除しました。`,
     adminsOnly: "管理者のみ",
+  },
+  skills: {
+    title: "スキル",
+    hero: "インストールするスキルを探す",
+    heroAnon: (cli, signIn) => [
+      "このレジストリは標準の ",
+      cli,
+      " CLI に Agent Skills を配信します。各スキルのページにインストールコマンドがあり、パブリックなスキルにはキーが要りません。プライベートなスキルを見るには",
+      signIn,
+      "してください。",
+    ],
+    heroNoProject:
+      "まだどのプロジェクトにも所属していないため、インストールキーがありません。パブリックなスキルは各ページにインストールコマンドがあります。",
+    heroMember: (projects) => [
+      "所属している各プロジェクトのページ（",
+      projects,
+      "に一覧があります）と、その中の各スキルのページに、あなた用のインストールコマンドがあります。",
+    ],
+    search: "スキルを検索",
+    searchButton: "検索",
+    resultsFor: (q) => `「${q}」の検索結果`,
+    clearSearch: "検索をクリア",
+    sort: "更新が新しい順",
+    noMatches: (q, within) =>
+      within ? `${within} に「${q}」に一致するスキルはありません。` : `「${q}」に一致するスキルはありません。`,
+    searchScope: "検索対象はスキル名、説明、各 SKILL.md の本文です。",
+    noSkillsYet: (within) => (within ? `${within} にはまだスキルがありません。` : "まだスキルがありません。"),
+    publishHow:
+      "ブラウザから .zip、.tar.gz、または単体の SKILL.md をアップロードするか、アカウントのトークンを使って API にアーカイブを送信できます。",
+    publishFirst: "最初のスキルを公開",
+    noPublic: "パブリックなスキルはまだありません。",
+    noPublicBody: "スキルは所有者がパブリックにするまでプライベートです。残りのスキルを見るにはサインインしてください。",
+    public: "パブリック",
+    private: "プライベート",
+    downloads: (_count, formatted) => `${formatted} ダウンロード`,
+    move: "移動",
+    moveTo: "移動先のプロジェクト",
+    moveHint: (project, slug) =>
+      `${project} のインストールキーではただちに ${slug} にアクセスできなくなり、移動先プロジェクトのキーでアクセスできるようになります。ページも移動先プロジェクトのアドレスに移ります。`,
+    moveSkill: (slug) => `${slug} を移動`,
+    downloadZip: "zip をダウンロード",
+    editSkillMd: "SKILL.md を編集",
+    uploadArchive: "アーカイブをアップロード",
+    makePrivate: "プライベートにする",
+    makePublic: "パブリックにする",
+    delete: "削除",
+    deleteSkill: (slug) => `${slug} を削除`,
+    deleteWarning: (slug) => `${slug} とそのすべてのバージョンが削除されます。元に戻すことはできません。`,
+    latest: (version) => `v${version}（最新バージョン）`,
+    viewing: (version) => `v${version} を表示しています。`,
+    goToLatest: (version) => `最新の v${version} へ`,
+    details: "詳細",
+    project: "プロジェクト",
+    author: "作成者",
+    visibility: "公開範囲",
+    downloadsLabel: "ダウンロード数",
+    files: "ファイル",
+    versions: "バージョン",
+    downloadVersion: (version) => `v${version} をダウンロード`,
+    notAllowed: (action) => `このスキルを${ACTIONS[action]}する権限がありません`,
+    moveForbidden: "そのプロジェクトにはスキルを移動できません",
+    nameTakenIn: (project, slug) => `${project} にはすでに ${slug} という名前のスキルがあります`,
   },
 };

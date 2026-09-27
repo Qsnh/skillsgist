@@ -7,7 +7,7 @@ import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { follow, GOOD_MD, ORIGIN, postForm, resetDb, seedAndLogin, seedUser, seedWithSkills } from "./helpers";
+import { follow, GOOD_MD, ORIGIN, postForm, resetDb, seedAndLogin, seedProject, seedUser, seedWithSkills } from "./helpers";
 
 const fetchIn = (path: string, headers: Record<string, string> = {}) =>
   SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
@@ -170,5 +170,49 @@ describe("sign-in, account and user administration", () => {
     const res = await fetchIn("/admin/users", { Cookie: withLang(cookie, "ja") });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe(ja.users.adminsOnly);
+  });
+});
+
+describe("registry and skill pages", () => {
+  beforeEach(resetDb);
+
+  it("renders the index hero and an empty search in Japanese", async () => {
+    const html = await htmlIn("/?q=%E7%84%A1", { "Accept-Language": "ja" });
+    expect(html).toContain(ja.skills.hero);
+    expect(html).toContain(ja.skills.noMatches("無", null));
+    expect(html).toContain("<code>npx skills</code>");
+    expect(html).toContain(`<a href="/login">${ja.layout.signIn}</a>`);
+  });
+
+  it("renders a skill page's toolbar, details and versions in Chinese", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const html = await htmlIn("/p/default/s/demo-skill", { Cookie: withLang(cookie, "zh-CN") });
+    for (const text of [
+      zhCN.skills.downloadZip,
+      zhCN.skills.makePrivate,
+      zhCN.skills.deleteSkill("demo-skill"),
+      zhCN.skills.latest(1),
+      zhCN.skills.details,
+      zhCN.skills.public,
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain(`aria-label="${zhCN.skills.downloadVersion(1)}"`);
+  });
+
+  it("refuses a move into a project the mover is not in, in Japanese", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedWithSkills({ username: "bob", role: "member" }, [GOOD_MD, "private"]);
+    const res = await postForm("/p/default/s/demo-skill/move", withLang(cookie, "ja"), { project: "team-b" });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(ja.skills.moveForbidden);
+  });
+
+  it("refuses someone else's skill in Chinese", async () => {
+    await seedWithSkills({ username: "bob", role: "member" }, [GOOD_MD, "private"]);
+    const { cookie } = await seedAndLogin({ username: "carol", role: "member" });
+    const res = await postForm("/p/default/s/demo-skill/delete", withLang(cookie, "zh-CN"));
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(zhCN.skills.notAllowed("delete"));
   });
 });

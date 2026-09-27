@@ -6,6 +6,7 @@ import { getSkill, getViewer, getViewerByApiTokenHash, listProjects } from "./db
 import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
 import { sha256Hex, toHex } from "./hash";
 import { messages } from "./i18n";
+import type { SkillAction } from "./i18n/en";
 import type { Env } from "./types";
 
 /**
@@ -221,13 +222,13 @@ export async function requireManagedSkill(
   c: Ctx,
   project: string,
   slug: string,
-  action: string,
+  action: SkillAction,
 ): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
   const user = c.get("user");
   const skill = await getSkill(c.env.DB, project, slug);
   if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
   if (!canManage(user, skill)) {
-    return { ok: false, response: c.text(`You are not allowed to ${action} this skill`, 403) };
+    return { ok: false, response: c.text(messages(c).skills.notAllowed(action), 403) };
   }
   return { ok: true, skill };
 }

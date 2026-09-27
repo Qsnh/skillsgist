@@ -7,15 +7,16 @@ import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel, Select } from ".
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
+  const t = useT();
   return props.value === "public" ? (
     <span class="cf-vis cf-vis-public">
       <GlobeIcon />
-      Public
+      {t.skills.public}
     </span>
   ) : (
     <span class="cf-vis cf-vis-private">
       <LockIcon />
-      Private
+      {t.skills.private}
     </span>
   );
 }
@@ -49,84 +50,73 @@ function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
 }
 
 export function NoMatches(props: { q: string; within?: string; clearHref: string }) {
+  const t = useT();
   return (
     <div class="cf-empty">
-      <p class="cf-empty-title">
-        No skills{props.within ? ` in ${props.within}` : null} match &ldquo;{props.q}&rdquo;.
-      </p>
-      <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
-      <a href={props.clearHref} class="cf-btn cf-btn-outline">Clear search</a>
+      <p class="cf-empty-title">{t.skills.noMatches(props.q, props.within ?? null)}</p>
+      <p class="cf-empty-body">{t.skills.searchScope}</p>
+      <a href={props.clearHref} class="cf-btn cf-btn-outline">{t.skills.clearSearch}</a>
     </div>
   );
 }
 
 export function NoSkillsYet(props: { within?: string; publishHref: string }) {
+  const t = useT();
   return (
     <div class="cf-empty">
-      <p class="cf-empty-title">No skills{props.within ? ` in ${props.within}` : null} yet.</p>
-      <p class="cf-empty-body">
-        Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
-        from your account.
-      </p>
-      <a href={props.publishHref} class="cf-btn cf-btn-primary">Publish the first skill</a>
+      <p class="cf-empty-title">{t.skills.noSkillsYet(props.within ?? null)}</p>
+      <p class="cf-empty-body">{t.skills.publishHow}</p>
+      <a href={props.publishHref} class="cf-btn cf-btn-primary">{t.skills.publishFirst}</a>
     </div>
   );
 }
 
 function EmptyRegistry(props: { user: Viewer | null; q: string }) {
+  const t = useT();
   if (props.q) return <NoMatches q={props.q} clearHref="/" />;
   if (props.user) return <NoSkillsYet publishHref="/new" />;
   return (
     <div class="cf-empty">
-      <p class="cf-empty-title">No public skills yet.</p>
-      <p class="cf-empty-body">Skills are private until their owner makes them public. Sign in to see the rest.</p>
-      <a href="/login" class="cf-btn cf-btn-outline">Sign in</a>
+      <p class="cf-empty-title">{t.skills.noPublic}</p>
+      <p class="cf-empty-body">{t.skills.noPublicBody}</p>
+      <a href="/login" class="cf-btn cf-btn-outline">{t.layout.signIn}</a>
     </div>
   );
 }
 
 function HeroLede(props: { user: Viewer | null }) {
+  const t = useT();
   if (!props.user) {
     return (
       <p class="cf-hero-lede">
-        This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Every skill has its install command
-        on its page, and public skills need no key. <a href="/login">Sign in</a> to see the private ones.
+        {t.skills.heroAnon(<code>npx skills</code>, <a href="/login">{t.layout.signIn}</a>)}
       </p>
     );
   }
   if (props.user.memberships.length === 0) {
-    return (
-      <p class="cf-hero-lede">
-        You are not in a project yet, so you have no install key. Every public skill has its install command on its
-        page.
-      </p>
-    );
+    return <p class="cf-hero-lede">{t.skills.heroNoProject}</p>;
   }
-  return (
-    <p class="cf-hero-lede">
-      Each project you are in has your install command on its page, listed under <a href="/projects">Projects</a>, and
-      so do its skills.
-    </p>
-  );
+  return <p class="cf-hero-lede">{t.skills.heroMember(<a href="/projects">{t.layout.projects}</a>)}</p>;
 }
 
 export function SearchForm(props: { action: string; q: string }) {
+  const t = useT();
   return (
     <form method="get" action={props.action} class="cf-search" role="search">
       <Icon>
         <circle cx="7" cy="7" r="4.5" />
         <path d="M10.5 10.5L14 14" />
       </Icon>
-      <label for="q" class="sr-only">Search skills</label>
+      <label for="q" class="sr-only">{t.skills.search}</label>
       <input
         id="q"
         name="q"
         type="search"
         value={props.q}
-        placeholder="Search skills"
+        placeholder={t.skills.search}
         class="cf-search-input"
       />
-      <button type="submit" class="cf-search-submit">Search</button>
+      <button type="submit" class="cf-search-submit">{t.skills.searchButton}</button>
     </form>
   );
 }
@@ -138,16 +128,17 @@ export function SkillRegistry(props: {
   showDownloads: boolean;
   empty: unknown;
 }) {
+  const t = useT();
   const count = props.skills.length;
   return (
     <section class="cf-page cf-guides cf-registry" aria-labelledby="registry-title">
       <div class="cf-registry-head">
         <h2 id="registry-title" class="cf-registry-title">
-          {props.q ? <>Results for &ldquo;{props.q}&rdquo;</> : "Skills"}
+          {props.q ? t.skills.resultsFor(props.q) : t.skills.title}
         </h2>
         <span class="cf-count">{count}</span>
-        {props.q && count > 0 ? <a href={props.clearHref} class="cf-link">Clear search</a> : null}
-        <span class="cf-registry-sort">Recently updated first</span>
+        {props.q && count > 0 ? <a href={props.clearHref} class="cf-link">{t.skills.clearSearch}</a> : null}
+        <span class="cf-registry-sort">{t.skills.sort}</span>
       </div>
       <div class="cf-frame">
         {count === 0 ? (
@@ -171,11 +162,12 @@ export function IndexPage(props: {
   skills: ListedSkill[];
   q: string;
 }) {
+  const t = useT();
   return (
-    <Layout title="Skills" user={props.user} bare>
+    <Layout title={t.skills.title} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
         <div class="cf-hero-inner cf-hero-center">
-          <h1 id="hero-title" class="cf-hero-title">Find a skill to install</h1>
+          <h1 id="hero-title" class="cf-hero-title">{t.skills.hero}</h1>
           <HeroLede user={props.user} />
           <SearchForm action="/" q={props.q} />
         </div>
@@ -211,7 +203,8 @@ function FoldFoot(props: { controls: string }) {
 
 function Downloads(props: { count: number }) {
   const locale = useLocale();
-  return <span>{`${formatCount(locale, props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
+  const t = useT();
+  return <span>{t.skills.downloads(props.count, formatCount(locale, props.count))}</span>;
 }
 
 function DownloadIcon() {
@@ -273,25 +266,23 @@ function MoveIcon() {
 }
 
 function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; name: string }> }) {
+  const t = useT();
   return (
     <details class="cf-confirm cf-move">
       <summary class="cf-btn cf-btn-ghost">
         <MoveIcon />
-        Move
+        {t.skills.move}
       </summary>
       <div class="cf-confirm-panel">
         <Form action={`${skillPath(props.skill)}/move`} class="cf-stack cf-stack-form">
-          <Select label="Move to project" name="project">
+          <Select label={t.skills.moveTo} name="project">
             {props.targets.map((p) => (
               <option value={p.slug}>{p.name}</option>
             ))}
           </Select>
-          <p class="cf-hint">
-            Install keys for {props.skill.project_name} stop reaching {props.skill.slug} at once, keys for the new
-            project start to, and its page moves to the new project's address.
-          </p>
+          <p class="cf-hint">{t.skills.moveHint(props.skill.project_name, props.skill.slug)}</p>
           <div>
-            <Button size="sm">Move {props.skill.slug}</Button>
+            <Button size="sm">{t.skills.moveSkill(props.skill.slug)}</Button>
           </div>
         </Form>
       </div>
@@ -309,6 +300,7 @@ export function SkillPage(props: {
   moveTargets: Array<{ slug: string; name: string }>;
 }) {
   const locale = useLocale();
+  const t = useT();
   const { skill, version } = props;
   const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
   const isLatest = version.version === skill.latest_version;
@@ -330,7 +322,7 @@ export function SkillPage(props: {
           <div class="cf-toolbar-group">
             <a href={`${path}/download`} class="cf-btn cf-btn-ghost">
               <DownloadIcon />
-              Download zip
+              {t.skills.downloadZip}
             </a>
           </div>
           {props.canManage ? (
@@ -338,11 +330,11 @@ export function SkillPage(props: {
               <div class="cf-toolbar-group">
                 <a href={`${path}/edit`} class="cf-btn cf-btn-ghost">
                   <EditIcon />
-                  Edit SKILL.md
+                  {t.skills.editSkillMd}
                 </a>
                 <a href={`${path}/upload`} class="cf-btn cf-btn-ghost">
                   <UploadIcon />
-                  Upload an archive
+                  {t.skills.uploadArchive}
                 </a>
               </div>
               <div class="cf-toolbar-group">
@@ -350,12 +342,12 @@ export function SkillPage(props: {
                   {skill.visibility === "public" ? (
                     <Button variant="ghost">
                       <LockIcon />
-                      Make private
+                      {t.skills.makePrivate}
                     </Button>
                   ) : (
                     <Button variant="ghost">
                       <GlobeIcon />
-                      Make public
+                      {t.skills.makePublic}
                     </Button>
                   )}
                 </Form>
@@ -364,12 +356,12 @@ export function SkillPage(props: {
               <div class="cf-toolbar-group cf-toolbar-end">
                 <ConfirmDelete
                   action={`${path}/delete`}
-                  label="Delete"
-                  confirm={`Delete ${skill.slug}`}
+                  label={t.skills.delete}
+                  confirm={t.skills.deleteSkill(skill.slug)}
                   ghost
                   icon={<TrashIcon />}
                 >
-                  Deleting removes {skill.slug} and all of its versions. It cannot be undone.
+                  {t.skills.deleteWarning(skill.slug)}
                 </ConfirmDelete>
               </div>
             </>
@@ -381,11 +373,11 @@ export function SkillPage(props: {
             <header class="cf-panel-head">
               <span class="cf-chip">SKILL.md</span>
               {isLatest ? (
-                <span class="cf-panel-meta">v{version.version}, the latest version</span>
+                <span class="cf-panel-meta">{t.skills.latest(version.version)}</span>
               ) : (
                 <span class="cf-panel-meta">
-                  Viewing v{version.version}.{" "}
-                  <a href={path} class="cf-link">Go to the latest, v{skill.latest_version}</a>
+                  {t.skills.viewing(version.version)}{" "}
+                  <a href={path} class="cf-link">{t.skills.goToLatest(skill.latest_version)}</a>
                 </span>
               )}
             </header>
@@ -394,34 +386,34 @@ export function SkillPage(props: {
           </article>
 
           <aside class="cf-stack-lg">
-            <Panel title="Details" flush>
+            <Panel title={t.skills.details} flush>
               <dl class="cf-rows">
                 <div class="cf-row">
-                  <dt class="cf-row-label">Project</dt>
+                  <dt class="cf-row-label">{t.skills.project}</dt>
                   <dd class="cf-row-value">
                     <a href={projectPath(skill.project)} class="cf-row-link">{skill.project_name}</a>
                   </dd>
                 </div>
                 <div class="cf-row">
-                  <dt class="cf-row-label">Author</dt>
+                  <dt class="cf-row-label">{t.skills.author}</dt>
                   <dd class="cf-row-value">{skill.author}</dd>
                 </div>
                 <div class="cf-row">
-                  <dt class="cf-row-label">Visibility</dt>
+                  <dt class="cf-row-label">{t.skills.visibility}</dt>
                   <dd class="cf-row-value">
                     <Visibility value={skill.visibility} />
                   </dd>
                 </div>
                 {props.user ? (
                   <div class="cf-row">
-                    <dt class="cf-row-label">Downloads</dt>
+                    <dt class="cf-row-label">{t.skills.downloadsLabel}</dt>
                     <dd class="cf-row-value">{formatCount(locale, skill.download_count)}</dd>
                   </div>
                 ) : null}
               </dl>
             </Panel>
             <Panel
-              title="Files"
+              title={t.skills.files}
               aside={<span class="cf-count">{files.length}</span>}
               foot={<FoldFoot controls="skill-files" />}
               flush
@@ -436,7 +428,7 @@ export function SkillPage(props: {
               </ul>
             </Panel>
             <Panel
-              title="Versions"
+              title={t.skills.versions}
               aside={<span class="cf-count">{props.versions.length}</span>}
               foot={<FoldFoot controls="skill-versions" />}
               flush
@@ -458,7 +450,7 @@ export function SkillPage(props: {
                       <a
                         href={`${path}/v/${v.version}/download`}
                         class="cf-icon-link"
-                        aria-label={`Download v${v.version}`}
+                        aria-label={t.skills.downloadVersion(v.version)}
                       >
                         <DownloadIcon />
                       </a>

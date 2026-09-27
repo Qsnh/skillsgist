@@ -1,4 +1,6 @@
-import type { Messages } from "./en";
+import type { Messages, SkillAction } from "./en";
+
+const ACTIONS: Record<SkillAction, string> = { modify: "修改", move: "移动", delete: "删除", edit: "编辑", update: "更新" };
 
 export const zhCN: Messages = {
   layout: {
@@ -97,5 +99,60 @@ export const zhCN: Messages = {
     lastAdminDelete: "不能删除最后一位管理员",
     deleted: (username) => `已删除 ${username}。`,
     adminsOnly: "仅限管理员",
+  },
+  skills: {
+    title: "技能",
+    hero: "查找要安装的技能",
+    heroAnon: (cli, signIn) => [
+      "本仓库通过原版 ",
+      cli,
+      " CLI 提供 Agent Skills。每个技能的页面上都有它的安装命令，公开技能无需密钥。",
+      signIn,
+      "后可查看私有技能。",
+    ],
+    heroNoProject: "你还没有加入任何项目，因此没有安装密钥。每个公开技能的页面上都有它的安装命令。",
+    heroMember: (projects) => ["你所在的每个项目的页面上都有你的安装命令（见", projects, "），项目中每个技能的页面上也有。"],
+    search: "搜索技能",
+    searchButton: "搜索",
+    resultsFor: (q) => `“${q}”的搜索结果`,
+    clearSearch: "清除搜索",
+    sort: "最近更新优先",
+    noMatches: (q, within) => (within ? `${within} 中没有与“${q}”匹配的技能。` : `没有与“${q}”匹配的技能。`),
+    searchScope: "搜索范围包括技能名称、描述以及每个 SKILL.md 的正文。",
+    noSkillsYet: (within) => (within ? `${within} 中还没有技能。` : "还没有技能。"),
+    publishHow: "可以在浏览器中上传 .zip、.tar.gz 或单个 SKILL.md，也可以用账号中的令牌通过 API 上传压缩包。",
+    publishFirst: "发布第一个技能",
+    noPublic: "还没有公开技能。",
+    noPublicBody: "技能在所有者设为公开之前都是私有的。登录后可查看其余技能。",
+    public: "公开",
+    private: "私有",
+    downloads: (_count, formatted) => `${formatted} 次下载`,
+    move: "移动",
+    moveTo: "移动到项目",
+    moveHint: (project, slug) =>
+      `${project} 的安装密钥将立即无法访问 ${slug}，新项目的密钥则可以访问，它的页面也会移到新项目的地址下。`,
+    moveSkill: (slug) => `移动 ${slug}`,
+    downloadZip: "下载 zip",
+    editSkillMd: "编辑 SKILL.md",
+    uploadArchive: "上传压缩包",
+    makePrivate: "设为私有",
+    makePublic: "设为公开",
+    delete: "删除",
+    deleteSkill: (slug) => `删除 ${slug}`,
+    deleteWarning: (slug) => `删除将移除 ${slug} 及其所有版本，且无法撤销。`,
+    latest: (version) => `v${version}，最新版本`,
+    viewing: (version) => `正在查看 v${version}。`,
+    goToLatest: (version) => `前往最新版本 v${version}`,
+    details: "详情",
+    project: "项目",
+    author: "作者",
+    visibility: "可见性",
+    downloadsLabel: "下载量",
+    files: "文件",
+    versions: "版本",
+    downloadVersion: (version) => `下载 v${version}`,
+    notAllowed: (action) => `你无权${ACTIONS[action]}这个技能`,
+    moveForbidden: "不能把技能移动到该项目",
+    nameTakenIn: (project, slug) => `${project} 中已有名为 ${slug} 的技能`,
   },
 };

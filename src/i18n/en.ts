@@ -1,3 +1,7 @@
+export type Slot = unknown;
+
+export type SkillAction = "modify" | "move" | "delete" | "edit" | "update";
+
 export const en = {
   layout: {
     tagline: "A private registry for Agent Skills, running on Cloudflare Workers.",
@@ -98,6 +102,68 @@ export const en = {
     lastAdminDelete: "You cannot delete the last admin",
     deleted: (username: string) => `Deleted ${username}.`,
     adminsOnly: "Admins only",
+  },
+  skills: {
+    title: "Skills",
+    hero: "Find a skill to install",
+    heroAnon: (cli: Slot, signIn: Slot) => [
+      "This registry serves Agent Skills to the stock ",
+      cli,
+      " CLI. Every skill has its install command on its page, and public skills need no key. ",
+      signIn,
+      " to see the private ones.",
+    ],
+    heroNoProject:
+      "You are not in a project yet, so you have no install key. Every public skill has its install command on its page.",
+    heroMember: (projects: Slot) => [
+      "Each project you are in has your install command on its page, listed under ",
+      projects,
+      ", and so do its skills.",
+    ],
+    search: "Search skills",
+    searchButton: "Search",
+    resultsFor: (q: string) => `Results for “${q}”`,
+    clearSearch: "Clear search",
+    sort: "Recently updated first",
+    noMatches: (q: string, within: string | null) =>
+      within ? `No skills in ${within} match “${q}”.` : `No skills match “${q}”.`,
+    searchScope: "Search looks at skill names, descriptions and the text of each SKILL.md.",
+    noSkillsYet: (within: string | null) => (within ? `No skills in ${within} yet.` : "No skills yet."),
+    publishHow:
+      "Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token from your account.",
+    publishFirst: "Publish the first skill",
+    noPublic: "No public skills yet.",
+    noPublicBody: "Skills are private until their owner makes them public. Sign in to see the rest.",
+    public: "Public",
+    private: "Private",
+    downloads: (count: number, formatted: string) => `${formatted} ${count === 1 ? "download" : "downloads"}`,
+    move: "Move",
+    moveTo: "Move to project",
+    moveHint: (project: string, slug: string) =>
+      `Install keys for ${project} stop reaching ${slug} at once, keys for the new project start to, and its page moves to the new project's address.`,
+    moveSkill: (slug: string) => `Move ${slug}`,
+    downloadZip: "Download zip",
+    editSkillMd: "Edit SKILL.md",
+    uploadArchive: "Upload an archive",
+    makePrivate: "Make private",
+    makePublic: "Make public",
+    delete: "Delete",
+    deleteSkill: (slug: string) => `Delete ${slug}`,
+    deleteWarning: (slug: string) => `Deleting removes ${slug} and all of its versions. It cannot be undone.`,
+    latest: (version: number) => `v${version}, the latest version`,
+    viewing: (version: number) => `Viewing v${version}.`,
+    goToLatest: (version: number) => `Go to the latest, v${version}`,
+    details: "Details",
+    project: "Project",
+    author: "Author",
+    visibility: "Visibility",
+    downloadsLabel: "Downloads",
+    files: "Files",
+    versions: "Versions",
+    downloadVersion: (version: number) => `Download v${version}`,
+    notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
+    moveForbidden: "You cannot move a skill into that project",
+    nameTakenIn: (project: string, slug: string) => `${project} already has a skill named ${slug}`,
   },
 };
 
