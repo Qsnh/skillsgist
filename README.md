@@ -134,7 +134,6 @@ zip -r - . | curl --fail-with-body -sS -X PUT --data-binary @- \
 ```
 
 - The name in the URL must match the `name` in `SKILL.md`, and you must be a member of the project (an instance admin can publish into any project).
-- `PUT /api/skills/<name>`, the address from before projects, still works and publishes into the `default` project.
 - The body can be a zip, a gzipped tarball or a bare `SKILL.md`; the format is read from the bytes. Always send a `Content-Type` such as `application/zip`, `application/gzip` or `text/markdown`. Without one, curl labels the body as a form submission, and the server refuses it with `403`.
 - Add `?visibility=public` or `?visibility=private` to set visibility in the same call. Without it, a new skill starts private and an existing skill keeps its current visibility.
 - The API is idempotent. A new version answers `201`; content identical to the latest version answers `200` with `"unchanged": true` and still applies `visibility`. Errors answer JSON of the form `{ "error": "...", "message": "..." }`.

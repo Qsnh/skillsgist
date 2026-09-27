@@ -214,7 +214,7 @@ try {
   // 3. Publish a private skill (wrapped.zip: SKILL.md sits inside demo-skill/,
   // which also exercises stripping the outer wrapper directory)
   const publishFixture = async (name, contentType, query = "") => {
-    const res = await fetch(`${ORIGIN}/api/skills/demo-skill${query}`, {
+    const res = await fetch(`${ORIGIN}/api/projects/default/skills/demo-skill${query}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
       body: readFileSync(new URL(`../test/fixtures/${name}`, import.meta.url)),

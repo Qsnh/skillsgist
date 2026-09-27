@@ -27,7 +27,6 @@ const EXEMPT = new Set([
   // Bearer-authenticated; never reads the session cookie. See
   // "an /api/* route cannot be authenticated by a session cookie" below.
   "PUT /api/projects/:project/skills/:slug",
-  "PUT /api/skills/:slug",
   // No session exists yet, so there is no session-bound token to send.
   // Covered by the Origin / Sec-Fetch-Site layer only — see TOKENLESS_PATHS.
   "POST /setup",
@@ -264,7 +263,7 @@ describe("/api/* exemption", () => {
     const tokenRes = await postForm("/me/api-token", cookie);
     const apiToken = /sgt_[a-f0-9]{32}/.exec(await tokenRes.text())![0];
 
-    const res = await SELF.fetch(`${ORIGIN}/api/skills/demo-skill`, {
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "text/markdown" },
       body: GOOD_MD,
@@ -277,7 +276,7 @@ describe("/api/* exemption", () => {
   // check there cannot expose anything.
   it("cannot be authenticated by a session cookie alone", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await SELF.fetch(`${ORIGIN}/api/skills/demo-skill`, {
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: { Cookie: cookie, "Content-Type": "text/markdown" },
       body: GOOD_MD,

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { publishableProjects, requireManagedSkill, requireUser, userFromApiToken } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { API_PREFIX, page } from "../csrf";
-import { DEFAULT_PROJECT, getVersion } from "../db/queries";
+import { getVersion } from "../db/queries";
 import type { VersionRow, Viewer } from "../db/queries";
 import { skillPath } from "../paths";
 import { ForbiddenError, publishBytes, repackWithSkillMd, unchangedError } from "../publish";
@@ -184,5 +184,3 @@ async function publishFromApi(c: Ctx, project: string, slug: string): Promise<Re
 publishRoutes.put(`${API_PREFIX}projects/:project/skills/:slug`, (c) =>
   publishFromApi(c, c.req.param("project"), c.req.param("slug")),
 );
-
-publishRoutes.put(`${API_PREFIX}skills/:slug`, (c) => publishFromApi(c, DEFAULT_PROJECT, c.req.param("slug")));

@@ -13,8 +13,7 @@ function putSkill(
 ): Promise<Response> {
   const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
   const slug = opts.slug ?? "demo-skill";
-  const path = opts.project === undefined ? `skills/${slug}` : `projects/${opts.project}/skills/${slug}`;
-  return SELF.fetch(`${ORIGIN}/api/${path}${query}`, {
+  return SELF.fetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -24,7 +23,7 @@ function putSkill(
   });
 }
 
-describe("PUT /api/skills/:slug", () => {
+describe("PUT /api/projects/:project/skills/:slug", () => {
   beforeEach(resetDb);
 
   it("publishes a zip and stores the artifact in R2", async () => {
@@ -633,10 +632,15 @@ describe("publishing into a project", () => {
     expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
   });
 
-  it("keeps /api/skills/:slug publishing into the default project", async () => {
+  it("no longer publishes through the old /api/skills/:slug address", async () => {
     const { token } = await inTwoProjects();
-    expect((await putSkill(token, GOOD_MD)).status).toBe(201);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    const res = await SELF.fetch(`${ORIGIN}/api/skills/demo-skill`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/markdown" },
+      body: GOOD_MD,
+    });
+    expect(res.status).toBe(404);
+    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
     expect(await getSkill(env.DB, "team-b", "demo-skill")).toBeNull();
   });
 
