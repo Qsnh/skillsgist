@@ -8,12 +8,13 @@ import { page } from "../csrf";
 import { flash } from "../flash";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
-  getUserByUsername, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
+  getUserByUsername, getUserSummary, listUsers, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
-import { LoginPage, MePage, NewUserPage, SetupPage, UsersPage } from "../views/auth";
+import { userSettingsPath } from "../paths";
+import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
 
 const USERNAME = /^[a-z0-9-]{2,32}$/;
 
@@ -24,9 +25,11 @@ export const usersRoutes = new Hono<AppEnv>();
 
 const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
 
-/** Re-render the user list with an error. */
-const usersError = async (c: Ctx, admin: UserRow, error: string) =>
-  page(c, <UsersPage user={admin} users={await listUsers(c.env.DB)} error={error} />, 400);
+const userSettings = async (c: Ctx, id: string, error?: string): Promise<Response> => {
+  const target = await getUserSummary(c.env.DB, id);
+  if (!target) return c.notFound();
+  return page(c, <UserSettingsPage user={c.get("user")} target={target} error={error} />, error ? 400 : undefined);
+};
 
 usersRoutes.get("/setup", async (c) => {
   if ((await countUsers(c.env.DB)) > 0) return c.notFound();
@@ -128,6 +131,8 @@ usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
   return c.redirect("/admin/users", 302);
 });
 
+usersRoutes.get("/admin/users/:id", requireAdmin, (c) => userSettings(c, c.req.param("id")));
+
 async function adminTarget(
   c: Ctx,
   id: string,
@@ -139,7 +144,7 @@ async function adminTarget(
   if (target.id === admin.id && !opts.allowSelf) {
     return {
       ok: false,
-      response: await usersError(c, admin, opts.selfError ?? "You cannot do this to your own account. Ask another admin."),
+      response: await userSettings(c, target.id, opts.selfError ?? "You cannot do this to your own account. Ask another admin."),
     };
   }
   return { ok: true, admin, target };
@@ -150,14 +155,14 @@ usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
     selfError: "You cannot change your own role. Ask another admin.",
   });
   if (!guard.ok) return guard.response;
-  const { admin, target } = guard;
+  const { target } = guard;
   const body = await c.req.parseBody();
   const role = roleOf(body.role);
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "You cannot demote the last admin");
+    return userSettings(c, target.id, "You cannot demote the last admin");
   }
   await updateUserRole(c.env.DB, target.id, role);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
@@ -166,11 +171,11 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return usersError(c, guard.admin, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    return userSettings(c, guard.target.id, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
   await flash(c, `Password reset for ${guard.target.username}.`);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
@@ -178,14 +183,14 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   if (!guard.ok) return guard.response;
   await rotateInstallKeys(c.env.DB, guard.target.id, () => randomHex(16));
   await flash(c, `Install keys rotated for ${guard.target.username}. The old install commands no longer work.`);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await updateApiTokenHash(c.env.DB, guard.target.id, null);
-  return c.redirect("/admin/users", 302);
+  return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
 usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
@@ -195,10 +200,11 @@ usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return usersError(c, admin, "You cannot delete the last admin");
+    return userSettings(c, target.id, "You cannot delete the last admin");
   }
   // Reassigns owner_id and author_id in the same batch as the delete; the
   // foreign keys make that mandatory — see deleteUserReassigning.
   await deleteUserReassigning(c.env.DB, target.id, admin.id);
+  await flash(c, `Deleted ${target.username}.`);
   return c.redirect("/admin/users", 302);
 });

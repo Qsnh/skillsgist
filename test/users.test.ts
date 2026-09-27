@@ -420,6 +420,72 @@ describe("/admin/users/new", () => {
 // departed member's account needs: without them an admin has no way to demote,
 // rotate a leaked install_key, or remove the account at all — only the member
 // themselves could rotate their own key from /me.
+describe("/admin/users/:id", () => {
+  beforeEach(resetDb);
+
+  const view = (id: string, cookie: string) =>
+    SELF.fetch(`${ORIGIN}/admin/users/${id}`, { headers: { Cookie: cookie }, redirect: "manual" });
+
+  it("is forbidden for members and 404s for an unknown id", async () => {
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    expect((await view(bob.user.id, bob.cookie)).status).toBe(403);
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    expect((await view("does-not-exist", root.cookie)).status).toBe(404);
+  });
+
+  it("gives an admin every control over another account", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const carol = await seedAndLogin({ username: "carol", role: "member" });
+    await postForm("/me/api-token", carol.cookie);
+    const res = await view(carol.user.id, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    const id = carol.user.id;
+    expect(html).toContain('<h1 class="cf-head-title">carol settings</h1>');
+    expect(html).toContain('<a href="/admin/users" class="cf-link">');
+    expect(html).toContain(`action="/admin/users/${id}/role"`);
+    expect(html).toContain("Promote to admin");
+    expect(html).toContain(`action="/admin/users/${id}/install-key"`);
+    expect(html).toContain('<span class="cf-status-value cf-status-on">active</span>');
+    expect(html).toContain(`action="/admin/users/${id}/api-token/revoke"`);
+    expect(html).toContain(`action="/admin/users/${id}/password"`);
+    expect(html).toContain(`action="/admin/users/${id}/delete"`);
+  });
+
+  it("leaves the role and delete controls off the viewer's own page", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const id = root.user.id;
+    const html = await (await view(id, root.cookie)).text();
+    expect(html).toContain(`action="/admin/users/${id}/install-key"`);
+    expect(html).toContain(`action="/admin/users/${id}/password"`);
+    expect(html).not.toContain(`/admin/users/${id}/role`);
+    expect(html).not.toContain(`/admin/users/${id}/delete`);
+    expect(html).toContain("Only another admin can change your role.");
+  });
+
+  it("says an account in no project has no install keys, and one without a token has nothing to revoke", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: dave } = await seedUser({ username: "dave", role: "member", project: null });
+    const html = await (await view(dave.id, cookie)).text();
+    expect(html).toContain("dave is in no project, so they have no install keys.");
+    expect(html).not.toContain(`/admin/users/${dave.id}/install-key`);
+    expect(html).toContain('<span class="cf-status-value">not generated</span>');
+    expect(html).not.toContain(`/admin/users/${dave.id}/api-token/revoke`);
+  });
+
+  it("puts account deletion behind a confirm step that names the user", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: carol } = await seedUser({ username: "carol", role: "member" });
+    const html = await (await view(carol.id, cookie)).text();
+    const blocks = html.match(/<details class="cf-confirm" name="delete-user">[\s\S]*?<\/details>/g) ?? [];
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain(`<summary class="cf-btn cf-btn-danger">Delete account</summary>`);
+    expect(blocks[0]).toContain(`<p class="cf-hint">Deleting reassigns`);
+    expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
+    expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger">Delete carol</button>`);
+  });
+});
+
 describe("/admin/users/:id/*", () => {
   beforeEach(resetDb);
 
@@ -455,6 +521,7 @@ describe("/admin/users/:id/*", () => {
     const target = await seedUser({ username: "carol", role: "member" });
     const res = await postForm(`/admin/users/${target.user.id}/role`, cookie, { role: "admin" });
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     expect((await getUserByUsername(env.DB, "carol"))?.role).toBe("admin");
   });
 
@@ -465,7 +532,7 @@ describe("/admin/users/:id/*", () => {
       password: "carols-new-long-password",
     });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/admin/users");
+    expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     await login("carol", "carols-new-long-password");
     const html = await (await follow(res, cookie)).text();
     expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Password reset for carol\.<\/span><\/p>/);
@@ -479,6 +546,8 @@ describe("/admin/users/:id/*", () => {
     expect(flashCookie(res)).toBeUndefined();
     const html = await res.text();
     expect(html).toContain("Password must be at least 12 characters");
+    expect(html).toContain('<h1 class="cf-head-title">carol settings</h1>');
+    expect(html).not.toContain('value="short"');
     expect(html).not.toContain("cf-done");
   });
 
@@ -491,6 +560,7 @@ describe("/admin/users/:id/*", () => {
 
     const res = await postForm(`/admin/users/${target.user.id}/api-token/revoke`, cookie);
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     expect((await getUserByUsername(env.DB, "carol"))?.api_token_hash).toBeNull();
   });
 
@@ -498,6 +568,9 @@ describe("/admin/users/:id/*", () => {
     const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const res = await postForm(`/admin/users/${user.id}/role`, cookie, { role: "member" });
     expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('<h1 class="cf-head-title">root settings</h1>');
+    expect(html).toContain('<p class="cf-alert" role="alert">');
     expect((await getUserByUsername(env.DB, "root"))?.role).toBe("admin");
   });
 
@@ -530,6 +603,7 @@ describe("/admin/users/:id/*", () => {
 
       const res = await postForm(`/admin/users/${root.id}/delete`, rootCookie);
       expect(res.status).toBe(400);
+      expect(await res.text()).toContain("You cannot delete your own account. Ask another admin.");
       expect(await getUserByUsername(env.DB, "root")).not.toBeNull();
       expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(root.id);
     });
@@ -569,6 +643,7 @@ describe("/admin/users/:id/*", () => {
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     const html = await (await follow(res, cookie)).text();
     expect(html).toMatch(
       /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old install commands no longer work\.<\/span><\/p>/,
@@ -592,6 +667,9 @@ describe("/admin/users/:id/*", () => {
 
     const res = await postForm(`/admin/users/${member.user.id}/delete`, rootCookie);
     expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin/users");
+    const listed = await (await follow(res, rootCookie)).text();
+    expect(listed).toMatch(/<p class="cf-done" role="status">[\s\S]*?Deleted erin\.<\/span><\/p>/);
 
     expect(await getUserByUsername(env.DB, "erin")).toBeNull();
     const skill = await getSkill(env.DB, "default", "demo-skill");

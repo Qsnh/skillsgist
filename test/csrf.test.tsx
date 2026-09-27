@@ -88,6 +88,7 @@ const READ_ONLY_GETS = new Set([
   "GET /me",
   "GET /admin/users",
   "GET /admin/users/new",
+  "GET /admin/users/:id",
   "GET /new",
   "GET /projects",
   "GET /projects/new",
@@ -374,11 +375,11 @@ describe("rendered forms", () => {
     formsIn(html).filter((f) => /<form[^>]*\bmethod="post"/i.test(f));
 
   it("puts a token in every POST form on every signed-in page", async () => {
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publishMarkdown(cookie, GOOD_MD, "private");
 
     for (const path of [
-      "/", "/p/default/s/demo-skill", "/me", "/admin/users", "/admin/users/new", "/new", "/p/default/s/demo-skill/edit",
+      "/", "/p/default/s/demo-skill", "/me", "/admin/users", "/admin/users/new", `/admin/users/${user.id}`, "/new", "/p/default/s/demo-skill/edit",
       "/p/default/s/demo-skill/upload", "/projects", "/projects/new", "/p/default",
     ]) {
       const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();

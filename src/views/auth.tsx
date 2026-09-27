@@ -1,6 +1,7 @@
 import { Form } from "../csrf";
+import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
-import type { UserRow, Viewer } from "../db/queries";
+import type { UserRow, UserSummary, Viewer } from "../db/queries";
 
 const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -206,6 +207,99 @@ export function UsersPage(props: { user: UserRow; users: UserRow[]; error?: stri
             })}
           </tbody>
         </table>
+      </div>
+    </Layout>
+  );
+}
+
+export function UserSettingsPage(props: { user: UserRow; target: UserSummary; error?: string }) {
+  const { target } = props;
+  const isSelf = target.id === props.user.id;
+  const path = userSettingsPath(target.id);
+  const projects = `${target.projects} ${target.projects === 1 ? "project" : "projects"}`;
+  return (
+    <Layout title={`${target.username} settings`} user={props.user}>
+      <div class="cf-narrow">
+        <PageHead title={`${target.username} settings`} error={props.error}>
+          Joined {DATE.format(new Date(target.created_at))},{" "}
+          {target.last_login_at ? `last signed in ${DATE.format(new Date(target.last_login_at))}` : "never signed in"}.
+          Every account is listed on <a href="/admin/users" class="cf-link">the Users page</a>.
+        </PageHead>
+        <div class="cf-stack-lg">
+          <Panel title="Role">
+            <p class="cf-status">
+              Role:{" "}
+              <RoleLabel role={target.role} />
+            </p>
+            {isSelf ? (
+              <p class="cf-hint">Only another admin can change your role.</p>
+            ) : (
+              <Form action={`${path}/role`} class="cf-actions">
+                <input type="hidden" name="role" value={target.role === "admin" ? "member" : "admin"} />
+                <Button variant="outline">{target.role === "admin" ? "Demote to member" : "Promote to admin"}</Button>
+              </Form>
+            )}
+          </Panel>
+
+          <Panel title="Install keys">
+            {target.projects === 0 ? (
+              <p class="cf-hint">{target.username} is in no project, so they have no install keys.</p>
+            ) : (
+              <>
+                <p class="cf-hint">
+                  {target.username} has one install key per project and is in {projects}. Rotating replaces all of them
+                  at once, and the old install commands stop working.
+                </p>
+                <Form action={`${path}/install-key`} class="cf-actions">
+                  <Button variant="outline">Rotate install keys</Button>
+                </Form>
+              </>
+            )}
+          </Panel>
+
+          <Panel title="API token">
+            <p class="cf-status">
+              Status:{" "}
+              <span class={target.api_token_hash ? "cf-status-value cf-status-on" : "cf-status-value"}>
+                {target.api_token_hash ? "active" : "not generated"}
+              </span>
+            </p>
+            {target.api_token_hash ? (
+              <Form action={`${path}/api-token/revoke`} class="cf-actions">
+                <Button variant="danger">Revoke API token</Button>
+              </Form>
+            ) : null}
+          </Panel>
+
+          <Panel title="Reset password">
+            <Form action={`${path}/password`} class="cf-stack cf-stack-form">
+              <Field
+                label="New password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                hint="At least 12 characters"
+              />
+              <div>
+                <Button>Reset password</Button>
+              </div>
+            </Form>
+          </Panel>
+
+          {isSelf ? null : (
+            <Panel title="Delete this account">
+              <ConfirmDelete
+                action={`${path}/delete`}
+                label="Delete account"
+                confirm={`Delete ${target.username}`}
+                name="delete-user"
+              >
+                Deleting reassigns this user's skills and their published versions' author records to you. To keep the
+                author records, remove this user from their projects and reset their password instead of deleting.
+              </ConfirmDelete>
+            </Panel>
+          )}
+        </div>
       </div>
     </Layout>
   );

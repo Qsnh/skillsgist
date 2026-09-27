@@ -5,3 +5,7 @@ export function skillPath(skill: { project: string; slug: string }): string {
 export function projectSettingsPath(project: string): string {
   return `/p/${project}/settings`;
 }
+
+export function userSettingsPath(id: string): string {
+  return `/admin/users/${id}`;
+}
