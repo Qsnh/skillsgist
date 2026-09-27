@@ -214,10 +214,6 @@ git merge upstream/main    # the first time, Git may ask for --allow-unrelated-h
 git push
 ```
 
-**Upgrading to projects.** Migration `0003_projects` puts every existing skill into a project named Default, at the address `default`, and makes every existing account a member of it, each keeping the install key it had (instance admins keep managing everything through their instance role). Install commands already in use keep working and install the same skills, `PUT /api/skills/<name>` keeps publishing into it, and old `/s/<name>` links redirect to `/p/default/s/<name>`. Accounts created after the upgrade are in no project until someone adds them.
-
-Back up before you upgrade: run `npx wrangler d1 export DB --remote --output=backup.sql`, or rely on D1 Time Travel to restore a point before the migration. Once `0003` has run, rolling back only the Worker to an older version breaks the site, because the old code reads `users.install_key`, which the migration removes; roll back the database along with the Worker. `npm run deploy` applies migrations before it deploys the new Worker, so for a short window keyed installs and publishes may fail; upgrade at a quiet time.
-
 ## How it works
 
 ```mermaid
