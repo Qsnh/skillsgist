@@ -24,7 +24,7 @@ function Downloads(props: { count: number }) {
   return <span>{`${COUNT.format(props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
 }
 
-function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
+function SkillCell(props: { skill: ListedSkill; showDownloads: boolean; showProject: boolean }) {
   const s = props.skill;
   return (
     <li class="cf-cell">
@@ -36,7 +36,7 @@ function SkillCell(props: { skill: ListedSkill; showDownloads: boolean }) {
       </div>
       <p class="cf-cell-desc">{s.description}</p>
       <p class="cf-cell-meta">
-        <span>{s.project_name}</span>
+        {props.showProject ? <span>{s.project_name}</span> : null}
         <span>{s.author}</span>
         {props.showDownloads ? <Downloads count={s.download_count} /> : null}
         <span class="cf-cell-arrow">
@@ -104,13 +104,69 @@ function HeroLede(props: { user: Viewer | null }) {
   );
 }
 
+export function SearchForm(props: { action: string; q: string }) {
+  return (
+    <form method="get" action={props.action} class="cf-search" role="search">
+      <Icon>
+        <circle cx="7" cy="7" r="4.5" />
+        <path d="M10.5 10.5L14 14" />
+      </Icon>
+      <label for="q" class="sr-only">Search skills</label>
+      <input
+        id="q"
+        name="q"
+        type="search"
+        value={props.q}
+        placeholder="Search skills"
+        class="cf-search-input"
+      />
+      <button type="submit" class="cf-search-submit">Search</button>
+    </form>
+  );
+}
+
+export function SkillRegistry(props: {
+  skills: ListedSkill[];
+  q: string;
+  clearHref: string;
+  showDownloads: boolean;
+  showProject: boolean;
+  empty: unknown;
+}) {
+  const count = props.skills.length;
+  return (
+    <section class="cf-page cf-guides cf-registry" aria-labelledby="registry-title">
+      <div class="cf-registry-head">
+        <h2 id="registry-title" class="cf-registry-title">
+          {props.q ? <>Results for &ldquo;{props.q}&rdquo;</> : "Skills"}
+        </h2>
+        <span class="cf-count">{count}</span>
+        {props.q && count > 0 ? <a href={props.clearHref} class="cf-link">Clear search</a> : null}
+        <span class="cf-registry-sort">Recently updated first</span>
+      </div>
+      <div class="cf-frame">
+        {count === 0 ? (
+          props.empty
+        ) : (
+          <div class="cf-grid-clip">
+            <ul class="cf-grid">
+              {props.skills.map((s) => (
+                <SkillCell skill={s} showDownloads={props.showDownloads} showProject={props.showProject} />
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function IndexPage(props: {
   user: Viewer | null;
   skills: ListedSkill[];
   q: string;
   origin: string;
 }) {
-  const count = props.skills.length;
   return (
     <Layout title="Skills" user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
@@ -118,48 +174,18 @@ export function IndexPage(props: {
           <h1 id="hero-title" class="cf-hero-title">Install public skills with one command</h1>
           <HeroLede user={props.user} />
           <CodeBlock raised>npx skills add {props.origin}</CodeBlock>
-          <form method="get" action="/" class="cf-search" role="search">
-            <Icon>
-              <circle cx="7" cy="7" r="4.5" />
-              <path d="M10.5 10.5L14 14" />
-            </Icon>
-            <label for="q" class="sr-only">Search skills</label>
-            <input
-              id="q"
-              name="q"
-              type="search"
-              value={props.q}
-              placeholder="Search skills"
-              class="cf-search-input"
-            />
-            <button type="submit" class="cf-search-submit">Search</button>
-          </form>
+          <SearchForm action="/" q={props.q} />
         </div>
       </section>
 
-      <section class="cf-page cf-guides cf-registry" aria-labelledby="registry-title">
-        <div class="cf-registry-head">
-          <h2 id="registry-title" class="cf-registry-title">
-            {props.q ? <>Results for &ldquo;{props.q}&rdquo;</> : "Skills"}
-          </h2>
-          <span class="cf-count">{count}</span>
-          {props.q && count > 0 ? <a href="/" class="cf-link">Clear search</a> : null}
-          <span class="cf-registry-sort">Recently updated first</span>
-        </div>
-        <div class="cf-frame">
-          {count === 0 ? (
-            <EmptyRegistry user={props.user} q={props.q} />
-          ) : (
-            <div class="cf-grid-clip">
-              <ul class="cf-grid">
-                {props.skills.map((s) => (
-                  <SkillCell skill={s} showDownloads={props.user !== null} />
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </section>
+      <SkillRegistry
+        skills={props.skills}
+        q={props.q}
+        clearHref="/"
+        showDownloads={props.user !== null}
+        showProject
+        empty={<EmptyRegistry user={props.user} q={props.q} />}
+      />
     </Layout>
   );
 }
