@@ -5,7 +5,7 @@ import {
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
-  DEFAULT_PROJECT, deleteSkill, getArtifactByVersion, getProject, getSkill, getSkillWithAuthor, getVersion, listSkills,
+  deleteSkill, getArtifactByVersion, getProject, getSkill, getSkillWithAuthor, getVersion, listSkills,
   listVersions, moveSkill, projectsWithSkillNamed, setVisibility, updateVersionHtml,
 } from "../db/queries";
 import type { Viewer } from "../db/queries";
@@ -21,12 +21,6 @@ skillsRoutes.get("/", async (c) => {
   const q = c.req.query("q") ?? "";
   const skills = await listSkills(c.env.DB, { scope: skillScope(user), q: q || undefined });
   return page(c, <IndexPage user={user} skills={skills} q={q} />);
-});
-
-skillsRoutes.get("/s/:slug", (c) => {
-  const slug = encodeURIComponent(c.req.param("slug"));
-  const query = new URL(c.req.url).search;
-  return c.redirect(`${skillPath({ project: DEFAULT_PROJECT, slug })}${query}`, 301);
 });
 
 async function moveTargets(db: D1Database, user: Viewer, slug: string): Promise<Array<{ slug: string; name: string }>> {

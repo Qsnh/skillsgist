@@ -313,7 +313,7 @@ try {
   }
   log("keyed single-skill install path passed and counted exactly one download");
 
-  // 7. The anonymous single-install address for a public skill — the one /s/:slug
+  // 7. The anonymous single-install address for a public skill — the one /p/default/s/:slug
   // shows a signed-out visitor. First confirm demo-skill does not appear in the
   // anonymous index while it is still private.
   const anonIndex = async () =>

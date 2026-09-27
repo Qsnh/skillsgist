@@ -299,22 +299,11 @@ describe("GET /p/:project/s/:slug", () => {
     expect(theirs).toContain("<title>Team B/demo-skill · skillsgist</title>");
   });
 
-  it("sends an old /s/<name> address to the skill in the default project", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/s/demo-skill`, { redirect: "manual" });
-    expect(res.status).toBe(301);
-    expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill");
-  });
-
-  it("keeps the original query string across the legacy redirect", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/s/demo-skill?v=2`, { redirect: "manual" });
-    expect(res.status).toBe(301);
-    expect(res.headers.get("Location")).toBe("/p/default/s/demo-skill?v=2");
-  });
-
-  it("encodes an unsafe slug in the legacy redirect instead of erroring", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/s/a%0d%0ab`, { redirect: "manual" });
-    expect(res.status).toBe(301);
-    expect(res.headers.get("Location")).toBe("/p/default/s/a%0D%0Ab");
+  it("no longer answers the old /s/<name> address", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    expect((await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`)).status).toBe(200);
+    expect((await SELF.fetch(`${ORIGIN}/s/demo-skill`, { redirect: "manual" })).status).toBe(404);
   });
 
   it("hides a private skill from anonymous visitors", async () => {
