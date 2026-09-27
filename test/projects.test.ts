@@ -2,12 +2,9 @@ import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getProject, getSkill } from "../src/db/queries";
 import {
-  cellMeta, env, follow, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD, postForm,
+  cellMeta, env, follow, get, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD, postForm,
   publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
-
-const get = (path: string, cookie?: string) =>
-  SELF.fetch(`${ORIGIN}${path}`, { headers: cookie ? { Cookie: cookie } : {}, redirect: "manual" });
 
 const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
 

@@ -3,25 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, listVersions } from "../src/db/queries";
 import { readZip } from "../src/skills/zip";
 import {
-  env, fixture, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject,
+  env, fixture, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, putSkill, resetDb, seedAndLogin, seedAndToken, seedProject,
 } from "./helpers";
-
-function putSkill(
-  token: string,
-  body: BodyInit,
-  opts: { slug?: string; contentType?: string; visibility?: string; project?: string } = {},
-): Promise<Response> {
-  const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
-  const slug = opts.slug ?? "demo-skill";
-  return SELF.fetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": opts.contentType ?? "text/markdown",
-    },
-    body,
-  });
-}
 
 describe("PUT /api/projects/:project/skills/:slug", () => {
   beforeEach(resetDb);

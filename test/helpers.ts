@@ -3,6 +3,7 @@ import { hashPassword, randomHex } from "../src/auth";
 import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import type { IndexEntry } from "../src/registry";
 
 /**
  * The worker's bindings, typed.
@@ -43,6 +44,8 @@ export const GOOD_MD =
 
 /** A second one, for the tests that need two distinct skills. */
 export const OTHER_MD = "---\nname: other-skill\ndescription: Another skill.\n---\n\n# Other\n";
+
+export const FLAT_FILES = ["SKILL.md", "references/api.md", "scripts/run.sh"];
 
 // Every state-changing request needs an Origin header now: `hono/csrf` rejects
 // a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and neither
@@ -167,6 +170,15 @@ export async function publishMarkdown(
   if (res.status !== 302) throw new Error(`publish failed: ${res.status} ${await res.text()}`);
 }
 
+export async function seedWithSkills(
+  opts: SeedOptions,
+  ...skills: Array<[markdown: string, visibility: "public" | "private", project?: string]>
+): Promise<{ user: UserRow; password: string; cookie: string }> {
+  const login = await seedAndLogin(opts);
+  for (const [markdown, visibility, project] of skills) await publishMarkdown(login.cookie, markdown, visibility, project);
+  return login;
+}
+
 /** Mint an API token for `cookie`, reading it back out of the rendered page. */
 export async function apiToken(cookie: string): Promise<string> {
   const res = await postForm("/me/api-token", cookie);
@@ -201,6 +213,13 @@ export async function follow(res: Response, cookie: string): Promise<Response> {
 
 export const seedProject = (slug: string, name: string = slug) => createProject(env.DB, { slug, name });
 
+export async function twoProjects(aliceRole: "admin" | "member" = "admin") {
+  await seedProject("team-b", "Team B");
+  const alice = await seedAndLogin({ username: "alice", role: aliceRole });
+  const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+  return { alice, bob };
+}
+
 export const joinProject = (
   userId: string,
   project: string,
@@ -221,5 +240,34 @@ export async function installKey(userId: string, project: string = DEFAULT_PROJE
 
 export const indexStatus = async (key: string) =>
   (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
+
+export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {
+  const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);
+  if (res.status !== 200) throw new Error(`${base} index answered ${res.status}`);
+  return (await res.json<{ skills: IndexEntry[] }>()).skills;
+}
+
+export const indexNames = async (base: string, alias?: "agent-skills" | "skills") =>
+  (await indexAt(base, alias)).map((s) => s.name);
+
+export const get = (path: string, cookie?: string) =>
+  SELF.fetch(`${ORIGIN}${path}`, { headers: cookie ? { Cookie: cookie } : {}, redirect: "manual" });
+
+export function putSkill(
+  token: string,
+  body: BodyInit,
+  opts: { slug?: string; contentType?: string; visibility?: string; project?: string } = {},
+): Promise<Response> {
+  const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
+  const slug = opts.slug ?? "demo-skill";
+  return SELF.fetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": opts.contentType ?? "text/markdown",
+    },
+    body,
+  });
+}
 
 export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
