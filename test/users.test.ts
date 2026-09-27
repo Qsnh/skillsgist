@@ -387,9 +387,9 @@ describe("/admin/users/:id/*", () => {
   ];
 
   it("denies every admin page and route to a member with 403", async () => {
-    const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
+    const { user, cookie } = await seedAndLogin({ username: "bob", role: "member" });
     const target = await seedUser({ username: "carol", role: "member" });
-    for (const path of ["/admin/users", "/admin/users/new", `/admin/users/${target.user.id}`]) {
+    for (const path of ["/admin/users", "/admin/users/new", `/admin/users/${target.user.id}`, `/admin/users/${user.id}`]) {
       expect((await get(path, cookie)).status, path).toBe(403);
     }
     const create = await postForm("/admin/users/new", cookie, { username: "dave", password: "daves-long-password" });

@@ -31,6 +31,7 @@ describe("GET /", () => {
     const home = async () => (await get("/", cookie)).text();
     const html = await home();
     expect(html).toContain("other-skill");
+    expect(cellMeta(html)).toContain("alice");
     expect(cellMeta(html)).toContain("0 downloads");
 
     await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'other-skill'").run();
@@ -418,6 +419,7 @@ describe("project visibility", () => {
     const root = await seedAndLogin({ username: "root", role: "admin", project: null });
     const html = await (await get("/", root.cookie)).text();
     expect(html).toContain("demo-skill");
+    expect(await (await get("/?q=demo", root.cookie)).text()).toContain("demo-skill");
     expect((await postForm("/p/default/s/demo-skill/visibility", root.cookie)).status).toBe(302);
   });
 

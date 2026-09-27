@@ -46,7 +46,7 @@ describe("PUT /api/projects/:project/skills/:slug", () => {
 
   it.each([
     ["a slug that disagrees with the frontmatter name", GOOD_MD, { slug: "other-name" }, "demo-skill"],
-    ["an upload normalization rejects", fixture("NO_SKILL_MD_ZIP"), {}, "SKILL.md"],
+    ["an upload normalization rejects", fixture("NO_SKILL_MD_ZIP"), { contentType: "application/zip" }, "SKILL.md"],
   ])("answers 400 with a reason for %s", async (_label, body, opts, reason) => {
     const { token } = await seedAndToken({ username: "alice" });
     const res = await putSkill(token, body, opts);
@@ -333,6 +333,8 @@ describe("edit and upload each take exactly one kind of input", () => {
     const upload = await html("/p/default/s/demo-skill/upload", cookie);
     expect(upload).toContain('type="file"');
     expect(upload).not.toContain("<textarea");
+    await postMultipart("/new", cookie, { markdown: OTHER_MD });
+    expect(await html("/p/default/s/other-skill/edit", cookie)).not.toContain('type="file"');
   });
 });
 
@@ -445,6 +447,7 @@ describe("the project select on /new", () => {
     const page = await html("/new?project=team-b", cookie);
     expect(page).toContain('<option value="team-b" selected="">Team B</option>');
     expect(page).toContain('<option value="" disabled="">Choose a project</option>');
+    expect(await html("/new", cookie)).toContain('<option value="" disabled="" selected="">Choose a project</option>');
   });
 
   it("ignores a ?project= the user cannot publish to", async () => {
