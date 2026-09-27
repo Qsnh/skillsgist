@@ -1,6 +1,5 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
-import { DEFAULT_PROJECT } from "../db/queries";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
 import { installBase, installKeyPath, projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
@@ -297,9 +296,6 @@ export function ProjectSettingsPage(props: {
                   >
                     Deleting removes {project.name} and every membership in it. Its members' install keys for it stop
                     working at once.
-                    {project.slug === DEFAULT_PROJECT
-                      ? " The old PUT /api/skills/<name> address and /s/<name> links publish into and point at this project, and stop working once it is deleted."
-                      : null}
                   </ConfirmDelete>
                 </div>
               )}
