@@ -34,8 +34,8 @@ describe("/projects", () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
     const html = await (await get("/projects", cookie)).text();
-    expect(html).toContain('<a href="/p/default" class="cf-link cf-user-name">Default</a>');
-    expect(html).not.toContain('href="/p/team-b"');
+    expect(html).toContain('<a href="/p/default/settings" class="cf-link cf-user-name">Default</a>');
+    expect(html).not.toContain('href="/p/team-b/settings"');
     expect(html).not.toContain('href="/projects/new"');
   });
 
@@ -43,9 +43,26 @@ describe("/projects", () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
     const html = await (await get("/projects", cookie)).text();
-    expect(html).toContain('href="/p/default"');
-    expect(html).toContain('href="/p/team-b"');
+    expect(html).toContain('href="/p/default/settings"');
+    expect(html).toContain('href="/p/team-b/settings"');
     expect(html).toContain('href="/projects/new"');
+  });
+
+  it("links every listed name to a settings page the viewer can open", async () => {
+    await seedProject("team-b", "Team B");
+    const viewers = [
+      await seedAndLogin({ username: "root", role: "admin", project: null }),
+      await seedAndLogin({ username: "alice", role: "member" }),
+    ];
+    for (const { cookie } of viewers) {
+      const html = await (await get("/projects", cookie)).text();
+      const links = [...html.matchAll(/<a href="([^"]+)" class="cf-link cf-user-name">/g)].map((m) => m[1]);
+      expect(links.length).toBeGreaterThan(0);
+      for (const href of links) {
+        expect(href).toMatch(/^\/p\/[a-z0-9-]+\/settings$/);
+        expect((await get(href, cookie)).status).toBe(200);
+      }
+    }
   });
 
   it("is linked from the account menu", async () => {

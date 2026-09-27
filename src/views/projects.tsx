@@ -48,7 +48,7 @@ export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }
               {props.projects.map((p) => (
                 <tr>
                   <td data-label="Name">
-                    <a href={`/p/${p.slug}`} class="cf-link cf-user-name">{p.name}</a>
+                    <a href={projectSettingsPath(p.slug)} class="cf-link cf-user-name">{p.name}</a>
                   </td>
                   <td data-label="Address" class="cf-table-date">/p/{p.slug}</td>
                   <td data-label="Your role">{p.role ? <RoleLabel role={p.role} /> : "—"}</td>
