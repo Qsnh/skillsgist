@@ -99,9 +99,13 @@
       const BANDS = ["#7b5cff", "#ff3d7f", "#ff5e1f", "#ffb61e"];
       const CUTS = [0.3, 0.44, 0.24];
       const EXPORTS = [
-        ["logo.png", 96],
-        ["favicon.png", 64],
-        ["apple-touch-icon.png", 180, { radius: 0, hole: "#fdfdfc" }],
+        ["public/logo.png", 96],
+        ["public/favicon.png", 64],
+        ["public/favicon.ico", 16],
+        ["public/favicon.ico", 32],
+        ["public/favicon.ico", 48],
+        ["public/apple-touch-icon.png", 180, { radius: 0, hole: "#fdfdfc" }],
+        ["docs/images/logo.png", 256],
       ];
 
       function cuts(ctx, s) {
