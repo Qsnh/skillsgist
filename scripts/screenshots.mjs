@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,10 +69,13 @@ async function seed() {
   for (const [name, visibility, description] of SKILLS) {
     await publish(token, name, visibility, "text/markdown", `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`);
   }
-  const skillMd = readFileSync(join(RELEASE_NOTES, "SKILL.md"), "utf8");
+  const skillMd = readFileSync(join(RELEASE_NOTES, "SKILL.fixture.md"), "utf8");
   await publish(token, "release-notes", "public", "text/markdown", skillMd.replace("in under a minute", "quickly"));
+  const skillDir = join(work, "release-notes");
+  cpSync(RELEASE_NOTES, skillDir, { recursive: true });
+  renameSync(join(skillDir, "SKILL.fixture.md"), join(skillDir, "SKILL.md"));
   const zip = join(work, "release-notes.zip");
-  execFileSync("zip", ["-qr", zip, "."], { cwd: RELEASE_NOTES });
+  execFileSync("zip", ["-qr", zip, "."], { cwd: skillDir });
   await publish(token, "release-notes", "public", "application/zip", readFileSync(zip));
   return cookie;
 }
