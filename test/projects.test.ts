@@ -39,6 +39,14 @@ describe("/projects", () => {
     expect(html).not.toContain('href="/projects/new"');
   });
 
+  it("leaves each project's address out of the list", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
+    const html = await (await get("/projects", cookie)).text();
+    expect(html).toContain('<th scope="col">Name</th><th scope="col">Your role</th>');
+    expect(html).not.toContain('data-label="Address"');
+    expect(html).not.toContain(">/p/default<");
+  });
+
   it("lists every project for an instance admin and offers New project", async () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });

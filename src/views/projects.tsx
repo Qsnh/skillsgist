@@ -38,7 +38,6 @@ export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }
             <thead>
               <tr>
                 <th scope="col">Name</th>
-                <th scope="col">Address</th>
                 <th scope="col">Your role</th>
                 <th scope="col">Skills</th>
                 <th scope="col">Members</th>
@@ -50,7 +49,6 @@ export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }
                   <td data-label="Name">
                     <a href={projectSettingsPath(p.slug)} class="cf-link cf-user-name">{p.name}</a>
                   </td>
-                  <td data-label="Address" class="cf-table-date">/p/{p.slug}</td>
                   <td data-label="Your role">{p.role ? <RoleLabel role={p.role} /> : "—"}</td>
                   <td data-label="Skills" class="cf-table-date">{p.skills}</td>
                   <td data-label="Members" class="cf-table-date">{p.members}</td>
