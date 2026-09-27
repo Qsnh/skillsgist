@@ -3,8 +3,7 @@ import { useContext } from "hono/jsx";
 import { Form, OriginContext } from "../csrf";
 import type { UserRow } from "../db/queries";
 import { FlashContext } from "../flash";
-
-const TAGLINE = "A private registry for Agent Skills, running on Cloudflare Workers.";
+import { useLocale, useT } from "../i18n";
 
 export function Icon(props: { children?: unknown }) {
   return (
@@ -32,6 +31,7 @@ export function ChevronDown() {
 }
 
 function AccountMenu(props: { user: UserRow }) {
+  const t = useT();
   return (
     <details class="cf-menu">
       <summary class="cf-btn cf-btn-outline">
@@ -39,11 +39,11 @@ function AccountMenu(props: { user: UserRow }) {
         <ChevronDown />
       </summary>
       <div class="cf-menu-panel">
-        <a href="/me" class="cf-menu-item">Account</a>
-        <a href="/projects" class="cf-menu-item">Projects</a>
-        {props.user.role === "admin" ? <a href="/admin/users" class="cf-menu-item">Users</a> : null}
+        <a href="/me" class="cf-menu-item">{t.layout.account}</a>
+        <a href="/projects" class="cf-menu-item">{t.layout.projects}</a>
+        {props.user.role === "admin" ? <a href="/admin/users" class="cf-menu-item">{t.layout.users}</a> : null}
         <Form action="/logout">
-          <button type="submit" class="cf-menu-item">Sign out</button>
+          <button type="submit" class="cf-menu-item">{t.layout.signOut}</button>
         </Form>
       </div>
     </details>
@@ -58,10 +58,12 @@ export function Layout(props: {
   children?: unknown;
 }) {
   const origin = useContext(OriginContext);
+  const locale = useLocale();
+  const t = useT();
   return (
     <>
       {raw("<!DOCTYPE html>")}
-      <html lang="en">
+      <html lang={locale}>
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -69,15 +71,15 @@ export function Layout(props: {
           <title>{props.title} · skillsgist</title>
           <link rel="icon" type="image/png" href="/favicon.png" />
           <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-          <meta name="description" content={TAGLINE} />
+          <meta name="description" content={t.layout.tagline} />
           <meta property="og:site_name" content="skillsgist" />
           <meta property="og:type" content="website" />
           <meta property="og:title" content={`${props.title} · skillsgist`} />
-          <meta property="og:description" content={TAGLINE} />
+          <meta property="og:description" content={t.layout.tagline} />
           <meta property="og:image" content={`${origin}/og.png`} />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          <meta property="og:image:alt" content="skillsgist: your private Agent Skills registry" />
+          <meta property="og:image:alt" content={t.layout.ogImageAlt} />
           <meta name="twitter:card" content="summary_large_image" />
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
@@ -85,9 +87,9 @@ export function Layout(props: {
           <script src="/fold.js" defer />
         </head>
         <body class="cf-body">
-          <a href="#main" class="cf-skip">Skip to content</a>
+          <a href="#main" class="cf-skip">{t.layout.skip}</a>
           <header class="cf-nav">
-            <nav class="cf-nav-inner" aria-label="Main">
+            <nav class="cf-nav-inner" aria-label={t.layout.mainNav}>
               <a href="/" class="cf-wordmark">
                 <img src="/logo.png" width="24" height="24" alt="" class="cf-wordmark-mark" />
                 skillsgist
@@ -95,11 +97,11 @@ export function Layout(props: {
               <span class="flex-1" />
               {props.user ? (
                 <>
-                  <a href="/new" class="cf-btn cf-btn-primary">Publish</a>
+                  <a href="/new" class="cf-btn cf-btn-primary">{t.layout.publish}</a>
                   <AccountMenu user={props.user} />
                 </>
               ) : props.hideSignIn ? null : (
-                <a href="/login" class="cf-btn cf-btn-primary">Sign in</a>
+                <a href="/login" class="cf-btn cf-btn-primary">{t.layout.signIn}</a>
               )}
             </nav>
           </header>
@@ -113,10 +115,10 @@ export function Layout(props: {
                   <img src="/logo.png" width="18" height="18" alt="" class="cf-wordmark-mark" />
                   skillsgist
                 </a>
-                <span>{TAGLINE}</span>
+                <span>{t.layout.tagline}</span>
               </p>
-              <nav class="cf-footer-links" aria-label="Footer">
-                <a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>
+              <nav class="cf-footer-links" aria-label={t.layout.footerNav}>
+                <a href="https://github.com/Qsnh/skillsgist">{t.layout.source}</a>
               </nav>
             </div>
           </footer>

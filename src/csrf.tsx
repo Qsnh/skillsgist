@@ -5,6 +5,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
 import { FlashContext, takeFlash } from "./flash";
+import { LocaleContext, localeOf } from "./i18n";
 
 
 const CsrfContext = createContext<string>("");
@@ -40,11 +41,13 @@ export async function page(
 ): Promise<Response> {
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
   return c.html(
-    <OriginContext.Provider value={new URL(c.req.url).origin}>
-      <CsrfContext.Provider value={token ?? ""}>
-        <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
-      </CsrfContext.Provider>
-    </OriginContext.Provider>,
+    <LocaleContext.Provider value={localeOf(c)}>
+      <OriginContext.Provider value={new URL(c.req.url).origin}>
+        <CsrfContext.Provider value={token ?? ""}>
+          <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
+        </CsrfContext.Provider>
+      </OriginContext.Provider>
+    </LocaleContext.Provider>,
     status,
   );
 }

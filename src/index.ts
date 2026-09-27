@@ -3,6 +3,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
 import { API_PREFIX, csrfToken } from "./csrf";
+import { detectLocale, localeOf } from "./i18n";
 import { projectsRoutes } from "./routes/projects";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
@@ -18,9 +19,12 @@ app.use("*", async (c, next) => {
   await next();
   if (c.res.headers.get("Content-Type")?.includes("text/html")) {
     c.res.headers.set("Content-Security-Policy", CSP);
+    c.res.headers.set("Content-Language", localeOf(c));
+    c.res.headers.append("Vary", "Accept-Language, Cookie");
   }
 });
 
+app.use("*", detectLocale);
 app.use("*", csrf());
 app.use("*", csrfToken);
 
