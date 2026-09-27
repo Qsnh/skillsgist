@@ -15,5 +15,10 @@ export const ja: Messages = {
     signOut: "サインアウト",
     source: "GitHub のソースコード",
     language: "言語",
+    copy: "コピー",
+    copied: "コピーしました",
+    pressToCopy: (keys) => `${keys} を押してコピー`,
+    showMore: "もっと見る",
+    showLess: "折りたたむ",
   },
 };

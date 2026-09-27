@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Ctx } from "../src/auth";
 import { localeOf } from "../src/i18n";
 import { en } from "../src/i18n/en";
+import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { ORIGIN, resetDb } from "./helpers";
+import { GOOD_MD, ORIGIN, resetDb, seedAndLogin, seedWithSkills } from "./helpers";
 
 const fetchIn = (path: string, headers: Record<string, string> = {}) =>
   SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
@@ -93,5 +94,39 @@ describe("locale detection", () => {
 
   it("falls back to English when nothing was detected", () => {
     expect(localeOf({ get: () => undefined } as unknown as Ctx)).toBe("en");
+  });
+});
+
+describe("dates, counts and script labels", () => {
+  beforeEach(resetDb);
+
+  it("formats dates, timestamps and counts per locale", () => {
+    const at = Date.UTC(2026, 8, 27, 14, 5);
+    expect(formatDate("en", at)).toBe("Sep 27, 2026");
+    expect(formatDate("zh-CN", at)).toBe("2026年9月27日");
+    expect(formatDate("zh-TW", at)).toBe("2026年9月27日");
+    expect(formatDate("ja", at)).toBe("2026年9月27日");
+    expect(formatStamp("en", at)).toBe("Sep 27, 2026, 14:05");
+    expect(formatStamp("zh-CN", at)).toContain("14:05");
+    expect(formatStamp("zh-TW", at)).toContain("14:05");
+    expect(formatStamp("ja", at)).toContain("2026年9月27日");
+    expect(formatCount("ja", 12345)).toBe("12,345");
+  });
+
+  it("hands the copy and fold scripts their labels", async () => {
+    const { cookie } = await seedWithSkills({}, [GOOD_MD, "public"]);
+    const html = await htmlIn("/p/default/s/demo-skill", { Cookie: withLang(cookie, "ja") });
+    const l = ja.layout;
+    expect(html).toContain(
+      `<body class="cf-body" data-copy-idle="${l.copy}" data-copy-done="${l.copied}" data-copy-mac="${l.pressToCopy("⌘C")}" data-copy-other="${l.pressToCopy("Ctrl+C")}" data-fold-more="${l.showMore}" data-fold-less="${l.showLess}">`,
+    );
+    expect(html).toContain(`<span class="cf-command-copy-label">${l.copy}</span>`);
+    expect(html).toContain(`aria-expanded="false">${l.showMore}</button>`);
+  });
+
+  it("dates the users table in the viewer's language", async () => {
+    const { cookie } = await seedAndLogin({ role: "admin" });
+    const html = await htmlIn("/admin/users", { Cookie: withLang(cookie, "zh-CN") });
+    expect(html).toMatch(/\d{4}年\d{1,2}月\d{1,2}日/);
   });
 });

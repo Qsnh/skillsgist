@@ -9,7 +9,7 @@ function setFolded(doc, folded) {
   const toggle = toggleFor(doc);
   doc.dataset.foldState = folded ? "folded" : "open";
   toggle.setAttribute("aria-expanded", String(!folded));
-  toggle.textContent = folded ? "Show more" : "Show less";
+  toggle.textContent = folded ? document.body.dataset.foldMore : document.body.dataset.foldLess;
 }
 
 function obscured(doc, node) {

@@ -1,5 +1,7 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
+import { useLocale, useT } from "../i18n";
+import { formatCount, formatStamp } from "../i18n/format";
 import { installBase, projectPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
@@ -16,12 +18,6 @@ function Visibility(props: { value: SkillRow["visibility"] }) {
       Private
     </span>
   );
-}
-
-const COUNT = new Intl.NumberFormat("en-US");
-
-function Downloads(props: { count: number }) {
-  return <span>{`${COUNT.format(props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
 }
 
 function fullName(skill: ListedSkill) {
@@ -196,16 +192,6 @@ export function IndexPage(props: {
   );
 }
 
-const STAMP = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-  timeZone: "UTC",
-});
-
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -213,13 +199,19 @@ function formatSize(bytes: number) {
 }
 
 function FoldFoot(props: { controls: string }) {
+  const t = useT();
   return (
     <footer class="cf-fold-foot" hidden>
       <button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls={props.controls} aria-expanded="false">
-        Show more
+        {t.layout.showMore}
       </button>
     </footer>
   );
+}
+
+function Downloads(props: { count: number }) {
+  const locale = useLocale();
+  return <span>{`${formatCount(locale, props.count)} ${props.count === 1 ? "download" : "downloads"}`}</span>;
 }
 
 function DownloadIcon() {
@@ -316,6 +308,7 @@ export function SkillPage(props: {
   canManage: boolean;
   moveTargets: Array<{ slug: string; name: string }>;
 }) {
+  const locale = useLocale();
   const { skill, version } = props;
   const files = JSON.parse(version.files) as Array<{ path: string; size: number }>;
   const isLatest = version.version === skill.latest_version;
@@ -422,7 +415,7 @@ export function SkillPage(props: {
                 {props.user ? (
                   <div class="cf-row">
                     <dt class="cf-row-label">Downloads</dt>
-                    <dd class="cf-row-value">{COUNT.format(skill.download_count)}</dd>
+                    <dd class="cf-row-value">{formatCount(locale, skill.download_count)}</dd>
                   </div>
                 ) : null}
               </dl>
@@ -461,7 +454,7 @@ export function SkillPage(props: {
                       >
                         v{v.version}
                       </a>
-                      <time class="cf-row-meta" datetime={at.toISOString()}>{STAMP.format(at)}</time>
+                      <time class="cf-row-meta" datetime={at.toISOString()}>{formatStamp(locale, v.created_at)}</time>
                       <a
                         href={`${path}/v/${v.version}/download`}
                         class="cf-icon-link"

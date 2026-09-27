@@ -15,5 +15,10 @@ export const zhTW: Messages = {
     signOut: "登出",
     source: "GitHub 上的原始碼",
     language: "語言",
+    copy: "複製",
+    copied: "已複製",
+    pressToCopy: (keys) => `按 ${keys} 複製`,
+    showMore: "顯示更多",
+    showLess: "收合",
   },
 };

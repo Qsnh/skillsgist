@@ -15,5 +15,10 @@ export const zhCN: Messages = {
     signOut: "退出登录",
     source: "GitHub 上的源代码",
     language: "语言",
+    copy: "复制",
+    copied: "已复制",
+    pressToCopy: (keys) => `按 ${keys} 复制`,
+    showMore: "展开更多",
+    showLess: "收起",
   },
 };

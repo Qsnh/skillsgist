@@ -1,9 +1,9 @@
 import { Form } from "../csrf";
+import { useLocale } from "../i18n";
+import { formatDate } from "../i18n/format";
 import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow, UserSummary, Viewer } from "../db/queries";
-
-const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 function AuthCard(props: { title: string; error?: string; children?: unknown }) {
   return (
@@ -131,6 +131,7 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
 }
 
 export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
+  const locale = useLocale();
   return (
     <Layout title="Users" user={props.user}>
       <PageHead
@@ -169,9 +170,9 @@ export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
                 </td>
                 <td data-label="Projects" class="cf-table-date">{u.projects}</td>
                 <td data-label="Skills" class="cf-table-date">{u.skills}</td>
-                <td data-label="Joined" class="cf-table-date">{DATE.format(new Date(u.created_at))}</td>
+                <td data-label="Joined" class="cf-table-date">{formatDate(locale, u.created_at)}</td>
                 <td data-label="Last sign-in" class="cf-table-date">
-                  {u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "—"}
+                  {u.last_login_at ? formatDate(locale, u.last_login_at) : "—"}
                 </td>
               </tr>
             ))}
@@ -183,6 +184,7 @@ export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
 }
 
 export function UserSettingsPage(props: { user: UserRow; target: UserSummary; error?: string; newToken?: string }) {
+  const locale = useLocale();
   const { target } = props;
   const isSelf = target.id === props.user.id;
   const path = userSettingsPath(target.id);
@@ -191,8 +193,8 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
     <Layout title={`${target.username} settings`} user={props.user}>
       <div class="cf-narrow">
         <PageHead title={`${target.username} settings`} error={props.error}>
-          Joined {DATE.format(new Date(target.created_at))},{" "}
-          {target.last_login_at ? `last signed in ${DATE.format(new Date(target.last_login_at))}` : "never signed in"}.
+          Joined {formatDate(locale, target.created_at)},{" "}
+          {target.last_login_at ? `last signed in ${formatDate(locale, target.last_login_at)}` : "never signed in"}.
         </PageHead>
         <div class="cf-stack-lg">
           <Panel title="Role">

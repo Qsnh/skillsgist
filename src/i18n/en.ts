@@ -13,6 +13,11 @@ export const en = {
     signOut: "Sign out",
     source: "Source on GitHub",
     language: "Language",
+    copy: "Copy",
+    copied: "Copied",
+    pressToCopy: (keys: string) => `Press ${keys}`,
+    showMore: "Show more",
+    showLess: "Show less",
   },
 };
 

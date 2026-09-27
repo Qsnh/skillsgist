@@ -1,6 +1,7 @@
 const RESET_MS = 2000;
-const MANUAL = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "Press ⌘C" : "Press Ctrl+C";
-const LABELS = { copied: "Copied", manual: MANUAL };
+const LABELS = document.body.dataset;
+const MANUAL = /Mac|iPhone|iPad/.test(navigator.userAgent) ? LABELS.copyMac : LABELS.copyOther;
+const TEXT = { copied: LABELS.copyDone, manual: MANUAL };
 const timers = new WeakMap();
 
 function selectContents(node) {
@@ -33,12 +34,12 @@ function show(block, state) {
   const status = block.querySelector(".cf-command-status");
   if (state) {
     block.dataset.copyState = state;
-    label.textContent = LABELS[state];
-    status.textContent = LABELS[state];
+    label.textContent = TEXT[state];
+    status.textContent = TEXT[state];
     timers.set(block, setTimeout(() => show(block, null), RESET_MS));
   } else {
     delete block.dataset.copyState;
-    label.textContent = "Copy";
+    label.textContent = LABELS.copyIdle;
     status.textContent = "";
   }
 }

@@ -108,7 +108,15 @@ export function Layout(props: {
           <script src="/copy.js" defer />
           <script src="/fold.js" defer />
         </head>
-        <body class="cf-body">
+        <body
+          class="cf-body"
+          data-copy-idle={t.layout.copy}
+          data-copy-done={t.layout.copied}
+          data-copy-mac={t.layout.pressToCopy("⌘C")}
+          data-copy-other={t.layout.pressToCopy("Ctrl+C")}
+          data-fold-more={t.layout.showMore}
+          data-fold-less={t.layout.showLess}
+        >
           <a href="#main" class="cf-skip">{t.layout.skip}</a>
           <header class="cf-nav">
             <nav class="cf-nav-inner" aria-label={t.layout.mainNav}>
@@ -309,6 +317,7 @@ export function Done(props: { message?: string }) {
 }
 
 export function CodeBlock(props: { prompt?: boolean; raised?: boolean; children?: unknown }) {
+  const t = useT();
   return (
     <div class={props.raised ? "cf-command cf-command-raised" : "cf-command cf-command-flat"} data-copy>
       {props.prompt === false ? null : <span class="cf-command-prompt" aria-hidden="true">$</span>}
@@ -318,7 +327,7 @@ export function CodeBlock(props: { prompt?: boolean; raised?: boolean; children?
           <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
           <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
         </Icon>
-        <span class="cf-command-copy-label">Copy</span>
+        <span class="cf-command-copy-label">{t.layout.copy}</span>
       </button>
       <span class="cf-command-status sr-only" role="status" />
     </div>
