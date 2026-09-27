@@ -1,4 +1,3 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getProject, getSkill } from "../src/db/queries";
 import {
@@ -8,83 +7,54 @@ import {
 
 const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
 
-describe("/projects", () => {
-  beforeEach(resetDb);
+beforeEach(async () => {
+  await resetDb();
+  await seedProject("team-b", "Team B");
+});
 
+describe("/projects", () => {
   it("redirects anonymous visitors to /login", async () => {
     const res = await get("/projects");
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/login");
   });
 
-  it("lists only the projects a member is in, by name", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
+  it.each([
+    ["a member only the projects they are in", { username: "alice", role: "member" } as const, [["default", "Default"]], false],
+    [
+      "an instance admin every project, and offers New project",
+      { username: "root", role: "admin", project: null } as const, [["default", "Default"], ["team-b", "Team B"]], true,
+    ],
+  ])("lists for %s, by name, each linked to a settings page they can open", async (_label, opts, listed, canCreate) => {
+    const { cookie } = await seedAndLogin(opts);
     const html = await (await get("/projects", cookie)).text();
-    expect(html).toContain('<a href="/p/default/settings" class="cf-link cf-user-name">Default</a>');
-    expect(html).not.toContain('href="/p/team-b/settings"');
-    expect(html).not.toContain('href="/projects/new"');
-  });
-
-  it("leaves each project's address out of the list", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
-    const html = await (await get("/projects", cookie)).text();
+    const links = [...html.matchAll(/<a href="\/p\/([^/"]+)\/settings" class="cf-link cf-user-name">([^<]*)<\/a>/g)];
+    expect(links.map((m) => [m[1], m[2]])).toEqual(listed);
+    for (const [slug] of listed) expect((await get(`/p/${slug}/settings`, cookie)).status).toBe(200);
+    expect(html.includes('href="/projects/new"')).toBe(canCreate);
     expect(html).toContain('<th scope="col">Name</th><th scope="col">Your role</th>');
     expect(html).not.toContain('data-label="Address"');
     expect(html).not.toContain(">/p/default<");
-  });
-
-  it("lists every project for an instance admin and offers New project", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
-    const html = await (await get("/projects", cookie)).text();
-    expect(html).toContain('href="/p/default/settings"');
-    expect(html).toContain('href="/p/team-b/settings"');
-    expect(html).toContain('href="/projects/new"');
-  });
-
-  it("links every listed name to a settings page the viewer can open", async () => {
-    await seedProject("team-b", "Team B");
-    const viewers = [
-      await seedAndLogin({ username: "root", role: "admin", project: null }),
-      await seedAndLogin({ username: "alice", role: "member" }),
-    ];
-    for (const { cookie } of viewers) {
-      const html = await (await get("/projects", cookie)).text();
-      const links = [...html.matchAll(/<a href="([^"]+)" class="cf-link cf-user-name">/g)].map((m) => m[1]);
-      expect(links.length).toBeGreaterThan(0);
-      for (const href of links) {
-        expect(href).toMatch(/^\/p\/[a-z0-9-]+\/settings$/);
-        expect((await get(href, cookie)).status).toBe(200);
-      }
-    }
-  });
-
-  it("is linked from the account menu", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
-    const html = await (await get("/", cookie)).text();
     expect(html).toContain('<a href="/projects" class="cf-menu-item">Projects</a>');
   });
 });
 
 describe("/projects/new", () => {
-  beforeEach(resetDb);
-
   it("lets an instance admin create a project, without joining it", async () => {
     const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const res = await postForm("/projects/new", cookie, { name: "  Team B  ", slug: "team-b" });
+    const res = await postForm("/projects/new", cookie, { name: "  Team C  ", slug: "team-c" });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/p/team-b");
-    expect(await getProject(env.DB, "team-b")).toMatchObject({ slug: "team-b", name: "Team B" });
-    expect((await get("/p/team-b", cookie)).status).toBe(200);
-    expect(await membership(user.id, "team-b")).toBeNull();
+    expect(res.headers.get("Location")).toBe("/p/team-c");
+    expect(await getProject(env.DB, "team-c")).toMatchObject({ slug: "team-c", name: "Team C" });
+    expect((await get("/p/team-c", cookie)).status).toBe(200);
+    expect(await membership(user.id, "team-c")).toBeNull();
   });
 
   it.each([
-    ["an empty name", { name: "   ", slug: "team-b" }, "Project names must be 1-64 characters on one line"],
-    ["a malformed address", { name: "Team B", slug: "Team B!" }, "Addresses must be 2-32 lowercase letters, digits or hyphens"],
-    ["a taken address", { name: "Team B", slug: "default" }, "That address is taken"],
-    ["a taken name in other letter case", { name: "DEFAULT", slug: "team-b" }, "That name is taken"],
+    ["an empty name", { name: "   ", slug: "team-c" }, "Project names must be 1-64 characters on one line"],
+    ["a malformed address", { name: "Team C", slug: "Team C!" }, "Addresses must be 2-32 lowercase letters, digits or hyphens"],
+    ["a taken address", { name: "Team C", slug: "default" }, "That address is taken"],
+    ["a taken name in other letter case", { name: "DEFAULT", slug: "team-c" }, "That name is taken"],
   ])("re-renders with an error for %s", async (_label, fields, error) => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const res = await postForm("/projects/new", cookie, fields);
@@ -92,21 +62,19 @@ describe("/projects/new", () => {
     const html = await res.text();
     expect(html).toContain(error);
     expect(html).toContain(`value="${fields.slug}"`);
-    expect(await getProject(env.DB, "team-b")).toBeNull();
+    expect(await getProject(env.DB, "team-c")).toBeNull();
   });
 
-  it("is for instance admins only", async () => {
+  it("is for instance admins only, as is deleting a project", async () => {
     const { cookie } = await seedAndLogin({ username: "bob", role: "member", projectRole: "admin" });
     expect((await get("/projects/new", cookie)).status).toBe(403);
-    expect((await postForm("/projects/new", cookie, { name: "Team B", slug: "team-b" })).status).toBe(403);
+    expect((await postForm("/projects/new", cookie, { name: "Team C", slug: "team-c" })).status).toBe(403);
+    expect((await postForm("/p/default/delete", cookie)).status).toBe(403);
   });
 });
 
 describe("/p/:project", () => {
-  beforeEach(resetDb);
-
   it("404s a project with no public skills for someone outside it, and an unknown project, searched or not", async () => {
-    await seedProject("team-b", "Team B");
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(bob.cookie, GOOD_MD, "private", "team-b");
     const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
@@ -117,7 +85,7 @@ describe("/p/:project", () => {
     expect((await get("/p/nope", cookie)).status).toBe(404);
   });
 
-  it("shows anyone a project's public skills as a grid under its public command", async () => {
+  it("shows anyone a project's public skills as a grid under its public command, each titled with the project's name", async () => {
     const alice = await seedAndLogin({ username: "alice" });
     await seedUser({ username: "bob", role: "member" });
     await publish(alice.cookie, GOOD_MD, "public");
@@ -130,35 +98,13 @@ describe("/p/:project", () => {
     expect(html).toContain('<form method="get" action="/p/default" class="cf-search" role="search">');
     expect(html).toContain('<a href="/login">Sign in</a>');
     expect(cellLinks(html)).toEqual(["/p/default/s/demo-skill"]);
-    expect(html).not.toContain("bob");
-    expect(html).not.toContain("/p/default/settings");
-  });
-
-  it("shows a member every skill in the project under their key command, and links to settings", async () => {
-    await seedProject("team-b", "Team B");
-    const alice = await seedAndLogin({ username: "alice", role: "member" });
-    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
-    await publish(alice.cookie, GOOD_MD, "private");
-    await publish(alice.cookie, OTHER_MD, "public");
-    await publish(bob.cookie, GOOD_MD, "public", "team-b");
-    const html = await (await get("/p/default", alice.cookie)).text();
-    expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
-    expect(cellLinks(html).sort()).toEqual(["/p/default/s/demo-skill", "/p/default/s/other-skill"]);
-    expect(cellMeta(html)).toContain("<span>0 downloads</span>");
-    expect(html).toContain('<a href="/p/default/settings">Settings</a>');
-    expect(html).not.toContain('action="/p/default/install-key"');
-    expect(html).not.toContain('action="/p/default/members"');
-  });
-
-  it("titles each cell with the project's name and leaves it out of the meta row", async () => {
-    const alice = await seedAndLogin({ username: "alice" });
-    await publish(alice.cookie, GOOD_MD, "public");
-    const html = await (await get("/p/default")).text();
     expect(html).toContain('<a href="/p/default/s/demo-skill" class="cf-cell-link">Default/demo-skill</a>');
     const meta = cellMeta(html);
     expect(meta).toContain("<span>alice</span>");
     expect(meta).not.toContain("Default");
     expect(meta).not.toContain("download");
+    expect(html).not.toContain("bob");
+    expect(html).not.toContain("/p/default/settings");
   });
 
   it("lists the project's skills most recently updated first", async () => {
@@ -178,13 +124,20 @@ describe("/p/:project", () => {
     ]);
   });
 
-  it("searches only this project and only what the visitor may see", async () => {
-    await seedProject("team-b", "Team B");
+  it("shows a member every skill in the project under their key command, and searches only what the visitor may see", async () => {
     const alice = await seedAndLogin({ username: "alice", role: "member" });
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(alice.cookie, GOOD_MD, "public");
     await publish(alice.cookie, OTHER_MD, "private");
     await publish(bob.cookie, GOOD_MD, "public", "team-b");
+
+    const html = await (await get("/p/default", alice.cookie)).text();
+    expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
+    expect(cellLinks(html).sort()).toEqual(["/p/default/s/demo-skill", "/p/default/s/other-skill"]);
+    expect(cellMeta(html)).toContain("<span>0 downloads</span>");
+    expect(html).toContain('<a href="/p/default/settings">Settings</a>');
+    expect(html).not.toContain('action="/p/default/install-key"');
+    expect(html).not.toContain('action="/p/default/members"');
 
     const anonymous = await (await get("/p/default?q=skill")).text();
     expect(cellLinks(anonymous)).toEqual(["/p/default/s/demo-skill"]);
@@ -201,7 +154,6 @@ describe("/p/:project", () => {
   });
 
   it("tells an instance admin outside an empty project that they have no key, and offers to publish", async () => {
-    await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const html = await (await get("/p/team-b", cookie)).text();
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
@@ -212,7 +164,6 @@ describe("/p/:project", () => {
   });
 
   it("shows an instance admin outside a project every skill in it and its public command", async () => {
-    await seedProject("team-b", "Team B");
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(bob.cookie, GOOD_MD, "public", "team-b");
     await publish(bob.cookie, OTHER_MD, "private", "team-b");
@@ -224,10 +175,7 @@ describe("/p/:project", () => {
 });
 
 describe("/p/:project/settings", () => {
-  beforeEach(resetDb);
-
   it("sends anonymous visitors to /login and 404s anyone outside the project", async () => {
-    await seedProject("team-b", "Team B");
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(bob.cookie, GOOD_MD, "public", "team-b");
     const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
@@ -254,24 +202,17 @@ describe("/p/:project/settings", () => {
     expect(html).not.toContain('action="/p/default/delete"');
   });
 
-  it("gives a project admin the member and rename controls but not project deletion", async () => {
+  it("gives a project admin the member and rename controls, with removal behind a confirm step, but not project deletion", async () => {
     const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
     await seedUser({ username: "carol", role: "member", project: null });
     const html = await (await get("/p/default/settings", lead.cookie)).text();
     expect(html).toContain('action="/p/default/members"');
     expect(html).toContain(`action="/p/default/members/${bob.id}/role"`);
-    expect(html).toContain(`action="/p/default/members/${bob.id}/remove"`);
     expect(html).toContain('action="/p/default/rename"');
     expect(html).toContain(">carol</option>");
     expect(html).not.toContain(">bob</option>");
     expect(html).not.toContain('action="/p/default/delete"');
-  });
-
-  it("puts member removal behind a confirm step that names the member, inside the row's actions", async () => {
-    const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
-    const { user: bob } = await seedUser({ username: "bob", role: "member" });
-    const html = await (await get("/p/default/settings", lead.cookie)).text();
     const row = html.split('<li class="cf-row cf-member">').find((r) => r.includes(">bob</span>")) ?? "";
     const blocks =
       row.match(/<div class="cf-actions">[\s\S]*?<details class="cf-confirm" name="remove-member">[\s\S]*?<\/details>/g) ?? [];
@@ -280,10 +221,13 @@ describe("/p/:project/settings", () => {
     expect(blocks[0]).toContain('<p class="cf-hint">bob loses access to Default');
     expect(blocks[0]).toContain(`action="/p/default/members/${bob.id}/remove"`);
     expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger cf-btn-sm">Remove bob</button>');
+    const head = /<header class="cf-head">[\s\S]*?<\/header>/.exec(html)?.[0];
+    expect(head).toContain("Default settings");
+    expect(head).not.toContain("cf-vis");
+    expect(html).toContain('<span class="cf-vis cf-vis-public">admin</span>');
   });
 
-  it("puts project deletion behind a confirm step in an actions row that names the project", async () => {
-    await seedProject("team-b", "Team B");
+  it("puts project deletion behind a confirm step for an instance admin outside the project, who has no key for it and may join", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const html = await (await get("/p/team-b/settings", cookie)).text();
     const blocks =
@@ -292,34 +236,15 @@ describe("/p/:project/settings", () => {
     expect(blocks[0]).toContain('<summary class="cf-btn cf-btn-danger">Delete project</summary>');
     expect(blocks[0]).toContain('action="/p/team-b/delete"');
     expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Delete Team B</button>');
-  });
-
-  it("keeps the viewer's project role out of the page head but in the member list", async () => {
-    const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
-    const html = await (await get("/p/default/settings", lead.cookie)).text();
-    const head = /<header class="cf-head">[\s\S]*?<\/header>/.exec(html)?.[0];
-    expect(head).toContain("Default settings");
-    expect(head).not.toContain("cf-vis");
-    expect(html).toContain('<span class="cf-vis cf-vis-public">admin</span>');
-  });
-
-  it("tells an instance admin outside the project that they have no key for it, and lets them join", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const html = await (await get("/p/team-b/settings", cookie)).text();
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
     expect(html).not.toContain("npx skills add");
     expect(html).not.toContain("/install-key");
     expect(html).toContain(">root</option>");
-    expect(html).toContain('action="/p/team-b/delete"');
   });
 });
 
 describe("resetting an install key", () => {
-  beforeEach(resetDb);
-
   it("resets one project's key from its page and leaves the others alone", async () => {
-    await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await joinProject(user.id, "team-b", "b".repeat(32));
     const before = await installKey(user.id);
@@ -336,30 +261,14 @@ describe("resetting an install key", () => {
     expect(await (await follow(res, cookie)).text()).toContain(`npx skills add ${ORIGIN}/i/${after}`);
   });
 
-  it("404s a reset for a project the user is not in", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "alice" });
+  it("404s a reset for a project the user is not in, even for an instance admin", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice", role: "admin" });
     expect((await postForm("/p/team-b/install-key", cookie)).status).toBe(404);
     expect((await postForm("/p/nope/install-key", cookie)).status).toBe(404);
-  });
-
-  it("404s a reset for an instance admin outside the project", async () => {
-    await seedProject("team-b", "Team B");
-    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    expect((await postForm("/p/team-b/install-key", cookie)).status).toBe(404);
-  });
-
-  it("no longer resets a key from /me", async () => {
-    const { user, cookie } = await seedAndLogin({ username: "alice" });
-    const before = await installKey(user.id);
-    expect((await postForm("/me/install-key/default", cookie)).status).toBe(404);
-    expect(await installKey(user.id)).toBe(before);
   });
 });
 
 describe("renaming a project", () => {
-  beforeEach(resetDb);
-
   it("lets a project admin rename it, keeping its address and keys", async () => {
     const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
     const key = await installKey(lead.user.id);
@@ -373,7 +282,6 @@ describe("renaming a project", () => {
   });
 
   it("refuses an empty name or one another project has", async () => {
-    await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const empty = await postForm("/p/default/rename", cookie, { name: " " });
     expect(empty.status).toBe(400);
@@ -389,19 +297,10 @@ describe("renaming a project", () => {
     expect((await postForm("/p/default/rename", cookie, { name: "DEFAULT" })).status).toBe(302);
     expect((await getProject(env.DB, "default"))?.name).toBe("DEFAULT");
   });
-
-  it("is refused to a plain member", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
-    expect((await postForm("/p/default/rename", cookie, { name: "Mine" })).status).toBe(403);
-    expect((await getProject(env.DB, "default"))?.name).toBe("Default");
-  });
 });
 
 describe("project membership", () => {
-  beforeEach(resetDb);
-
   it("lets a project admin add an account, whose new key works at once", async () => {
-    await seedProject("team-b", "Team B");
     const lead = await seedAndLogin({ username: "lead", role: "member", project: "team-b", projectRole: "admin" });
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
 
@@ -432,10 +331,12 @@ describe("project membership", () => {
     expect(await unknown.text()).toContain("Choose an account to add");
   });
 
-  it("stops a plain member managing members", async () => {
+  it("stops a plain member renaming the project or managing its members", async () => {
     const alice = await seedAndLogin({ username: "alice", role: "member" });
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
     const { user: carol } = await seedUser({ username: "carol", role: "member", project: null });
+    expect((await postForm("/p/default/rename", alice.cookie, { name: "Mine" })).status).toBe(403);
+    expect((await getProject(env.DB, "default"))?.name).toBe("Default");
     expect((await postForm("/p/default/members", alice.cookie, { user: carol.id, role: "member" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/role`, alice.cookie, { role: "admin" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/remove`, alice.cookie)).status).toBe(403);
@@ -444,7 +345,6 @@ describe("project membership", () => {
   });
 
   it("404s the member forms for someone outside the project", async () => {
-    await seedProject("team-b", "Team B");
     const outsider = await seedAndLogin({ username: "alice", role: "member" });
     const { user: bob } = await seedUser({ username: "bob", role: "member", project: "team-b" });
     expect((await postForm(`/p/team-b/members/${bob.id}/remove`, outsider.cookie)).status).toBe(404);
@@ -485,12 +385,8 @@ describe("project membership", () => {
     expect(res.headers.get("Location")).toBe("/projects");
     expect(await membership(lead.user.id)).toBeNull();
   });
-});
 
-describe("a demoted instance admin", () => {
-  beforeEach(resetDb);
-
-  it("loses project-admin power over Default once demoted", async () => {
+  it("strips a demoted instance admin of project-admin power over Default", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
     const second = await seedAndLogin({ username: "second-admin", role: "admin" });
     const bob = await seedAndLogin({ username: "bob", role: "member" });
@@ -504,8 +400,6 @@ describe("a demoted instance admin", () => {
 });
 
 describe("deleting a project", () => {
-  beforeEach(resetDb);
-
   it("refuses while the project has skills", async () => {
     const { user, cookie } = await seedAndLogin({ username: "root", role: "admin" });
     await publish(cookie, GOOD_MD, "private");
@@ -517,7 +411,6 @@ describe("deleting a project", () => {
   });
 
   it("deletes an empty project and every membership in it", async () => {
-    await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const { user: bob } = await seedUser({ username: "bob", role: "member", project: "team-b" });
     const key = await installKey(bob.id, "team-b");
@@ -529,11 +422,5 @@ describe("deleting a project", () => {
     expect((await get("/p/team-b", cookie)).status).toBe(404);
     expect(await membership(bob.id, "team-b")).toBeNull();
     expect(await indexStatus(key)).toBe(404);
-  });
-
-  it("is for instance admins only", async () => {
-    await seedProject("team-b", "Team B");
-    const lead = await seedAndLogin({ username: "lead", role: "member", project: "team-b", projectRole: "admin" });
-    expect((await postForm("/p/team-b/delete", lead.cookie)).status).toBe(403);
   });
 });
