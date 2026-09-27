@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..");
 const chrome = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const page = `${pathToFileURL(join(here, "logo.html")).href}#export`;
 
@@ -40,6 +41,24 @@ function ico(pngs) {
 }
 
 for (const [file, pngs] of files) {
-  writeFileSync(join(here, "..", file), file.endsWith(".ico") ? ico(pngs) : pngs[0]);
+  writeFileSync(join(root, file), file.endsWith(".ico") ? ico(pngs) : pngs[0]);
   process.stdout.write(`${file}\n`);
 }
+
+const preview = join(root, "docs", "images", "social-preview.png");
+execFileSync(
+  chrome,
+  [
+    "--headless=new",
+    "--disable-gpu",
+    "--hide-scrollbars",
+    "--allow-file-access-from-files",
+    "--force-device-scale-factor=1",
+    "--window-size=1280,640",
+    "--virtual-time-budget=3000",
+    `--screenshot=${preview}`,
+    pathToFileURL(join(here, "social-preview.html")).href,
+  ],
+  { stdio: "ignore" },
+);
+process.stdout.write("docs/images/social-preview.png\n");

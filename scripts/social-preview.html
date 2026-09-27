@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>skillsgist social preview</title>
+    <style>
+      @font-face {
+        font-family: "Schibsted Grotesk";
+        src: url("../public/fonts/schibsted-grotesk-latin.woff2") format("woff2");
+        font-weight: 400 900;
+      }
+
+      @font-face {
+        font-family: "Red Hat Mono";
+        src: url("../public/fonts/red-hat-mono-latin.woff2") format("woff2");
+        font-weight: 300 700;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 1280px;
+        height: 640px;
+        background: #fdfdfc;
+      }
+
+      .hero {
+        position: absolute;
+        inset: 16px;
+        overflow: hidden;
+        isolation: isolate;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 72px 0;
+        border-radius: 24px;
+        background: #ff5e1f;
+        color: #fff;
+        font-family: "Schibsted Grotesk", sans-serif;
+        text-align: center;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background-image: radial-gradient(rgb(255 255 255 / 0.2) 1px, transparent 1.5px);
+        background-size: 8px 8px;
+        mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.35) 55%, transparent 100%);
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        z-index: -1;
+        width: 900px;
+        height: 220px;
+        translate: -50% 55%;
+        border-radius: 50%;
+        background: radial-gradient(closest-side, #fff6d6 0%, #ffc76b 38%, rgb(255 138 61 / 0.55) 68%, transparent 100%);
+        filter: blur(8px);
+      }
+
+      .plate,
+      .cmd {
+        border-radius: 14px;
+        background: #fff;
+        color: #171717;
+        box-shadow: 0 1px 2px rgb(60 12 0 / 0.12), 0 22px 44px -18px rgb(60 12 0 / 0.5);
+      }
+
+      .plate {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 22px 10px 10px;
+        font-size: 30px;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+
+      .plate img {
+        display: block;
+      }
+
+      h1 {
+        max-width: 16ch;
+        margin-top: 32px;
+        font-size: 76px;
+        font-weight: 500;
+        line-height: 1;
+        letter-spacing: -0.035em;
+      }
+
+      p {
+        margin-top: 24px;
+        color: #3c0c00;
+        font-size: 26px;
+        line-height: 1.4;
+      }
+
+      .cmd {
+        display: flex;
+        gap: 14px;
+        margin-top: 40px;
+        padding: 22px 30px;
+        font-family: "Red Hat Mono", monospace;
+        font-size: 24px;
+      }
+
+      .cmd span {
+        color: #c73a02;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero">
+      <div class="plate"><img src="../public/logo.png" width="44" height="44" alt="" />skillsgist</div>
+      <h1>Your private Agent Skills registry</h1>
+      <p>Self-hosted on Cloudflare. Installed with the stock CLI.</p>
+      <div class="cmd"><span>$</span>npx skills add https://skills.example.com/i/&lt;install_key&gt;</div>
+    </div>
+  </body>
+</html>
