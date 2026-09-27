@@ -26,7 +26,8 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 - Content-addressed artifacts, so the CLI can verify every download against its digest
 - Rendered `SKILL.md` pages with a file list and version history
 - Search across skill names, descriptions and body text
-- Projects that group skills and people, with one install key per person per project that installs only that project's skills, and API tokens for publishing from CI
+- Projects that group skills and people, with one install key per person per project that installs only that project's skills
+- API tokens for publishing from CI
 - Admin and member roles for the instance and for each project, with account and project administration in the browser
 - Server-rendered pages that work without JavaScript, under a strict Content-Security-Policy
 
