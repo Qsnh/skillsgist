@@ -73,55 +73,7 @@ To serve the instance on your own domain, add a route to `wrangler.jsonc` and de
 "routes": [{ "pattern": "skills.example.com", "custom_domain": true }]
 ```
 
-## Install skills
-
-Every skill belongs to a project, and every member of a project has an install key for it. Each project's page at `/p/<project>` shows your install command for that project, and `/projects` lists your projects. The home page shows no install command; each skill's page shows the one for that skill. The examples below use `skills.example.com` as the instance's address.
-
-```bash
-# Every skill in the key's project, public and private
-npx skills add https://skills.example.com/i/<install_key>
-
-# One skill from that project
-npx skills add https://skills.example.com/i/<install_key>/.well-known/agent-skills/<skill-name>
-
-# One project's public skills need no key
-npx skills add https://skills.example.com/p/<project>
-npx skills add https://skills.example.com/p/<project>/.well-known/agent-skills/<skill-name>
-
-# Every public skill whose name no other project also has in public
-npx skills add https://skills.example.com
-
-# Or let the CLI pick one skill out of the whole index
-npx skills add https://skills.example.com -s <skill-name>
-```
-
-An install key can only install, and only its own project's skills. Whoever holds it cannot sign in, publish, delete or reach another project, and you can reset it from the project's settings page in one click.
-
-Skill names are unique within a project, so two projects can each have a skill with the same name. The instance-wide address `https://skills.example.com` leaves out any name that more than one project has made public; install those from their project's address.
-
-## Publish skills
-
-A skill is a directory with a `SKILL.md` at its root. The `name` in its frontmatter becomes the skill's address; it must be 1–64 lowercase letters, digits and single hyphens. The `description` must be non-empty and at most 1024 characters.
-
-```markdown
----
-name: release-notes
-description: Draft release notes from merged pull requests, in the team's house style.
----
-
-# Release notes
-...
-```
-
-### From the browser
-
-- `/new` takes a `.zip`, a `.tar.gz` or a bare `SKILL.md`. A single wrapper directory is stripped, and junk files such as `.DS_Store` are dropped. It asks which project the skill goes into, out of the projects you can publish to.
-- `/p/<project>/s/<name>/edit` changes only the `SKILL.md` text and carries every other file over from the previous version.
-- `/p/<project>/s/<name>/upload` replaces the whole archive.
-
-These pages refuse content that is identical to the latest version. Content identical to an *older* version publishes normally, which is how you roll back.
-
-### From a terminal or CI
+## Publish from a terminal or CI
 
 Generate an API token on `/me`, or have an admin generate one on your account's settings page, which suits an account used only by CI. It is shown once, and it travels only in the `Authorization` header, never in a URL.
 
