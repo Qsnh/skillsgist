@@ -45,15 +45,6 @@ describe("GET /", () => {
     expect(html).not.toContain(">demo-skill<");
   });
 
-  it("renders a hidden copy button instead of the select hint", async () => {
-    const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
-    expect(html).toContain(`<div class="cf-command cf-command-raised" data-copy="true">`);
-    expect(html).toContain(`<button type="button" class="cf-command-copy" hidden="">`);
-    expect(html).toContain(`<span class="cf-command-copy-label">Copy</span>`);
-    expect(html).toContain(`<span class="cf-command-status sr-only" role="status"></span>`);
-    expect(html).not.toContain("Click to select");
-  });
-
   it("shows only the project and the author in a cell's meta row", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     await publish(cookie, GOOD_MD, "public");
@@ -170,6 +161,17 @@ describe("GET /p/:project/s/:slug", () => {
         `</ul><footer class="cf-fold-foot" hidden=""><button type="button" class="cf-btn cf-btn-outline cf-btn-sm" aria-controls="${id}" aria-expanded="false">Show more</button></footer></section>`,
       );
     }
+  });
+
+  it("renders a hidden copy button instead of the select hint", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    await publish(cookie, GOOD_MD, "public");
+    const html = await (await SELF.fetch(`${ORIGIN}/p/default/s/demo-skill`)).text();
+    expect(html).toContain(`<div class="cf-command cf-command-raised" data-copy="true">`);
+    expect(html).toContain(`<button type="button" class="cf-command-copy" hidden="">`);
+    expect(html).toContain(`<span class="cf-command-copy-label">Copy</span>`);
+    expect(html).toContain(`<span class="cf-command-status sr-only" role="status"></span>`);
+    expect(html).not.toContain("Click to select");
   });
 
   it("renders the stored html and the install command", async () => {
@@ -398,40 +400,61 @@ describe("visibility and deletion", () => {
   });
 });
 
-describe("home page install commands", () => {
+describe("home page hero", () => {
   beforeEach(resetDb);
 
-  const heroOf = async (cookie: string) => {
-    const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    return /<section class="cf-hero"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  const homeOf = async (path: string, cookie?: string) =>
+    (await SELF.fetch(`${ORIGIN}${path}`, cookie ? { headers: { Cookie: cookie } } : {})).text();
+  const heroOf = (html: string) => /<section class="cf-hero"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  const expectNoCommand = (hero: string) => {
+    expect(hero).toContain('<h1 id="hero-title" class="cf-hero-title">Find a skill to install</h1>');
+    expect(hero).toContain('<form method="get" action="/" class="cf-search" role="search">');
+    expect(hero).not.toContain("cf-command");
+    expect(hero).not.toContain("npx skills add");
   };
-  const commandsIn = (html: string) =>
-    [...html.matchAll(/<code class="cf-command-text">([^<]*)<\/code>/g)].map((m) => m[1]);
 
-  it("shows only the public command to a user in one project, and points to the project pages", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    const hero = await heroOf(cookie);
-    expect(hero).toContain("Install public skills with one command");
-    expect(commandsIn(hero)).toEqual([`npx skills add ${ORIGIN}`]);
-    expect(hero).not.toContain("/i/");
-    expect(hero).toContain('<a href="/projects">Projects</a>');
+  it("shows no install command to an anonymous visitor, and says where the commands are", async () => {
+    const hero = heroOf(await homeOf("/"));
+    expectNoCommand(hero);
+    expect(hero).toContain("Every skill has its install command on its page, and public skills need no key.");
+    expect(hero).toContain('<a href="/login">Sign in</a> to see the private ones.');
   });
 
-  it("shows no install key to a user in several projects", async () => {
+  it("shows no install command on a search of the home page", async () => {
+    expectNoCommand(heroOf(await homeOf("/?q=zzz")));
+  });
+
+  it("shows no install command to a user in one project, and points to the project pages", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const html = await homeOf("/", cookie);
+    const hero = heroOf(html);
+    expectNoCommand(hero);
+    expect(hero).toContain(
+      'Your install commands are on each project page, listed under <a href="/projects">Projects</a>, and on each skill page.',
+    );
+    expect(html).not.toContain("/i/");
+  });
+
+  it("shows no install command or key anywhere on the page to a user in several projects", async () => {
     await seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await addMembership(env.DB, { project: "team-b", userId: user.id, role: "member", installKey: "b".repeat(32) });
 
-    const html = await (await SELF.fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
-    expect(commandsIn(html)).toEqual([`npx skills add ${ORIGIN}`]);
+    const html = await homeOf("/", cookie);
+    expectNoCommand(heroOf(html));
+    expect(html).not.toContain("npx skills add");
     expect(html).not.toContain("/i/");
+    expect(html).not.toContain(await installKey(user.id));
+    expect(html).not.toContain("b".repeat(32));
   });
 
-  it("shows the public command to a user in no project", async () => {
+  it("shows no install command to a user in no project", async () => {
     const { cookie } = await seedAndLogin({ username: "alice", project: null });
-    const hero = await heroOf(cookie);
-    expect(hero).toContain("You are not in a project yet, so you have no install key.");
-    expect(commandsIn(hero)).toEqual([`npx skills add ${ORIGIN}`]);
+    const hero = heroOf(await homeOf("/", cookie));
+    expectNoCommand(hero);
+    expect(hero).toContain(
+      "You are not in a project yet, so you have no install key. Every public skill has its install command on its page.",
+    );
   });
 });
 

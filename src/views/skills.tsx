@@ -84,22 +84,23 @@ function HeroLede(props: { user: Viewer | null }) {
   if (!props.user) {
     return (
       <p class="cf-hero-lede">
-        This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Public skills need no key.{" "}
-        <a href="/login">Sign in</a> to see the private ones.
+        This registry serves Agent Skills to the stock <code>npx skills</code> CLI. Every skill has its install command
+        on its page, and public skills need no key. <a href="/login">Sign in</a> to see the private ones.
       </p>
     );
   }
   if (props.user.memberships.length === 0) {
     return (
       <p class="cf-hero-lede">
-        You are not in a project yet, so you have no install key. Public skills install with the address below.
+        You are not in a project yet, so you have no install key. Every public skill has its install command on its
+        page.
       </p>
     );
   }
   return (
     <p class="cf-hero-lede">
-      Public skills install with the address below. Each project's page, listed under{" "}
-      <a href="/projects">Projects</a>, has your install command for its private skills.
+      Your install commands are on each project page, listed under <a href="/projects">Projects</a>, and on each skill
+      page.
     </p>
   );
 }
@@ -165,15 +166,13 @@ export function IndexPage(props: {
   user: Viewer | null;
   skills: ListedSkill[];
   q: string;
-  origin: string;
 }) {
   return (
     <Layout title="Skills" user={props.user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
         <div class="cf-hero-inner cf-hero-center">
-          <h1 id="hero-title" class="cf-hero-title">Install public skills with one command</h1>
+          <h1 id="hero-title" class="cf-hero-title">Find a skill to install</h1>
           <HeroLede user={props.user} />
-          <CodeBlock raised>npx skills add {props.origin}</CodeBlock>
           <SearchForm action="/" q={props.q} />
         </div>
       </section>

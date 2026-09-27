@@ -19,7 +19,7 @@ skillsRoutes.get("/", async (c) => {
   const user = await currentUser(c);
   const q = c.req.query("q") ?? "";
   const skills = await listSkills(c.env.DB, { scope: skillScope(user), q: q || undefined });
-  return page(c, <IndexPage user={user} skills={skills} q={q} origin={new URL(c.req.url).origin} />);
+  return page(c, <IndexPage user={user} skills={skills} q={q} />);
 });
 
 skillsRoutes.get("/s/:slug", (c) => {
