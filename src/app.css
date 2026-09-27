@@ -1472,7 +1472,8 @@
     overflow-wrap: anywhere;
   }
 
-  .cf-project-title {
+  .cf-project-title,
+  .cf-project-title + .cf-hero-lede {
     overflow-wrap: anywhere;
   }
 
