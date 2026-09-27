@@ -166,6 +166,24 @@ describe("skills", () => {
     expect(await q.getSkillWithAuthor(env.DB, "team-b", "open")).toMatchObject({ author: "alice", project_name: "Team B" });
   });
 
+  it("narrows the list to one project, keeping scope and search", async () => {
+    await join("u1", q.DEFAULT_PROJECT, "k1");
+    await q.insertVersion(env.DB, { ...base, slug: "mine", name: "mine" });
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", slug: "theirs", name: "theirs" });
+    await q.insertVersion(env.DB, {
+      ...base, skillId: "s3", project: "team-b", slug: "open", name: "open", visibility: "public",
+    });
+    const slugs = async (scope: q.SkillScope, project: string, text?: string) =>
+      (await q.listSkills(env.DB, { scope, project, q: text })).map((s) => s.slug).sort();
+
+    expect(await slugs({ kind: "all" }, "default")).toEqual(["mine"]);
+    expect(await slugs({ kind: "all" }, "team-b")).toEqual(["open", "theirs"]);
+    expect(await slugs({ kind: "member", userId: "u1" }, "team-b")).toEqual(["open"]);
+    expect(await slugs({ kind: "public" }, "default")).toEqual([]);
+    expect(await slugs({ kind: "all" }, "team-b", "the")).toEqual(["theirs"]);
+    expect(await slugs({ kind: "all" }, "no-such-project")).toEqual([]);
+  });
+
   it("indexes one project's skills, its public ones, or every unambiguous public name", async () => {
     await q.insertVersion(env.DB, { ...base, slug: "secret", name: "secret" });
     await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "shared", name: "shared", visibility: "public" });

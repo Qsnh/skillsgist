@@ -269,7 +269,7 @@ const LISTED_SKILL_SQL = `SELECT s.*, u.username AS author, p.name AS project_na
 
 export async function listSkills(
   db: D1Database,
-  opts: { scope: SkillScope; q?: string },
+  opts: { scope: SkillScope; project?: string; q?: string },
 ): Promise<ListedSkill[]> {
   const clauses: string[] = [];
   const binds: unknown[] = [];
@@ -283,6 +283,7 @@ export async function listSkills(
       `(s.visibility = 'public' OR EXISTS (SELECT 1 FROM memberships m WHERE m.project = s.project AND m.user_id = ${bind(opts.scope.userId)}))`,
     );
   }
+  if (opts.project !== undefined) clauses.push(`s.project = ${bind(opts.project)}`);
   if (opts.q) {
     const pattern = bind(`%${opts.q}%`);
     clauses.push(
