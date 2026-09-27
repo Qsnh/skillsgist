@@ -189,7 +189,7 @@ try {
     const html = await (await fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
     return Object.fromEntries(
       ["demo-skill", "other-skill"].map((slug) => {
-        const meta = new RegExp(`href="/p/default/s/${slug}" class="cf-cell-link">${slug}</a>[\\s\\S]*?<p class="cf-cell-meta">([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
+        const meta = new RegExp(`href="/p/default/s/${slug}" class="cf-cell-link">Default/${slug}</a>[\\s\\S]*?<p class="cf-cell-meta">([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
         const match = /([\d,]+) downloads?/.exec(meta);
         if (!match) throw new Error(`/ shows no download count for ${slug}`);
         return [slug, Number(match[1].replaceAll(",", ""))];
