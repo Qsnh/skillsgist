@@ -94,7 +94,7 @@ npx skills add https://skills.example.com
 npx skills add https://skills.example.com -s <skill-name>
 ```
 
-An install key can only install, and only its own project's skills. Whoever holds it cannot sign in, publish, delete or reach another project, and you can reset it from the project's page in one click.
+An install key can only install, and only its own project's skills. Whoever holds it cannot sign in, publish, delete or reach another project, and you can reset it from the project's settings page in one click.
 
 Skill names are unique within a project, so two projects can each have a skill with the same name. The instance-wide address `https://skills.example.com` leaves out any name that more than one project has made public; install those from their project's address.
 
@@ -176,7 +176,7 @@ Each membership has its own role:
 - **Project members** see, install and publish the project's skills, and manage the ones they own.
 - **Project admins** can also manage every skill in the project, rename the project, and add, remove, promote and demote its members.
 
-`/projects` lists your projects, and instance admins create new ones at `/projects/new`. A project's page, `/p/<project>`, shows your install command for it with a button to reset its key, its skills and its members, and its admins manage the project there. Anyone can open the page of a project that has public skills, and sees only those. Move a skill to another project with Move on its page. A project can be deleted once it has no skills.
+`/projects` lists your projects, and instance admins create new ones at `/projects/new`. A project's page, `/p/<project>`, works like the home page for that one project: your install command for it, a search box and a grid of its skills. Its settings page, `/p/<project>/settings`, has a button to reset your key for it and lists its members, and its admins manage the project there. Anyone can open the page of a project that has public skills, and sees only those. Move a skill to another project with Move on its page. A project can be deleted once it has no skills.
 
 `/admin/users` lists accounts. From there an admin can switch roles, reset passwords, rotate install keys, revoke API tokens and delete accounts; `/admin/users/new` creates them. A new account is in no project until someone adds it to one. The last remaining admin can never be demoted or deleted.
 
