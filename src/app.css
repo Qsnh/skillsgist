@@ -788,11 +788,14 @@
   .cf-footer-inner p {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     gap: 4px 12px;
   }
 
   .cf-footer-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.03em;

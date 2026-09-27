@@ -96,7 +96,10 @@ export function Layout(props: {
           <footer class="cf-footer">
             <div class="cf-footer-inner">
               <p>
-                <a href="/" class="cf-footer-mark">skillsgist</a>
+                <a href="/" class="cf-footer-mark">
+                  <img src="/logo.png" width="18" height="18" alt="" class="cf-wordmark-mark" />
+                  skillsgist
+                </a>
                 <span>A private registry for Agent Skills, running on Cloudflare Workers.</span>
               </p>
               <nav class="cf-footer-links" aria-label="Footer">

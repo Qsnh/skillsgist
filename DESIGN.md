@@ -640,7 +640,7 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 - **Auth Title** (500, 28px, 1.15, -0.025em): the title inside the sign-in and setup frame, 24px above the form.
 - **Title Large** (500, 22px, -0.02em): the title of an empty state inside a frame.
 - **Title** (500, 19px, 1.3, -0.02em): the full name of a skill cell, `<project name>/<slug>`, which acts as the link.
-- **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav, 8px to the right of the 24px mark. The footer mark uses the same form at 15px, without the mark.
+- **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav, 8px to the right of the 24px mark. The footer uses the same form at 15px, 6px to the right of an 18px mark.
 - **Panel Title** (500, 17px, -0.02em): the title in a header strip, such as Files, Versions or API token.
 - **Lede** (400, 18px, 1.5; 16px below 640px): the supporting line on the panel. It is set in Ember and uses `text-wrap: pretty`. It is capped at 54ch on the index and 64ch on the skill page.
 - **Page Lede** (400, 16px, 1.6): the explanation under a page title, in Body Gray, capped at 68ch, with inline Orange Ink links.
@@ -770,7 +770,7 @@ The top of every working page.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Projects, Users (admins only) and Sign out, which is a form button.
 - **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the mark and the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
-- **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
+- **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 18px mark and the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
 - **Mobile:** gutters drop to 16px. The actions keep their full size.
 
 ### Mark
