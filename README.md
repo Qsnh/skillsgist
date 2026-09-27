@@ -177,10 +177,6 @@ Each membership has its own role:
 - **Project members** see, install and publish the project's skills, and manage the ones they own.
 - **Project admins** can also manage every skill in the project, rename the project, and add, remove, promote and demote its members.
 
-`/projects` lists your projects, and each name opens that project's settings page. Instance admins create new projects at `/projects/new`. A project's page, `/p/<project>`, holds your install command for that project, a search box and a grid of its skills. Its settings page, `/p/<project>/settings`, has a button to reset your key for it and lists its members, and its admins manage the project there. Anyone can open the page of a project that has public skills, and sees only those. Move a skill to another project with Move on its page. A project can be deleted once it has no skills.
-
-`/admin/users` lists accounts with their role, how many projects each is in, how many skills each created, when it joined and when it last signed in. Each name opens that account's settings page, `/admin/users/<id>`, where an admin switches its role, rotates its install keys, generates or revokes its API token, resets its password or deletes it; `/admin/users/new` creates accounts. A new account is in no project until someone adds it to one. The last remaining admin can never be demoted or deleted.
-
 **Deleting an account reassigns its skills and the author records on its versions to the admin who deletes it**, because neither may point at a user that no longer exists. The original authorship is lost.
 
 To withdraw someone's access and keep their authorship, reset their password, remove them from their projects and revoke their API token. Their keys and token stop working at once. A browser that is already signed in, however, keeps its session until it expires, up to 30 days after sign-in. To end every session immediately, delete the account instead, or rotate `SESSION_SECRET`, which signs out everyone.
