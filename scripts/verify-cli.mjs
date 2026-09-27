@@ -353,7 +353,7 @@ try {
   if (created.status !== 302 && created.status !== 400) {
     throw new Error(`/projects/new returned ${created.status}`);
   }
-  const otherHtml = await (await fetch(`${ORIGIN}/p/verify-other`, { headers: { Cookie: cookie } })).text();
+  const otherHtml = await (await fetch(`${ORIGIN}/p/verify-other/settings`, { headers: { Cookie: cookie } })).text();
   const verifierId = /<option value="([a-f0-9]{16})">verifier<\/option>/.exec(otherHtml)?.[1];
   if (verifierId) {
     const joined = await postPage("/p/verify-other/members", { user: verifierId, role: "admin" });

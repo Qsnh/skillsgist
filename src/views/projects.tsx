@@ -1,12 +1,11 @@
 import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { DEFAULT_PROJECT } from "../db/queries";
-import type { Member, ProjectRow, ProjectSummary, SkillRow, UserRow, Viewer } from "../db/queries";
-import { skillPath } from "../paths";
+import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
+import { projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
 import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
-
-type ProjectSkill = Pick<SkillRow, "slug" | "visibility">;
+import { SearchForm, SkillRegistry } from "./skills";
 
 export function ProjectsPage(props: { user: Viewer; projects: ProjectSummary[] }) {
   const admin = props.user.role === "admin";
@@ -99,57 +98,108 @@ export function NewProjectPage(props: { user: UserRow; name?: string; slug?: str
   );
 }
 
-function SkillRows(props: { skills: ProjectSkill[]; project: ProjectRow; empty: string }) {
-  if (props.skills.length === 0) {
+function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPublicSkills: boolean }) {
+  const { user, project } = props;
+  const settings = <a href={projectSettingsPath(project.slug)}>Settings</a>;
+  if (user && membershipIn(user, project.slug)) {
     return (
-      <div class="cf-panel-body">
-        <p class="cf-hint">{props.empty}</p>
+      <p class="cf-hero-lede">
+        This command carries your install key for {project.name}, so it installs every skill in it, private ones
+        included. Reset the key and see who is in the project under {settings}.
+      </p>
+    );
+  }
+  if (user?.role === "admin") {
+    return (
+      <p class="cf-hero-lede">
+        You are not a member of {project.name}, so you have no install key for it.
+        {props.hasPublicSkills ? " The address below installs its public skills." : null} Add yourself under{" "}
+        {settings}.
+      </p>
+    );
+  }
+  return (
+    <p class="cf-hero-lede">
+      Anyone can install the public skills of {project.name} with the address below.
+      {user ? null : (
+        <>
+          {" "}
+          <a href="/login">Sign in</a> to see its private ones if you are a member.
+        </>
+      )}
+    </p>
+  );
+}
+
+function EmptyProject(props: { project: ProjectRow; q: string }) {
+  const path = `/p/${props.project.slug}`;
+  if (props.q) {
+    return (
+      <div class="cf-empty">
+        <p class="cf-empty-title">
+          No skills in {props.project.name} match &ldquo;{props.q}&rdquo;.
+        </p>
+        <p class="cf-empty-body">Search looks at skill names, descriptions and the text of each SKILL.md.</p>
+        <a href={path} class="cf-btn cf-btn-outline">Clear search</a>
       </div>
     );
   }
   return (
-    <ul class="cf-rows">
-      {props.skills.map((s) => (
-        <li class="cf-row">
-          <a href={skillPath({ project: props.project.slug, slug: s.slug })} class="cf-row-main cf-row-version">
-            {s.slug}
-          </a>
-          <span class="cf-row-meta">{s.visibility}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export function PublicProjectPage(props: {
-  user: Viewer | null;
-  project: ProjectRow;
-  origin: string;
-  skills: ProjectSkill[];
-}) {
-  return (
-    <Layout title={props.project.name} user={props.user}>
-      <div class="cf-narrow">
-        <PageHead title={props.project.name} />
-        <div class="cf-stack-lg">
-          <Panel title="Install this project's public skills">
-            <CodeBlock>npx skills add {`${props.origin}/p/${props.project.slug}`}</CodeBlock>
-            <p class="cf-hint">Anyone can use this address. It installs only the public skills listed below.</p>
-          </Panel>
-          <Panel title="Public skills" aside={<span class="cf-count">{props.skills.length}</span>} flush>
-            <SkillRows skills={props.skills} project={props.project} empty="" />
-          </Panel>
-        </div>
-      </div>
-    </Layout>
+    <div class="cf-empty">
+      <p class="cf-empty-title">No skills in {props.project.name} yet.</p>
+      <p class="cf-empty-body">
+        Upload a .zip, a .tar.gz or a single SKILL.md from the browser, or send an archive to the API with a token
+        from your account.
+      </p>
+      <a href={`/new?project=${props.project.slug}`} class="cf-btn cf-btn-primary">Publish the first skill</a>
+    </div>
   );
 }
 
 export function ProjectPage(props: {
+  user: Viewer | null;
+  project: ProjectRow;
+  origin: string;
+  skills: ListedSkill[];
+  q: string;
+  hasPublicSkills: boolean;
+}) {
+  const { user, project } = props;
+  const path = `/p/${project.slug}`;
+  const membership = user ? membershipIn(user, project.slug) : undefined;
+  const base = membership
+    ? `${props.origin}/i/${membership.install_key}`
+    : props.hasPublicSkills
+      ? `${props.origin}${path}`
+      : null;
+  return (
+    <Layout title={project.name} user={user} bare>
+      <section class="cf-hero" aria-labelledby="hero-title">
+        <div class="cf-hero-inner cf-hero-center">
+          <h1 id="hero-title" class="cf-hero-title cf-project-title">{project.name}</h1>
+          <ProjectLede user={user} project={project} hasPublicSkills={props.hasPublicSkills} />
+          {base ? <CodeBlock raised>npx skills add {base}</CodeBlock> : null}
+          <SearchForm action={path} q={props.q} />
+        </div>
+      </section>
+
+      <SkillRegistry
+        skills={props.skills}
+        q={props.q}
+        clearHref={path}
+        showDownloads={user !== null}
+        showProject={false}
+        empty={<EmptyProject project={project} q={props.q} />}
+      />
+    </Layout>
+  );
+}
+
+export function ProjectSettingsPage(props: {
   user: Viewer;
   project: ProjectRow;
   origin: string;
-  skills: ProjectSkill[];
+  hasSkills: boolean;
   members: Member[];
   candidates: Array<Pick<UserRow, "id" | "username">>;
   canManage: boolean;
@@ -158,13 +208,15 @@ export function ProjectPage(props: {
   const { project } = props;
   const membership = membershipIn(props.user, project.slug);
   return (
-    <Layout title={project.name} user={props.user}>
+    <Layout title={`${project.name} settings`} user={props.user}>
       <div class="cf-narrow">
         <PageHead
-          title={project.name}
+          title={`${project.name} settings`}
           error={props.error}
           aside={membership ? <RoleLabel role={membership.role} /> : null}
-        />
+        >
+          The skills in this project are listed on <a href={`/p/${project.slug}`} class="cf-link">its page</a>.
+        </PageHead>
         <div class="cf-stack-lg">
           <Panel title="Install this project's skills">
             {membership ? (
@@ -184,10 +236,6 @@ export function ProjectPage(props: {
                 one.
               </p>
             )}
-          </Panel>
-
-          <Panel title="Skills" aside={<span class="cf-count">{props.skills.length}</span>} flush>
-            <SkillRows skills={props.skills} project={project} empty={`No skills in ${project.name} yet.`} />
           </Panel>
 
           <Panel title="Members" aside={<span class="cf-count">{props.members.length}</span>} flush>
@@ -266,7 +314,9 @@ export function ProjectPage(props: {
 
           {props.user.role === "admin" ? (
             <Panel title="Delete this project">
-              {props.skills.length === 0 ? (
+              {props.hasSkills ? (
+                <p class="cf-hint">A project that still has skills cannot be deleted. Move or delete its skills first.</p>
+              ) : (
                 <ConfirmDelete
                   action={`/p/${project.slug}/delete`}
                   label="Delete project"
@@ -279,8 +329,6 @@ export function ProjectPage(props: {
                     ? " The old PUT /api/skills/<name> address and /s/<name> links publish into and point at this project, and stop working once it is deleted."
                     : null}
                 </ConfirmDelete>
-              ) : (
-                <p class="cf-hint">A project that still has skills cannot be deleted. Move or delete its skills first.</p>
               )}
             </Panel>
           ) : null}

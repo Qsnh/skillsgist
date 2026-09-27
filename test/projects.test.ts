@@ -17,6 +17,10 @@ const membership = (project: string, userId: string) =>
 const indexStatus = async (key: string) =>
   (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
 
+const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
+
+const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+
 describe("/projects", () => {
   beforeEach(resetDb);
 
@@ -89,37 +93,147 @@ describe("/projects/new", () => {
 describe("/p/:project", () => {
   beforeEach(resetDb);
 
-  it("404s a project with no public skills for someone outside it, and an unknown project", async () => {
+  it("404s a project with no public skills for someone outside it, and an unknown project, searched or not", async () => {
     await seedProject("team-b", "Team B");
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(bob.cookie, GOOD_MD, "private", "team-b");
     const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
-    expect((await get("/p/team-b", cookie)).status).toBe(404);
-    expect((await get("/p/team-b")).status).toBe(404);
+    for (const path of ["/p/team-b", "/p/team-b?q=demo"]) {
+      expect((await get(path, cookie)).status, path).toBe(404);
+      expect((await get(path)).status, path).toBe(404);
+    }
     expect((await get("/p/nope", cookie)).status).toBe(404);
   });
 
-  it("shows anyone the public part of a project that has public skills", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
-    await publish(cookie, GOOD_MD, "public");
-    await publish(cookie, OTHER_MD, "private");
+  it("shows anyone a project's public skills as a grid under its public command", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    await seedUser({ username: "bob", role: "member" });
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(alice.cookie, OTHER_MD, "private");
     const res = await get("/p/default");
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("Default");
+    expect(html).toContain('<h1 id="hero-title" class="cf-hero-title cf-project-title">Default</h1>');
     expect(html).toContain(`npx skills add ${ORIGIN}/p/default`);
-    expect(html).toContain('href="/p/default/s/demo-skill"');
-    expect(html).not.toContain("other-skill");
-    expect(html).not.toContain("alice");
+    expect(html).toContain('<form method="get" action="/p/default" class="cf-search" role="search">');
+    expect(html).toContain('<a href="/login">Sign in</a>');
+    expect(cellLinks(html)).toEqual(["/p/default/s/demo-skill"]);
+    expect(html).not.toContain("bob");
+    expect(html).not.toContain("/p/default/settings");
   });
 
-  it("shows a member their install command, every skill and the members, with no controls", async () => {
+  it("shows a member every skill in the project under their key command, and links to settings", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(alice.cookie, GOOD_MD, "private");
+    await publish(alice.cookie, OTHER_MD, "public");
+    await publish(bob.cookie, GOOD_MD, "public", "team-b");
+    const html = await (await get("/p/default", alice.cookie)).text();
+    expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
+    expect(cellLinks(html).sort()).toEqual(["/p/default/s/demo-skill", "/p/default/s/other-skill"]);
+    expect(cellMeta(html)).toContain("<span>0 downloads</span>");
+    expect(html).toContain('<a href="/p/default/settings">Settings</a>');
+    expect(html).not.toContain('action="/p/default/install-key"');
+    expect(html).not.toContain('action="/p/default/members"');
+  });
+
+  it("leaves the project's name out of each cell and keeps the author", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    await publish(alice.cookie, GOOD_MD, "public");
+    const meta = cellMeta(await (await get("/p/default")).text());
+    expect(meta).toContain("<span>alice</span>");
+    expect(meta).not.toContain("Default");
+    expect(meta).not.toContain("download");
+  });
+
+  it("lists the project's skills most recently updated first", async () => {
+    const alice = await seedAndLogin({ username: "alice" });
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(alice.cookie, OTHER_MD, "public");
+    const stamp = (slug: string, at: number) =>
+      env.DB.prepare("UPDATE skills SET updated_at = ? WHERE slug = ?").bind(at, slug).run();
+    await stamp("demo-skill", 2);
+    await stamp("other-skill", 1);
+    expect(cellLinks(await (await get("/p/default")).text())).toEqual([
+      "/p/default/s/demo-skill", "/p/default/s/other-skill",
+    ]);
+    await stamp("other-skill", 3);
+    expect(cellLinks(await (await get("/p/default")).text())).toEqual([
+      "/p/default/s/other-skill", "/p/default/s/demo-skill",
+    ]);
+  });
+
+  it("searches only this project and only what the visitor may see", async () => {
+    await seedProject("team-b", "Team B");
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(alice.cookie, GOOD_MD, "public");
+    await publish(alice.cookie, OTHER_MD, "private");
+    await publish(bob.cookie, GOOD_MD, "public", "team-b");
+
+    const anonymous = await (await get("/p/default?q=skill")).text();
+    expect(cellLinks(anonymous)).toEqual(["/p/default/s/demo-skill"]);
+    expect(anonymous).toContain('<a href="/p/default" class="cf-link">Clear search</a>');
+
+    expect(cellLinks(await (await get("/p/default?q=other", alice.cookie)).text())).toEqual([
+      "/p/default/s/other-skill",
+    ]);
+
+    const outsider = await (await get("/p/default?q=other", bob.cookie)).text();
+    expect(cellLinks(outsider)).toEqual([]);
+    expect(outsider).toContain("No skills in Default match");
+    expect(outsider).toContain('<a href="/p/default" class="cf-btn cf-btn-outline">Clear search</a>');
+  });
+
+  it("tells an instance admin outside an empty project that they have no key, and offers to publish", async () => {
+    await seedProject("team-b", "Team B");
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const html = await (await get("/p/team-b", cookie)).text();
+    expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
+    expect(html).not.toContain("npx skills add");
+    expect(html).toContain('<a href="/p/team-b/settings">Settings</a>');
+    expect(html).toContain("No skills in Team B yet.");
+    expect(html).toContain('<a href="/new?project=team-b" class="cf-btn cf-btn-primary">Publish the first skill</a>');
+  });
+
+  it("shows an instance admin outside a project every skill in it and its public command", async () => {
+    await seedProject("team-b", "Team B");
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(bob.cookie, GOOD_MD, "public", "team-b");
+    await publish(bob.cookie, OTHER_MD, "private", "team-b");
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
+    const html = await (await get("/p/team-b", cookie)).text();
+    expect(html).toContain(`npx skills add ${ORIGIN}/p/team-b`);
+    expect(cellLinks(html).sort()).toEqual(["/p/team-b/s/demo-skill", "/p/team-b/s/other-skill"]);
+  });
+});
+
+describe("/p/:project/settings", () => {
+  beforeEach(resetDb);
+
+  it("sends anonymous visitors to /login and 404s anyone outside the project", async () => {
+    await seedProject("team-b", "Team B");
+    const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
+    await publish(bob.cookie, GOOD_MD, "public", "team-b");
+    const { cookie } = await seedAndLogin({ username: "alice", role: "member" });
+    const anonymous = await get("/p/team-b/settings");
+    expect(anonymous.status).toBe(302);
+    expect(anonymous.headers.get("Location")).toBe("/login");
+    expect((await get("/p/team-b/settings", cookie)).status).toBe(404);
+    expect((await get("/p/nope/settings", cookie)).status).toBe(404);
+  });
+
+  it("shows a member their install command and the members, with no controls and no skill list", async () => {
     const alice = await seedAndLogin({ username: "alice", role: "member" });
     await seedUser({ username: "bob", role: "member" });
     await publish(alice.cookie, GOOD_MD, "private");
-    const html = await (await get("/p/default", alice.cookie)).text();
+    const html = await (await get("/p/default/settings", alice.cookie)).text();
     expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
     expect(html).toContain('action="/p/default/install-key"');
-    expect(html).toContain('href="/p/default/s/demo-skill"');
     expect(html).toContain("bob");
+    expect(html).toContain('<a href="/p/default" class="cf-link">');
+    expect(html).not.toContain('href="/p/default/s/demo-skill"');
     expect(html).not.toContain('action="/p/default/members"');
     expect(html).not.toContain('action="/p/default/rename"');
     expect(html).not.toContain("/remove");
@@ -130,7 +244,7 @@ describe("/p/:project", () => {
     const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
     await seedUser({ username: "carol", role: "member", project: null });
-    const html = await (await get("/p/default", lead.cookie)).text();
+    const html = await (await get("/p/default/settings", lead.cookie)).text();
     expect(html).toContain('action="/p/default/members"');
     expect(html).toContain(`action="/p/default/members/${bob.id}/role"`);
     expect(html).toContain(`action="/p/default/members/${bob.id}/remove"`);
@@ -140,10 +254,10 @@ describe("/p/:project", () => {
     expect(html).not.toContain('action="/p/default/delete"');
   });
 
-  it("tells an instance admin outside the project that they have no key for it", async () => {
+  it("tells an instance admin outside the project that they have no key for it, and lets them join", async () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const html = await (await get("/p/team-b", cookie)).text();
+    const html = await (await get("/p/team-b/settings", cookie)).text();
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
     expect(html).not.toContain("npx skills add");
     expect(html).not.toContain("/install-key");
@@ -163,7 +277,7 @@ describe("resetting an install key", () => {
 
     const res = await postForm("/p/default/install-key", cookie);
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/p/default");
+    expect(res.headers.get("Location")).toBe("/p/default/settings");
     const after = await installKey(user.id);
     expect(after).toMatch(/^[a-f0-9]{32}$/);
     expect(after).not.toBe(before);
@@ -202,7 +316,7 @@ describe("renaming a project", () => {
     const key = await installKey(lead.user.id);
     const res = await postForm("/p/default/rename", lead.cookie, { name: "Platform" });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/p/default");
+    expect(res.headers.get("Location")).toBe("/p/default/settings");
     expect(await (await follow(res, lead.cookie)).text()).toContain("Renamed the project to Platform.");
     expect((await getProject(env.DB, "default"))?.name).toBe("Platform");
     expect(await installKey(lead.user.id)).toBe(key);
@@ -244,7 +358,7 @@ describe("project membership", () => {
 
     const res = await postForm("/p/team-b/members", lead.cookie, { user: bob.id, role: "member" });
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/p/team-b");
+    expect(res.headers.get("Location")).toBe("/p/team-b/settings");
     const html = await (await follow(res, lead.cookie)).text();
     expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Added bob to Team B\.<\/span><\/p>/);
 
@@ -308,7 +422,7 @@ describe("project membership", () => {
 
     const res = await postForm(`/p/default/members/${bob.user.id}/remove`, cookie);
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe("/p/default");
+    expect(res.headers.get("Location")).toBe("/p/default/settings");
     const html = await (await follow(res, cookie)).text();
     expect(html).toContain("Removed bob from Default. Their install key for it no longer works.");
     expect(await indexStatus(key)).toBe(404);
@@ -345,7 +459,7 @@ describe("deleting a project", () => {
 
   it("warns that deleting Default breaks the legacy bare-origin addresses", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const html = await (await get("/p/default", cookie)).text();
+    const html = await (await get("/p/default/settings", cookie)).text();
     expect(html).toContain(
       "The old PUT /api/skills/&lt;name&gt; address and /s/&lt;name&gt; links publish into and point at this project, and stop working once it is deleted.",
     );
@@ -354,7 +468,7 @@ describe("deleting a project", () => {
   it("does not warn about bare-origin addresses when deleting a non-default project", async () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
-    const html = await (await get("/p/team-b", cookie)).text();
+    const html = await (await get("/p/team-b/settings", cookie)).text();
     expect(html).not.toContain("PUT /api/skills");
   });
 

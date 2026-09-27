@@ -1,15 +1,18 @@
 import { Hono } from "hono";
-import { canManageProject, currentUser, membershipIn, randomHex, requireAdmin, requireUser } from "../auth";
+import {
+  canManageProject, currentUser, membershipIn, randomHex, requireAdmin, requireUser, skillScope,
+} from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import {
   addMembership, createProject, deleteMembership, deleteProject, getMember, getProject, getUserById, listMembers,
-  listNonMembers, listProjectSkills, listProjectSummaries, projectNameTaken, renameProject, updateInstallKey,
-  updateMembershipRole,
+  listNonMembers, listProjectSkills, listProjectSummaries, listSkills, projectNameTaken, renameProject,
+  updateInstallKey, updateMembershipRole,
 } from "../db/queries";
 import type { ProjectRow, Viewer } from "../db/queries";
 import { flash } from "../flash";
-import { NewProjectPage, ProjectPage, ProjectsPage, PublicProjectPage } from "../views/projects";
+import { projectSettingsPath } from "../paths";
+import { NewProjectPage, ProjectPage, ProjectSettingsPage, ProjectsPage } from "../views/projects";
 
 const PROJECT_SLUG = /^[a-z0-9-]{2,32}$/;
 
@@ -49,7 +52,7 @@ projectsRoutes.post("/projects/new", requireAdmin, async (c) => {
   return c.redirect(`/p/${slug}`, 302);
 });
 
-async function memberPage(c: Ctx, user: Viewer, project: ProjectRow, error?: string): Promise<Response> {
+async function settingsPage(c: Ctx, user: Viewer, project: ProjectRow, error?: string): Promise<Response> {
   const manage = canManageProject(user, project.slug);
   const [skills, members, candidates] = await Promise.all([
     listProjectSkills(c.env.DB, project.slug, false),
@@ -58,11 +61,11 @@ async function memberPage(c: Ctx, user: Viewer, project: ProjectRow, error?: str
   ]);
   return page(
     c,
-    <ProjectPage
+    <ProjectSettingsPage
       user={user}
       project={project}
       origin={originOf(c)}
-      skills={skills}
+      hasSkills={skills.length > 0}
       members={members}
       candidates={candidates}
       canManage={manage}
@@ -91,10 +94,31 @@ projectsRoutes.get("/p/:project", async (c) => {
   const user = await currentUser(c);
   const project = await getProject(c.env.DB, c.req.param("project"));
   if (!project) return c.notFound();
-  if (user && (user.role === "admin" || membershipIn(user, project.slug))) return memberPage(c, user, project);
-  const skills = await listProjectSkills(c.env.DB, project.slug, true);
-  if (skills.length === 0) return c.notFound();
-  return page(c, <PublicProjectPage user={user} project={project} origin={originOf(c)} skills={skills} />);
+  const q = c.req.query("q") ?? "";
+  const [skills, publicSkills] = await Promise.all([
+    listSkills(c.env.DB, { scope: skillScope(user), project: project.slug, q: q || undefined }),
+    listProjectSkills(c.env.DB, project.slug, true),
+  ]);
+  const insider = user !== null && (user.role === "admin" || membershipIn(user, project.slug) !== undefined);
+  if (!insider && publicSkills.length === 0) return c.notFound();
+  return page(
+    c,
+    <ProjectPage
+      user={user}
+      project={project}
+      origin={originOf(c)}
+      skills={skills}
+      q={q}
+      hasPublicSkills={publicSkills.length > 0}
+    />,
+  );
+});
+
+projectsRoutes.get("/p/:project/settings", requireUser, async (c) => {
+  const user = c.get("user");
+  const project = await getProject(c.env.DB, c.req.param("project"));
+  if (!project || (user.role !== "admin" && !membershipIn(user, project.slug))) return c.notFound();
+  return settingsPage(c, user, project);
 });
 
 projectsRoutes.post("/p/:project/install-key", requireUser, async (c) => {
@@ -102,7 +126,7 @@ projectsRoutes.post("/p/:project/install-key", requireUser, async (c) => {
   const project = c.req.param("project");
   if (!membershipIn(user, project)) return c.notFound();
   await updateInstallKey(c.env.DB, project, user.id, randomHex(16));
-  return c.redirect(`/p/${project}`, 302);
+  return c.redirect(projectSettingsPath(project), 302);
 });
 
 projectsRoutes.post("/p/:project/rename", requireUser, async (c) => {
@@ -111,13 +135,13 @@ projectsRoutes.post("/p/:project/rename", requireUser, async (c) => {
   const { project } = guard;
   const body = await c.req.parseBody();
   const name = projectName(body.name);
-  if (!name) return memberPage(c, c.get("user"), project, NAME_ERROR);
+  if (!name) return settingsPage(c, c.get("user"), project, NAME_ERROR);
   if (await projectNameTaken(c.env.DB, name, project.slug)) {
-    return memberPage(c, c.get("user"), project, "That name is taken");
+    return settingsPage(c, c.get("user"), project, "That name is taken");
   }
   await renameProject(c.env.DB, project.slug, name);
   await flash(c, `Renamed the project to ${name}.`);
-  return c.redirect(`/p/${project.slug}`, 302);
+  return c.redirect(projectSettingsPath(project.slug), 302);
 });
 
 projectsRoutes.post("/p/:project/members", requireUser, async (c) => {
@@ -126,15 +150,15 @@ projectsRoutes.post("/p/:project/members", requireUser, async (c) => {
   const { project } = guard;
   const body = await c.req.parseBody();
   const target = await getUserById(c.env.DB, String(body.user ?? ""));
-  if (!target) return memberPage(c, c.get("user"), project, "Choose an account to add");
+  if (!target) return settingsPage(c, c.get("user"), project, "Choose an account to add");
   if (await getMember(c.env.DB, project.slug, target.id)) {
-    return memberPage(c, c.get("user"), project, `${target.username} is already a member`);
+    return settingsPage(c, c.get("user"), project, `${target.username} is already a member`);
   }
   await addMembership(c.env.DB, {
     project: project.slug, userId: target.id, role: roleOf(body.role), installKey: randomHex(16),
   });
   await flash(c, `Added ${target.username} to ${project.name}.`);
-  return c.redirect(`/p/${project.slug}`, 302);
+  return c.redirect(projectSettingsPath(project.slug), 302);
 });
 
 projectsRoutes.post("/p/:project/members/:userId/role", requireUser, async (c) => {
@@ -144,7 +168,7 @@ projectsRoutes.post("/p/:project/members/:userId/role", requireUser, async (c) =
   if (!member) return c.notFound();
   const body = await c.req.parseBody();
   await updateMembershipRole(c.env.DB, guard.project.slug, member.user_id, roleOf(body.role));
-  return c.redirect(`/p/${guard.project.slug}`, 302);
+  return c.redirect(projectSettingsPath(guard.project.slug), 302);
 });
 
 projectsRoutes.post("/p/:project/members/:userId/remove", requireUser, async (c) => {
@@ -157,14 +181,14 @@ projectsRoutes.post("/p/:project/members/:userId/remove", requireUser, async (c)
   await flash(c, `Removed ${member.username} from ${project.name}. Their install key for it no longer works.`);
   const user = c.get("user");
   const stillSees = user.role === "admin" || member.user_id !== user.id;
-  return c.redirect(stillSees ? `/p/${project.slug}` : "/projects", 302);
+  return c.redirect(stillSees ? projectSettingsPath(project.slug) : "/projects", 302);
 });
 
 projectsRoutes.post("/p/:project/delete", requireAdmin, async (c) => {
   const project = await getProject(c.env.DB, c.req.param("project"));
   if (!project) return c.notFound();
   if (!(await deleteProject(c.env.DB, project.slug))) {
-    return memberPage(c, c.get("user"), project, `${project.name} still has skills. Move or delete them first.`);
+    return settingsPage(c, c.get("user"), project, `${project.name} still has skills. Move or delete them first.`);
   }
   await flash(c, `Deleted project ${project.name}.`);
   return c.redirect("/projects", 302);

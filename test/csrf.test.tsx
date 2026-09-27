@@ -92,6 +92,7 @@ const READ_ONLY_GETS = new Set([
   "GET /projects",
   "GET /projects/new",
   "GET /p/:project",
+  "GET /p/:project/settings",
   "GET /p/:project/s/:slug/edit",
   "GET /p/:project/s/:slug/upload",
   "GET /",

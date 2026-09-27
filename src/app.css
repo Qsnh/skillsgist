@@ -1472,6 +1472,14 @@
     overflow-wrap: anywhere;
   }
 
+  .cf-project-title {
+    overflow-wrap: anywhere;
+  }
+
+  .cf-hero-lede + .cf-search {
+    margin-top: 36px;
+  }
+
   .cf-hero-meta {
     display: flex;
     flex-wrap: wrap;
@@ -1868,6 +1876,10 @@
     }
 
     .cf-command-raised {
+      margin-top: 28px;
+    }
+
+    .cf-hero-lede + .cf-search {
       margin-top: 28px;
     }
 
