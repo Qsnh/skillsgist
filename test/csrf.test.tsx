@@ -45,6 +45,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /admin/users/:id/role": ({ userId }) => `/admin/users/${userId}/role`,
   "POST /admin/users/:id/password": ({ userId }) => `/admin/users/${userId}/password`,
   "POST /admin/users/:id/install-key": ({ userId }) => `/admin/users/${userId}/install-key`,
+  "POST /admin/users/:id/api-token": ({ userId }) => `/admin/users/${userId}/api-token`,
   "POST /admin/users/:id/api-token/revoke": ({ userId }) => `/admin/users/${userId}/api-token/revoke`,
   "POST /admin/users/:id/delete": ({ userId }) => `/admin/users/${userId}/delete`,
   "POST /new": () => "/new",

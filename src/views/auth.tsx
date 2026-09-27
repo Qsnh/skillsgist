@@ -163,7 +163,7 @@ export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
   );
 }
 
-export function UserSettingsPage(props: { user: UserRow; target: UserSummary; error?: string }) {
+export function UserSettingsPage(props: { user: UserRow; target: UserSummary; error?: string; newToken?: string }) {
   const { target } = props;
   const isSelf = target.id === props.user.id;
   const path = userSettingsPath(target.id);
@@ -208,17 +208,38 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
           </Panel>
 
           <Panel title="API token">
-            <p class="cf-status">
-              Status:{" "}
-              <span class={target.api_token_hash ? "cf-status-value cf-status-on" : "cf-status-value"}>
-                {target.api_token_hash ? "active" : "not generated"}
-              </span>
-            </p>
-            {target.api_token_hash ? (
-              <Form action={`${path}/api-token/revoke`} class="cf-actions">
-                <Button variant="danger">Revoke API token</Button>
+            {props.newToken ? (
+              <>
+                <CodeBlock prompt={false}>{props.newToken}</CodeBlock>
+                <p class="cf-notice">
+                  <AlertIcon />
+                  This token is shown once. Save it now.
+                </p>
+              </>
+            ) : (
+              <>
+                <p class="cf-status">
+                  Status:{" "}
+                  <span class={target.api_token_hash ? "cf-status-value cf-status-on" : "cf-status-value"}>
+                    {target.api_token_hash ? "active" : "not generated"}
+                  </span>
+                </p>
+                <p class="cf-hint">
+                  Generating a token replaces {isSelf ? "your" : `${target.username}'s`} current one at once. The new
+                  token is shown only once, on this page.
+                </p>
+              </>
+            )}
+            <div class="cf-actions">
+              <Form action={`${path}/api-token`}>
+                <Button variant="outline">Generate a new token</Button>
               </Form>
-            ) : null}
+              {target.api_token_hash ? (
+                <Form action={`${path}/api-token/revoke`}>
+                  <Button variant="danger">Revoke API token</Button>
+                </Form>
+              ) : null}
+            </div>
           </Panel>
 
           <Panel title="Reset password">

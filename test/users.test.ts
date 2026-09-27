@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as auth from "../src/auth";
 import { addMembership, countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import { sha256Hex } from "../src/hash";
 import {
   apiToken, env, FLASH_CLEARED, flashCookie, follow, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown,
   resetDb, seedAndLogin, seedProject, seedUser,
@@ -323,7 +324,7 @@ describe("/admin/users", () => {
     expect(own).toContain('<td data-label="Skills" class="cf-table-date">0</td>');
 
     expect(html).not.toContain('<th scope="col">Actions</th>');
-    for (const action of ["role", "password", "install-key", "api-token/revoke", "delete"]) {
+    for (const action of ["role", "password", "install-key", "api-token", "api-token/revoke", "delete"]) {
       expect(html).not.toContain(`/${action}"`);
     }
   });
@@ -449,6 +450,8 @@ describe("/admin/users/:id", () => {
     expect(html).toContain(`action="/admin/users/${id}/install-key"`);
     expect(html).toContain('<span class="cf-status-value cf-status-on">active</span>');
     expect(html).toContain(`action="/admin/users/${id}/api-token/revoke"`);
+    expect(html).toContain(`action="/admin/users/${id}/api-token"`);
+    expect(html).toContain("Generating a token replaces carol&#39;s current one at once.");
     expect(html).toContain(`action="/admin/users/${id}/password"`);
     expect(html).toContain(`action="/admin/users/${id}/delete"`);
   });
@@ -459,6 +462,8 @@ describe("/admin/users/:id", () => {
     const html = await (await view(id, root.cookie)).text();
     expect(html).toContain(`action="/admin/users/${id}/install-key"`);
     expect(html).toContain(`action="/admin/users/${id}/password"`);
+    expect(html).toContain(`action="/admin/users/${id}/api-token"`);
+    expect(html).toContain("Generating a token replaces your current one at once.");
     expect(html).not.toContain(`/admin/users/${id}/role`);
     expect(html).not.toContain(`/admin/users/${id}/delete`);
     expect(html).toContain("Only another admin can change your role.");
@@ -472,6 +477,7 @@ describe("/admin/users/:id", () => {
     expect(html).not.toContain(`/admin/users/${dave.id}/install-key`);
     expect(html).toContain('<span class="cf-status-value">not generated</span>');
     expect(html).not.toContain(`/admin/users/${dave.id}/api-token/revoke`);
+    expect(html).toContain(`action="/admin/users/${dave.id}/api-token"`);
   });
 
   it("puts account deletion behind a confirm step that names the user", async () => {
@@ -485,6 +491,44 @@ describe("/admin/users/:id", () => {
     expect(blocks[0]).toContain(`action="/admin/users/${carol.id}/delete"`);
     expect(blocks[0]).toContain(`<button type="submit" class="cf-btn cf-btn-danger">Delete carol</button>`);
   });
+
+  it("lets an admin generate a token for another account, shows it once and replaces the old one", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const carol = await seedAndLogin({ username: "carol", role: "member" });
+    const old = await apiToken(carol.cookie);
+
+    const res = await postForm(`/admin/users/${carol.user.id}/api-token`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('<h1 class="cf-head-title">carol settings</h1>');
+    const token = /<code class="cf-command-text">(sgt_[a-f0-9]{32})<\/code>/.exec(html)?.[1];
+    expect(token).toBeDefined();
+    expect(html).toContain("This token is shown once. Save it now.");
+    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(1);
+
+    const put = (bearer: string) =>
+      SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "text/markdown" },
+        body: GOOD_MD,
+      });
+    expect((await put(old)).status).toBe(404);
+    expect((await put(token!)).status).toBe(201);
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(carol.user.id);
+
+    const again = await (await view(carol.user.id, cookie)).text();
+    expect(again).not.toContain(token!);
+    expect(again).toContain('<span class="cf-status-value cf-status-on">active</span>');
+  });
+
+  it("lets an admin generate their own token from their own settings page", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const res = await postForm(`/admin/users/${root.user.id}/api-token`, root.cookie);
+    expect(res.status).toBe(200);
+    const token = /sgt_[a-f0-9]{32}/.exec(await res.text())?.[0];
+    expect(token).toBeDefined();
+    expect((await getUserByUsername(env.DB, "root"))?.api_token_hash).toBe(await sha256Hex(token!));
+  });
 });
 
 describe("/admin/users/:id/*", () => {
@@ -494,6 +538,7 @@ describe("/admin/users/:id/*", () => {
     { path: "role", body: { role: "admin" } },
     { path: "password", body: { password: "another-long-password" } },
     { path: "install-key", body: {} },
+    { path: "api-token", body: {} },
     { path: "api-token/revoke", body: {} },
     { path: "delete", body: {} },
   ];
