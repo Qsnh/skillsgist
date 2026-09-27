@@ -219,6 +219,25 @@ describe("skills", () => {
     expect(await slugs({ kind: "root" })).toEqual(["elsewhere", "shared"]);
   });
 
+  it("narrows an index to one name without widening its scope", async () => {
+    await q.insertVersion(env.DB, { ...base, slug: "secret", name: "secret" });
+    await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "shared", name: "shared", visibility: "public" });
+    await q.insertVersion(env.DB, {
+      ...base, skillId: "s3", project: "team-b", slug: "shared", name: "shared", visibility: "public",
+    });
+    const slugs = async (filter: q.IndexFilter, slug: string) =>
+      (await q.listPublishedForIndex(env.DB, filter, slug)).map((s) => s.slug);
+
+    expect(await slugs({ kind: "project", project: "default", publicOnly: false }, "secret")).toEqual(["secret"]);
+    expect(await slugs({ kind: "project", project: "default", publicOnly: true }, "secret")).toEqual([]);
+    expect(await slugs({ kind: "project", project: "team-b", publicOnly: true }, "shared")).toEqual(["shared"]);
+    expect(await slugs({ kind: "root" }, "shared")).toEqual([]);
+    expect(await slugs({ kind: "root" }, "missing")).toEqual([]);
+
+    await q.setVisibility(env.DB, "team-b", "shared", "private");
+    expect(await slugs({ kind: "root" }, "shared")).toEqual(["shared"]);
+  });
+
   it("finds artifacts by project, name and version or digest, and public ones by name and digest", async () => {
     await q.insertVersion(env.DB, base);
     await q.insertVersion(env.DB, { ...base, skillId: "s2", project: "team-b", digest: digest("b"), visibility: "public" });

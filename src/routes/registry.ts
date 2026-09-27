@@ -77,8 +77,7 @@ async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
     base = `${origin}${projectPath(req.scope.project)}`;
     filter = { kind: "project", project: req.scope.project, publicOnly: true };
   }
-  const rows = await listPublishedForIndex(c.env.DB, filter);
-  return indexResponse(buildIndex(req.only ? rows.filter((r) => r.slug === req.only) : rows, base));
+  return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, filter, req.only), base));
 }
 
 const indexRoute = (c: Ctx) => {

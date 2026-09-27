@@ -364,24 +364,34 @@ export async function listVersions(db: D1Database, project: string, slug: string
 export async function listPublishedForIndex(
   db: D1Database,
   filter: IndexFilter,
+  slug: string | null = null,
 ): Promise<Array<{ slug: string; description: string; digest: string }>> {
-  const select = `SELECT s.slug, v.description, v.digest
-                  FROM skills s
-                  JOIN versions v ON v.skill_id = s.id AND v.version = s.latest_version`;
-  const statement =
-    filter.kind === "root"
-      ? db.prepare(
-          `${select}
-           WHERE s.visibility = 'public'
-             AND NOT EXISTS (SELECT 1 FROM skills o WHERE o.slug = s.slug AND o.id <> s.id AND o.visibility = 'public')
-           ORDER BY s.slug`,
-        )
-      : db
-          .prepare(
-            `${select} WHERE s.project = ?${filter.publicOnly ? " AND s.visibility = 'public'" : ""} ORDER BY s.slug`,
-          )
-          .bind(filter.project);
-  const { results } = await statement.all<{ slug: string; description: string; digest: string }>();
+  const clauses: string[] = [];
+  const binds: unknown[] = [];
+  const bind = (value: unknown) => {
+    binds.push(value);
+    return `?${binds.length}`;
+  };
+  if (filter.kind === "root") {
+    clauses.push(
+      "s.visibility = 'public'",
+      "NOT EXISTS (SELECT 1 FROM skills o WHERE o.slug = s.slug AND o.id <> s.id AND o.visibility = 'public')",
+    );
+  } else {
+    clauses.push(`s.project = ${bind(filter.project)}`);
+    if (filter.publicOnly) clauses.push("s.visibility = 'public'");
+  }
+  if (slug !== null) clauses.push(`s.slug = ${bind(slug)}`);
+  const { results } = await db
+    .prepare(
+      `SELECT s.slug, v.description, v.digest
+       FROM skills s
+       JOIN versions v ON v.skill_id = s.id AND v.version = s.latest_version
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY s.slug`,
+    )
+    .bind(...binds)
+    .all<{ slug: string; description: string; digest: string }>();
   return results;
 }
 
