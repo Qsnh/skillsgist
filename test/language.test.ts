@@ -1,7 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { returnPath, safeNext } from "../src/paths";
-import { csrfFor, get, ORIGIN, postForm, resetDb, seedAndLogin } from "./helpers";
+import { csrfFor, get, ORIGIN, postForm, resetDb, seedAndLogin, seedUser } from "./helpers";
 
 const switchAnonymously = (fields: Record<string, string>) =>
   SELF.fetch(`${ORIGIN}/lang`, {
@@ -123,5 +123,36 @@ describe("footer language switcher", () => {
     });
     expect(res.status).toBe(400);
     expect(switcher(await res.text())).toContain('name="next" value="/me"');
+  });
+});
+
+describe("footer language switcher after chained POSTs", () => {
+  beforeEach(resetDb);
+
+  const postFrom = async (cookie: string, path: string, referer: string, fields: Record<string, string>) =>
+    SELF.fetch(`${ORIGIN}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Origin: ORIGIN,
+        Referer: `${ORIGIN}${referer}`,
+        Cookie: cookie,
+      },
+      body: new URLSearchParams({ _csrf: await csrfFor(cookie), ...fields }),
+      redirect: "manual",
+    });
+
+  it.each<[string, (bob: string) => [path: string, referer: string, fields: Record<string, string>, back: string]]>([
+    ["a second failed password change", () => ["/me/password", "/me/password", { current: "wrong-password", next: "another-long-password" }, "/me"]],
+    ["a new token after a failed password change", () => ["/me/api-token", "/me/password", {}, "/me"]],
+    ["a second failed project rename", () => ["/p/default/rename", "/p/default/rename", { name: "" }, "/p/default/settings"]],
+    ["a second failed admin password reset", (bob) => [`/admin/users/${bob}/password`, `/admin/users/${bob}/password`, { password: "short" }, `/admin/users/${bob}`]],
+  ])("returns to the page's own address after %s", async (_label, request) => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user: bob } = await seedUser({ username: "bob", role: "member" });
+    const [path, referer, fields, back] = request(bob.id);
+    const res = await postFrom(cookie, path, referer, fields);
+    expect(res.status).toBeLessThan(500);
+    expect(switcher(await res.text())).toContain(`name="next" value="${back}"`);
   });
 });

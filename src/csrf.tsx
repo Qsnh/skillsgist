@@ -46,11 +46,12 @@ export async function page(
   c: Ctx,
   element: JSX.Element,
   status?: ContentfulStatusCode,
+  returnTo?: string,
 ): Promise<Response> {
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
   return c.html(
     <LocaleContext.Provider value={localeOf(c)}>
-      <ReturnPathContext.Provider value={returnPath(c.req.method, c.req.url, c.req.header("Referer"))}>
+      <ReturnPathContext.Provider value={returnTo ?? returnPath(c.req.method, c.req.url, c.req.header("Referer"))}>
         <OriginContext.Provider value={new URL(c.req.url).origin}>
           <CsrfContext.Provider value={token ?? ""}>
             <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>

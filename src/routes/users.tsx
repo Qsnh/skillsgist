@@ -42,6 +42,7 @@ const userSettings = async (
     c,
     <UserSettingsPage user={c.get("user")} target={target} error={extra.error} newToken={extra.newToken} />,
     extra.error ? 400 : undefined,
+    userSettingsPath(target.id),
   );
 };
 
@@ -94,7 +95,7 @@ usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("us
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
   const { token, hash } = await issueApiToken(c.env.DB, user.id);
-  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />);
+  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />, undefined, "/me");
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -107,11 +108,11 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
   const t = messages(c);
   const body = await c.req.parseBody();
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} error={t.auth.currentPasswordWrong} />, 400);
+    return page(c, <MePage user={user} error={t.auth.currentPasswordWrong} />, 400, "/me");
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} error={t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH)} />, 400);
+    return page(c, <MePage user={user} error={t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH)} />, 400, "/me");
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   await flash(c, t.auth.passwordChanged);

@@ -317,3 +317,20 @@ describe("plain-text refusals", () => {
     expect(await res.text()).toBe(zhCN.errors.requestValidation);
   });
 });
+
+describe("link placeholders inside translated sentences", () => {
+  beforeEach(resetDb);
+
+  const link = (to: "upload" | "edit", text: string) =>
+    `<a href="/p/default/s/demo-skill/${to}" class="cf-link">${text}</a>`;
+
+  it.each<[string, string, string]>([
+    ["ja", `など）は「${link("upload", "アーカイブをアップロード")}」を使ってください。`, `場合は「${link("edit", "編集")}」を使ってください。`],
+    ["zh-CN", `请使用“${link("upload", "上传压缩包")}”。`, `请使用“${link("edit", "编辑")}”。`],
+    ["zh-TW", `請使用「${link("upload", "上傳壓縮檔")}」。`, `請使用「${link("edit", "編輯")}」。`],
+  ])("quotes the linked page name in %s", async (locale, editLede, uploadLede) => {
+    const { cookie } = await seedWithSkills({}, [GOOD_MD, "private"]);
+    expect(await htmlIn("/p/default/s/demo-skill/edit", { Cookie: withLang(cookie, locale) })).toContain(editLede);
+    expect(await htmlIn("/p/default/s/demo-skill/upload", { Cookie: withLang(cookie, locale) })).toContain(uploadLede);
+  });
+});

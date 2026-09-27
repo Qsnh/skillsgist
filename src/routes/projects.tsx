@@ -71,6 +71,7 @@ async function settingsPage(c: Ctx, user: Viewer, project: ProjectRow, error?: s
       error={error}
     />,
     error ? 400 : undefined,
+    projectSettingsPath(project.slug),
   );
 }
 
