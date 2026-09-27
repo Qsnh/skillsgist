@@ -355,7 +355,7 @@ describe("/admin/users/new", () => {
     expect(html).toContain('<a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>');
     expect(html).not.toContain('<option value="admin" selected="">');
     expect(html).toContain(
-      "New accounts start in no project. Add them to a project from its page to give them access to its private skills.",
+      "New accounts start in no project. Add them to a project from its settings page to give them access to its private skills.",
     );
   });
 

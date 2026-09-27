@@ -243,8 +243,8 @@ export function NewUserPage(props: {
                 <option value="admin" selected={props.role === "admin"}>admin</option>
               </Select>
               <p class="cf-hint">
-                New accounts start in no project. Add them to a project from its page to give them access to its
-                private skills.
+                New accounts start in no project. Add them to a project from its settings page to give them access to
+                its private skills.
               </p>
             </div>
           </div>
