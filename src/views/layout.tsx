@@ -64,6 +64,8 @@ export function Layout(props: {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="theme-color" content="#fdfdfc" />
           <title>{props.title} · skillsgist</title>
+          <link rel="icon" type="image/png" href="/favicon.png" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
           <link rel="preload" href="/fonts/schibsted-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <link rel="stylesheet" href="/app.css" />
           <script src="/copy.js" defer />
@@ -73,7 +75,10 @@ export function Layout(props: {
           <a href="#main" class="cf-skip">Skip to content</a>
           <header class="cf-nav">
             <nav class="cf-nav-inner" aria-label="Main">
-              <a href="/" class="cf-wordmark">skillsgist</a>
+              <a href="/" class="cf-wordmark">
+                <img src="/logo.png" width="24" height="24" alt="" class="cf-wordmark-mark" />
+                skillsgist
+              </a>
               <span class="flex-1" />
               {props.user ? (
                 <>

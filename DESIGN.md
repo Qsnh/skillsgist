@@ -594,6 +594,10 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Danger Tint** (#fef3f2): the fill of an error alert and the hover fill of a danger button.
 - **Danger Line** (#f4c7c3): the border of an error alert and the resting border of a danger button.
 
+### Mark
+The mark is the only place with more than one hue. Its four bands run top to bottom, and none of them is a UI color.
+- **Mark Violet** (#7b5cff), **Mark Rose** (#ff3d7f), **Signal Orange** (#ff5e1f) and **Mark Amber** (#ffb61e): the bands of the mark, in that order. Violet, Rose and Amber never appear outside it.
+
 ### Neutral
 - **Ink** (#171717): headings, cell titles, button, field and menu labels, input text, file paths, the wordmark, and bold text inside a rendered SKILL.md.
 - **Graphite** (#404040): secondary ink for the tags, count pill, chips, footer links, the resting cell arrow and download icon, and quoted text in a SKILL.md.
@@ -636,7 +640,7 @@ The palette has one hot orange, three deeper oranges that do the work, an ember 
 - **Auth Title** (500, 28px, 1.15, -0.025em): the title inside the sign-in and setup frame, 24px above the form.
 - **Title Large** (500, 22px, -0.02em): the title of an empty state inside a frame.
 - **Title** (500, 19px, 1.3, -0.02em): the full name of a skill cell, `<project name>/<slug>`, which acts as the link.
-- **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav. The footer mark uses the same form at 15px.
+- **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav, 8px to the right of the 24px mark. The footer mark uses the same form at 15px, without the mark.
 - **Panel Title** (500, 17px, -0.02em): the title in a header strip, such as Files, Versions or API token.
 - **Lede** (400, 18px, 1.5; 16px below 640px): the supporting line on the panel. It is set in Ember and uses `text-wrap: pretty`. It is capped at 54ch on the index and 64ch on the skill page.
 - **Page Lede** (400, 16px, 1.6): the explanation under a page title, in Body Gray, capped at 68ch, with inline Orange Ink links.
@@ -761,13 +765,18 @@ The top of every working page.
 - **Done:** the same shape in Ink on white with a Hairline Strong border, and a 16px check-circle icon in Orange Ink. It confirms a change the page cannot show, such as "Your password has been changed." It sits under the page head, 24px above the content, keeps off the dashed gutters like the Alert, and is announced with `role="status"`.
 
 ### Navigation
-- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the lowercase wordmark, a flexible spacer and the actions. The nav has no link group.
+- **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the mark and the lowercase wordmark as one home link, a flexible spacer and the actions. The nav has no link group.
 - **Signed in:** a primary Publish pill, then the account menu. The menu is a `<details>` whose summary is an outline pill showing the username (truncated at 14ch) and a Warm Muted chevron. The chevron rotates 180° when the menu is open, and the summary border turns Ink.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Projects, Users (admins only) and Sign out, which is a form button.
-- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the wordmark.
+- **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the mark and the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
 - **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
 - **Mobile:** gutters drop to 16px. The actions keep their full size.
+
+### Mark
+- **Form:** a rounded square with 25% corners, filled with the four Mark bands. Three rounded speed cuts run in from the left edge along the band seams, 6% of the side thick and 30%, 44% and 24% of the side long, so the square reads as moving right. A keyhole is knocked out right of center and centered vertically, running from 22% to 78% of the side, so it crosses the top and bottom seams by the same amount: a circle of 13.5% radius over a slot that widens to 20%. The cuts say quick, the keyhole says private.
+- **Source:** `scripts/logo.html` draws the mark on a canvas and previews it at every size. `npm run logo` renders that page in headless Chrome and writes `public/logo.png` (96px, shown at 24px in the nav), `public/favicon.png` (64px) and `public/apple-touch-icon.png` (180px, square, with the cuts and keyhole filled Paper because iOS turns transparency black). Change the drawing, then rerun it; never edit the PNGs by hand.
+- **Knockouts:** the cuts and keyhole are transparent, so the ground shows through them on Paper, white or ink alike.
 
 ### Command Panel (signature)
 The hero of the system: an orange field that hands over one line of shell, or on the index says where to find it.
@@ -826,6 +835,7 @@ The hero of the system: an orange field that hands over one line of shell, or on
 
 ### Don't:
 - **Don't** use a Cloudflare logo, cloud mark or any trademarked Cloudflare asset. The style is borrowed, not the brand.
+- **Don't** take Mark Violet, Mark Rose or Mark Amber into the interface. They belong to the mark alone.
 - **Don't** set body text, links or button labels in white on Signal Orange (3.06:1).
 - **Don't** put an orange panel on a form, account, admin or sign-in page. An install command there goes in the flat code block.
 - **Don't** fill a button or a banner with Danger red. Danger is a line and a text color.

@@ -38,6 +38,7 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "typecheck": "tsc --noEmit",
     "verify:cli": "node scripts/verify-cli.mjs",
+    "logo": "node scripts/export-logo.mjs",
     "fixtures": "./scripts/make-fixtures.sh"
   },
   "cloudflare": {

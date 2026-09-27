@@ -149,10 +149,17 @@
   }
 
   .cf-wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.035em;
     color: var(--color-cf-ink);
+  }
+
+  .cf-wordmark-mark {
+    flex: none;
   }
 
   .cf-tag {

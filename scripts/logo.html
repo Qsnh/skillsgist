@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>skillsgist logo</title>
+    <style>
+      @font-face {
+        font-family: "Schibsted Grotesk";
+        src: url("../public/fonts/schibsted-grotesk-latin.woff2") format("woff2");
+        font-weight: 400 900;
+      }
+
+      body {
+        margin: 0;
+        padding: 48px;
+        background: #fdfdfc;
+        color: #171717;
+        font: 15px/1.5 "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+      }
+
+      main {
+        display: grid;
+        gap: 40px;
+        max-width: 880px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.025em;
+      }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 32px;
+      }
+
+      figure {
+        display: grid;
+        justify-items: start;
+        gap: 10px;
+        margin: 0;
+      }
+
+      figcaption {
+        color: #6b6560;
+        font-size: 13px;
+      }
+
+      .ink {
+        padding: 20px;
+        background: #171717;
+      }
+
+      .lockup {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+
+      .lockup-lg {
+        gap: 16px;
+        font-size: 48px;
+      }
+
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>skillsgist logo</h1>
+      <div class="row">
+        <figure><span data-mark="320"></span><figcaption>Mark</figcaption></figure>
+      </div>
+      <div class="row">
+        <figure><span data-mark="128"></span><figcaption>128</figcaption></figure>
+        <figure><span data-mark="64"></span><figcaption>64</figcaption></figure>
+        <figure><span data-mark="32"></span><figcaption>32</figcaption></figure>
+        <figure><span data-mark="16"></span><figcaption>16</figcaption></figure>
+        <figure><span class="ink" data-mark="64"></span><figcaption>On ink</figcaption></figure>
+        <figure><span data-mark="96" data-radius="0" data-hole="#fdfdfc"></span><figcaption>Touch icon</figcaption></figure>
+      </div>
+      <div class="row">
+        <figure><span class="lockup lockup-lg"><span data-mark="56"></span>skillsgist</span><figcaption>Lockup</figcaption></figure>
+        <figure><span class="lockup"><span data-mark="24"></span>skillsgist</span><figcaption>Nav</figcaption></figure>
+      </div>
+      <div id="export" hidden></div>
+    </main>
+    <script>
+      const BANDS = ["#7b5cff", "#ff3d7f", "#ff5e1f", "#ffb61e"];
+      const CUTS = [0.3, 0.44, 0.24];
+      const EXPORTS = [
+        ["logo.png", 96],
+        ["favicon.png", 64],
+        ["apple-touch-icon.png", 180, { radius: 0, hole: "#fdfdfc" }],
+      ];
+
+      function cuts(ctx, s) {
+        const band = s / BANDS.length;
+        const thickness = s * 0.06;
+        ctx.beginPath();
+        CUTS.forEach((length, i) => {
+          ctx.roundRect(-s, band * (i + 1) - thickness / 2, s * (1 + length), thickness, thickness / 2);
+        });
+      }
+
+      function keyhole(ctx, s) {
+        const radius = s * 0.135;
+        const depth = s * 0.425;
+        const cx = s * 0.68;
+        const cy = (s + radius - depth) / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.moveTo(cx - s * 0.05, cy);
+        ctx.lineTo(cx + s * 0.05, cy);
+        ctx.lineTo(cx + s * 0.1, cy + depth);
+        ctx.lineTo(cx - s * 0.1, cy + depth);
+        ctx.closePath();
+      }
+
+      function drawMark(ctx, s, { radius = 0.25, hole } = {}) {
+        const band = s / BANDS.length;
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(0, 0, s, s, s * radius);
+        ctx.clip();
+        BANDS.forEach((color, i) => {
+          ctx.fillStyle = color;
+          ctx.fillRect(0, band * i, s, s - band * i);
+        });
+        ctx.restore();
+        ctx.save();
+        if (hole) ctx.fillStyle = hole;
+        else ctx.globalCompositeOperation = "destination-out";
+        for (const shape of [cuts, keyhole]) {
+          shape(ctx, s);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function markCanvas(size, scale, options) {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size * scale;
+        canvas.style.width = canvas.style.height = `${size}px`;
+        canvas.style.display = "block";
+        const ctx = canvas.getContext("2d");
+        ctx.scale(scale, scale);
+        drawMark(ctx, size, options);
+        return canvas;
+      }
+
+      const scale = Math.max(2, Math.ceil(devicePixelRatio));
+      for (const slot of document.querySelectorAll("[data-mark]")) {
+        const options = {};
+        if (slot.dataset.radius) options.radius = Number(slot.dataset.radius);
+        if (slot.dataset.hole) options.hole = slot.dataset.hole;
+        slot.prepend(markCanvas(Number(slot.dataset.mark), scale, options));
+      }
+
+      if (location.hash === "#export") {
+        const target = document.getElementById("export");
+        for (const [file, size, options] of EXPORTS) {
+          const pre = document.createElement("pre");
+          pre.dataset.file = file;
+          pre.textContent = markCanvas(size, 1, options).toDataURL("image/png");
+          target.append(pre);
+        }
+      }
+    </script>
+  </body>
+</html>
