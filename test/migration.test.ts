@@ -22,32 +22,28 @@ const VERSION_COLUMNS =
 
 const SKILL_COLUMNS = "id, project, slug, description, owner_id, latest_version, created_at, updated_at";
 
+const insertSkill = (id: string, project: string | null, slug: string) =>
+  db.prepare(`INSERT INTO skills (${SKILL_COLUMNS}) VALUES (?, ?, ?, 'd', 'u1', 1, 0, 0)`).bind(id, project, slug).run();
+
 describe("migration 0003 on an instance that already has data", () => {
   beforeAll(async () => {
     await wipe();
     await applyD1Migrations(db, beforeProjects);
+    const user = db.prepare(
+      "INSERT INTO users (id, username, password_hash, role, install_key, api_token_hash, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    const skill = db.prepare(
+      "INSERT INTO skills (slug, description, visibility, owner_id, latest_version, created_at, updated_at, download_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    const version = db.prepare(`INSERT INTO versions (${VERSION_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     await db.batch([
-      db.prepare(
-        "INSERT INTO users (id, username, password_hash, role, install_key, api_token_hash, created_at, last_login_at) VALUES ('u1', 'root', 'h1', 'admin', 'key-root', NULL, 1, 5)",
-      ),
-      db.prepare(
-        "INSERT INTO users (id, username, password_hash, role, install_key, api_token_hash, created_at, last_login_at) VALUES ('u2', 'bob', 'h2', 'member', 'key-bob', 'token-hash', 2, NULL)",
-      ),
-      db.prepare(
-        "INSERT INTO skills (slug, description, visibility, owner_id, latest_version, created_at, updated_at, download_count) VALUES ('demo', 'A demo', 'public', 'u2', 2, 10, 20, 7)",
-      ),
-      db.prepare(
-        "INSERT INTO skills (slug, description, visibility, owner_id, latest_version, created_at, updated_at, download_count) VALUES ('other', 'Another', 'private', 'u1', 1, 11, 21, 0)",
-      ),
-      db.prepare(
-        `INSERT INTO versions (${VERSION_COLUMNS}) VALUES ('demo', 1, 'sha256:a', 1, 'demo', 'A demo', 'md1', 'html1', 1, '[]', 'skills/demo/1.zip', 'u2', 10)`,
-      ),
-      db.prepare(
-        `INSERT INTO versions (${VERSION_COLUMNS}) VALUES ('demo', 2, 'sha256:b', 2, 'demo', 'A demo', 'md2', 'html2', 1, '[]', 'skills/demo/2.zip', 'u1', 20)`,
-      ),
-      db.prepare(
-        `INSERT INTO versions (${VERSION_COLUMNS}) VALUES ('other', 1, 'sha256:c', 3, 'other', 'Another', 'md3', 'html3', 1, '[]', 'skills/other/1.zip', 'u1', 11)`,
-      ),
+      user.bind("u1", "root", "h1", "admin", "key-root", null, 1, 5),
+      user.bind("u2", "bob", "h2", "member", "key-bob", "token-hash", 2, null),
+      skill.bind("demo", "A demo", "public", "u2", 2, 10, 20, 7),
+      skill.bind("other", "Another", "private", "u1", 1, 11, 21, 0),
+      version.bind("demo", 1, "sha256:a", 1, "demo", "A demo", "md1", "html1", 1, "[]", "skills/demo/1.zip", "u2", 10),
+      version.bind("demo", 2, "sha256:b", 2, "demo", "A demo", "md2", "html2", 1, "[]", "skills/demo/2.zip", "u1", 20),
+      version.bind("other", 1, "sha256:c", 3, "other", "Another", "md3", "html3", 1, "[]", "skills/other/1.zip", "u1", 11),
     ]);
     await applyD1Migrations(db, fromProjects);
   });
@@ -104,10 +100,8 @@ describe("migration 0003 on an instance that already has data", () => {
 
   it("allows one name per project, and the same name in another project", async () => {
     await db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)").run();
-    const insert = (id: string, project: string) =>
-      db.prepare(`INSERT INTO skills (${SKILL_COLUMNS}) VALUES (?, ?, 'demo', 'd', 'u1', 1, 0, 0)`).bind(id, project).run();
-    await expect(insert("x1", "default")).rejects.toThrow(/UNIQUE/);
-    await expect(insert("x2", "team-b")).resolves.toBeDefined();
+    await expect(insertSkill("x1", "default", "demo")).rejects.toThrow(/UNIQUE/);
+    await expect(insertSkill("x2", "team-b", "demo")).resolves.toBeDefined();
   });
 
   it("refuses a second project with the same name in any letter case", async () => {
@@ -117,10 +111,8 @@ describe("migration 0003 on an instance that already has data", () => {
   });
 
   it("refuses a skill with no project or an unknown one", async () => {
-    const insert = (project: string | null) =>
-      db.prepare(`INSERT INTO skills (${SKILL_COLUMNS}) VALUES ('y1', ?, 'fresh', 'd', 'u1', 1, 0, 0)`).bind(project).run();
-    await expect(insert(null)).rejects.toThrow(/NOT NULL/);
-    await expect(insert("nope")).rejects.toThrow(/FOREIGN KEY/);
+    await expect(insertSkill("y1", null, "fresh")).rejects.toThrow(/NOT NULL/);
+    await expect(insertSkill("y1", "nope", "fresh")).rejects.toThrow(/FOREIGN KEY/);
   });
 
   it("refuses to orphan memberships or skills", async () => {
