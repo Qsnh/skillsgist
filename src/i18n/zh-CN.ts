@@ -282,4 +282,8 @@ export const zhCN: Messages = {
     emptySkillMd: () => "SKILL.md 不能为空",
     chooseArchive: () => "请选择一个压缩包",
   },
+  errors: {
+    requestValidation: "请求校验失败，请刷新页面后重试。",
+    internal: "服务器内部错误",
+  },
 };

@@ -3,7 +3,7 @@ import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
 import { API_PREFIX, csrfToken } from "./csrf";
-import { detectLocale, localeOf } from "./i18n";
+import { detectLocale, localeOf, messages } from "./i18n";
 import { languageRoutes } from "./routes/language";
 import { projectsRoutes } from "./routes/projects";
 import { publishRoutes } from "./routes/publish";
@@ -44,7 +44,7 @@ app.onError((err, c) => {
   if (c.req.path.startsWith(API_PREFIX) || accepts.includes("application/json")) {
     return c.json({ error: "internal_error", message: "Internal server error" }, 500);
   }
-  return c.html("<h1>Internal server error</h1>", 500);
+  return c.html(`<h1>${messages(c).errors.internal}</h1>`, 500);
 });
 
 export default app;

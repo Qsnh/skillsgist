@@ -635,6 +635,8 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 
 **Character:** A plain, slightly condensed grotesk at weight 500 with tight tracking, paired with a round, friendly mono. Both are self-hosted woff2 files in `public/fonts/`, split into Latin and Latin Extended subsets and loaded with `font-display: swap`. The Latin grotesk file is preloaded.
 
+**Chinese and Japanese:** Latin text keeps Schibsted Grotesk and Han and kana fall through to a stack chosen by the page's language: PingFang SC, Hiragino Sans GB, Microsoft YaHei and Noto Sans CJK SC for `zh-CN`; PingFang TC, Hiragino Sans TC, Microsoft JhengHei and Noto Sans CJK TC for `zh-TW`; Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic UI, Meiryo and Noto Sans CJK JP for `ja`. `<html lang>` always names the page's language, so browsers pick the right glyph variants. The negative tracking on the hero, page, registry, empty-state, panel and sign-in titles is reset to 0 in those languages, and the hero title's cap becomes 16em, because a `ch` holds only half a CJK glyph. Japanese titles, the hero lede and empty-state titles break at phrase boundaries (`word-break: auto-phrase`), and below 640px the Japanese skill toolbar stacks in one column because its labels are too wide for two.
+
 ### Hierarchy
 - **Display** (500, clamp(36px, 5.4vw, 56px), 1.02, -0.035em): the one headline inside the index panel. It is white, centered, capped at 19ch and uses `text-wrap: balance`.
 - **Display Skill** (500, clamp(32px, 4.4vw, 48px), 1.02, -0.035em): the skill's full name, `<project name>/<slug>`, on the compact skill panel. It is white and left-aligned, has no measure cap and breaks anywhere.
@@ -773,7 +775,7 @@ The top of every working page.
 - **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Projects, Users (admins only) and Sign out, which is a form button.
 - **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the mark and the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
-- **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 18px mark and the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset.
+- **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 18px mark and the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset. To the left of the links sits the language switcher: English, 简体中文, 繁體中文 and 日本語, each written in its own language. The current one is Ink at weight 600; the others are Graphite text buttons that underline on hover like the links.
 - **Mobile:** gutters drop to 16px. The actions keep their full size.
 
 ### Mark

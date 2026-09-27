@@ -49,6 +49,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 - Skill names are unique within a project. A project has a changeable name and a fixed address. A skill moves between projects with its versions, owner, visibility and download count, unless the target already has a skill with its name.
 - Search covers names, descriptions, and body text. Anonymous visitors see only public skills.
 - The discovery index drops any entry whose name, description, or digest would fail the CLI's own validation, rather than serving a half-broken index.
+- The web UI is in English, Simplified Chinese, Traditional Chinese and Japanese. The language comes from the `sg_lang` cookie that the footer switcher sets, then the browser's `Accept-Language`, then English. Taiwan, Hong Kong, Macau and `zh-Hant` browsers get Traditional Chinese (in Taiwan wording); every other Chinese variant gets Simplified. Page addresses, install commands, the discovery index and the API, error messages included, are the same in every language. Skill content and every name are never translated.
 
 **Durable constraints**
 
@@ -58,7 +59,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 - Content-Security-Policy on every HTML response: `default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 - The last remaining admin can never be demoted or deleted.
 - Deleting a user reassigns the skills they own and the author records on their versions to the admin performing the delete, because neither column may be null. Original authorship is lost. Withdrawing access without that cost means removing the person from their projects and resetting their password.
-- Project language is English throughout — code, identifiers, documentation, commit messages, and UI text.
+- Code, identifiers, documentation and commit messages are in English. UI text is written in English and translated into Simplified Chinese, Traditional Chinese and Japanese; English is the source and the fallback.
 
 **Undecided**
 

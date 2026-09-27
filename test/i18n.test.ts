@@ -297,3 +297,23 @@ describe("publishing", () => {
     expect(await res.json()).toEqual({ error: "invalid_upload", message: "Upload is empty" });
   });
 });
+
+describe("plain-text refusals", () => {
+  beforeEach(resetDb);
+
+  it("refuses a missing CSRF token in Chinese", async () => {
+    const { cookie } = await seedAndLogin();
+    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Origin: ORIGIN,
+        Cookie: withLang(cookie, "zh-CN"),
+      },
+      body: "",
+      redirect: "manual",
+    });
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(zhCN.errors.requestValidation);
+  });
+});

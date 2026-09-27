@@ -282,4 +282,8 @@ export const zhTW: Messages = {
     emptySkillMd: () => "SKILL.md 不能為空",
     chooseArchive: () => "請選擇一個壓縮檔",
   },
+  errors: {
+    requestValidation: "請求驗證失敗，請重新整理頁面後再試一次。",
+    internal: "伺服器內部錯誤",
+  },
 };

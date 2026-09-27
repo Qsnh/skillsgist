@@ -303,6 +303,10 @@ export const en = {
     emptySkillMd: () => "SKILL.md cannot be empty",
     chooseArchive: () => "Choose an archive",
   },
+  errors: {
+    requestValidation: "Request validation failed. Refresh the page and try again.",
+    internal: "Internal server error",
+  },
 };
 
 export type Messages = typeof en;

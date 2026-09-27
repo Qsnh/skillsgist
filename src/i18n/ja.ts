@@ -301,4 +301,8 @@ export const ja: Messages = {
     emptySkillMd: () => "SKILL.md を空にすることはできません",
     chooseArchive: () => "アーカイブを選んでください",
   },
+  errors: {
+    requestValidation: "リクエストの検証に失敗しました。ページを再読み込みしてもう一度お試しください。",
+    internal: "サーバー内部エラー",
+  },
 };

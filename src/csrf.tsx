@@ -5,7 +5,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
 import { FlashContext, takeFlash } from "./flash";
-import { LocaleContext, localeOf } from "./i18n";
+import { LocaleContext, localeOf, messages } from "./i18n";
 import { returnPath } from "./paths";
 
 
@@ -81,7 +81,7 @@ export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   const body = await c.req.parseBody();
   const supplied = body[CSRF_FIELD];
   if (typeof supplied !== "string" || !constantTimeEqual(supplied, expected)) {
-    return c.text("Request validation failed. Refresh the page and try again.", 403);
+    return c.text(messages(c).errors.requestValidation, 403);
   }
   return next();
 };
