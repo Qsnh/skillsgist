@@ -39,6 +39,7 @@
     "typecheck": "tsc --noEmit",
     "verify:cli": "node scripts/verify-cli.mjs",
     "logo": "node scripts/export-logo.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
     "fixtures": "./scripts/make-fixtures.sh"
   },
   "cloudflare": {

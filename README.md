@@ -33,7 +33,7 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 - Admin and member roles for the instance and for each project, with account and project administration in the browser
 - Server-rendered pages that work without JavaScript, under a strict Content-Security-Policy
 
-![A skill page: the install command for one skill, actions, the rendered SKILL.md, its files and its versions](docs/images/skill.png)
+![A skill page: the install command for one skill, actions, the rendered SKILL.md, its details and its files](docs/images/skill.png)
 
 ## Deploy
 
@@ -260,11 +260,12 @@ npm test                   # unit and integration tests
 npm run typecheck
 npm run verify:cli         # a contract test against the real npx skills
 npm run logo               # redraws the mark from scripts/logo.html into public/ and docs/images/
+npm run screenshots        # retakes docs/images/home.png and skill.png from a throwaway instance
 ```
 
 `verify:cli` starts its own `wrangler dev` with a throwaway session secret, so it needs no `.dev.vars`.
 
-`logo` drives headless Chrome. It looks for Chrome at the macOS default path; set `CHROME_PATH` to use another.
+`logo` and `screenshots` drive headless Chrome. They look for Chrome at the macOS default path; set `CHROME_PATH` to use another. `screenshots` also needs port 8799 and 9333 free and the `zip` command.
 
 ## Contributing
 
