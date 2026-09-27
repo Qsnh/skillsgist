@@ -63,11 +63,19 @@ describe("migration 0003 on an instance that already has data", () => {
     ]);
   });
 
-  it("makes every account a member of the default project with the install key it had, regardless of its instance role", async () => {
-    expect(await rows("SELECT project, user_id, role, install_key FROM memberships ORDER BY user_id")).toEqual([
-      { project: "default", user_id: "u1", role: "member", install_key: "key-root" },
-      { project: "default", user_id: "u2", role: "member", install_key: "key-bob" },
+  it("makes every account a member of the default project, regardless of its instance role", async () => {
+    expect(await rows("SELECT project, user_id, role FROM memberships ORDER BY user_id")).toEqual([
+      { project: "default", user_id: "u1", role: "member" },
+      { project: "default", user_id: "u2", role: "member" },
     ]);
+  });
+
+  it("gives every membership a new install key instead of the one the account had", async () => {
+    const keys = (await rows("SELECT install_key FROM memberships ORDER BY user_id")).map((r) => r.install_key);
+    for (const key of keys) expect(key).toMatch(/^[0-9a-f]{32}$/);
+    expect(keys).not.toContain("key-root");
+    expect(keys).not.toContain("key-bob");
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("puts every skill in the default project under a new id and keeps the rest of the row", async () => {
