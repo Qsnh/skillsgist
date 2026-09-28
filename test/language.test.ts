@@ -1,17 +1,11 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { returnPath, safeNext } from "../src/paths";
-import { csrfFor, get, ORIGIN, postForm, resetDb, seedAndLogin, seedUser } from "./helpers";
+import { LOCALE_COOKIE } from "../src/i18n/locales";
+import { safeNext } from "../src/paths";
+import { fetchWith, get, postForm, resetDb, seedAndLogin, seedUser, setCookieLine } from "./helpers";
 
-const switchAnonymously = (fields: Record<string, string>) =>
-  SELF.fetch(`${ORIGIN}/lang`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
-    body: new URLSearchParams(fields),
-    redirect: "manual",
-  });
+const switchAnonymously = (fields: Record<string, string>) => postForm("/lang", null, fields);
 
-const langCookie = (res: Response) => res.headers.getSetCookie().find((line) => line.startsWith("sg_lang="));
+const langCookie = (res: Response) => setCookieLine(res, LOCALE_COOKIE);
 
 const switcher = (html: string) => /<form method="post" action="\/lang"[\s\S]*?<\/form>/.exec(html)?.[0] ?? "";
 
@@ -35,20 +29,6 @@ describe("safeNext", () => {
   });
 });
 
-describe("returnPath", () => {
-  it("is the current path and query on a GET", () => {
-    expect(returnPath("GET", `${ORIGIN}/p/default?q=%E6%97%A5`, undefined)).toBe("/p/default?q=%E6%97%A5");
-  });
-
-  it("is the same-origin Referer's path on a POST", () => {
-    expect(returnPath("POST", `${ORIGIN}/me/api-token`, `${ORIGIN}/me`)).toBe("/me");
-  });
-
-  it.each([undefined, "https://evil.example.com/me", "not a url"])("is / on a POST with Referer %o", (referer) => {
-    expect(returnPath("POST", `${ORIGIN}/me/api-token`, referer)).toBe("/");
-  });
-});
-
 describe("POST /lang", () => {
   beforeEach(resetDb);
 
@@ -57,12 +37,10 @@ describe("POST /lang", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/login");
     const cookie = langCookie(res);
-    for (const part of ["sg_lang=ja", "Max-Age=31536000", "Path=/", "HttpOnly", "SameSite=Lax"]) {
+    for (const part of [`${LOCALE_COOKIE}=ja`, "Max-Age=31536000", "Path=/", "HttpOnly", "SameSite=Lax"]) {
       expect(cookie).toContain(part);
     }
-    const html = await (
-      await SELF.fetch(`${ORIGIN}/login`, { headers: { Cookie: "sg_lang=ja", "Accept-Language": "zh-CN" } })
-    ).text();
+    const html = await (await fetchWith("/login", { Cookie: `${LOCALE_COOKIE}=ja`, "Accept-Language": "zh-CN" })).text();
     expect(html).toContain('<html lang="ja">');
   });
 
@@ -83,7 +61,7 @@ describe("POST /lang", () => {
     const res = await postForm("/lang", cookie, { lang: "zh-CN", next: "/me" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/me");
-    expect(langCookie(res)).toContain("sg_lang=zh-CN");
+    expect(langCookie(res)).toContain(`${LOCALE_COOKIE}=zh-CN`);
   });
 });
 
@@ -91,9 +69,7 @@ describe("footer language switcher", () => {
   beforeEach(resetDb);
 
   it("offers the other three languages and marks the current one", async () => {
-    const form = switcher(
-      await (await SELF.fetch(`${ORIGIN}/?q=x`, { headers: { "Accept-Language": "ja" } })).text(),
-    );
+    const form = switcher(await (await fetchWith("/?q=x", { "Accept-Language": "ja" })).text());
     expect(form).toContain('<input type="hidden" name="next" value="/?q=x"/>');
     expect(form).toContain('<span lang="ja">日本語</span>');
     expect(form).toContain('<span class="cf-menu-item cf-lang-option" aria-current="true" lang="ja">日本語');
@@ -110,49 +86,26 @@ describe("footer language switcher", () => {
   });
 
   it("returns to the form's page after a POST re-renders it", async () => {
-    const { cookie } = await seedAndLogin();
-    const res = await SELF.fetch(`${ORIGIN}/me/password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Origin: ORIGIN,
-        Referer: `${ORIGIN}/me`,
-        Cookie: cookie,
-      },
-      body: new URLSearchParams({ _csrf: await csrfFor(cookie), current: "wrong-password", next: "another-long-password" }),
-      redirect: "manual",
-    });
-    expect(res.status).toBe(400);
-    expect(switcher(await res.text())).toContain('name="next" value="/me"');
+    await seedUser({ username: "alice" });
+    const res = await postForm("/login", null, { username: "alice", password: "wrong-password" });
+    expect(res.status).toBe(401);
+    expect(switcher(await res.text())).toContain('name="next" value="/login"');
   });
 });
 
-describe("footer language switcher after chained POSTs", () => {
+describe("footer language switcher on a page rendered by a POST-only address", () => {
   beforeEach(resetDb);
 
-  const postFrom = async (cookie: string, path: string, referer: string, fields: Record<string, string>) =>
-    SELF.fetch(`${ORIGIN}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Origin: ORIGIN,
-        Referer: `${ORIGIN}${referer}`,
-        Cookie: cookie,
-      },
-      body: new URLSearchParams({ _csrf: await csrfFor(cookie), ...fields }),
-      redirect: "manual",
-    });
-
-  it.each<[string, (bob: string) => [path: string, referer: string, fields: Record<string, string>, back: string]]>([
-    ["a second failed password change", () => ["/me/password", "/me/password", { current: "wrong-password", next: "another-long-password" }, "/me"]],
-    ["a new token after a failed password change", () => ["/me/api-token", "/me/password", {}, "/me"]],
-    ["a second failed project rename", () => ["/p/default/rename", "/p/default/rename", { name: "" }, "/p/default/settings"]],
-    ["a second failed admin password reset", (bob) => [`/admin/users/${bob}/password`, `/admin/users/${bob}/password`, { password: "short" }, `/admin/users/${bob}`]],
+  it.each<[string, (bob: string) => [path: string, fields: Record<string, string>, back: string]]>([
+    ["a failed password change", () => ["/me/password", { current: "wrong-password", next: "another-long-password" }, "/me"]],
+    ["a new API token", () => ["/me/api-token", {}, "/me"]],
+    ["a failed project rename", () => ["/p/default/rename", { name: "" }, "/p/default/settings"]],
+    ["a failed admin password reset", (bob) => [`/admin/users/${bob}/password`, { password: "short" }, `/admin/users/${bob}`]],
   ])("returns to the page's own address after %s", async (_label, request) => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
-    const [path, referer, fields, back] = request(bob.id);
-    const res = await postFrom(cookie, path, referer, fields);
+    const [path, fields, back] = request(bob.id);
+    const res = await postForm(path, cookie, fields);
     expect(res.status).toBeLessThan(500);
     expect(switcher(await res.text())).toContain(`name="next" value="${back}"`);
   });

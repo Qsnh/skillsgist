@@ -36,15 +36,3 @@ export function safeNext(value: unknown): string {
   }
   return value;
 }
-
-export function returnPath(method: string, url: string, referer: string | undefined): string {
-  const current = new URL(url);
-  if (method === "GET" || method === "HEAD") return safeNext(`${current.pathname}${current.search}`);
-  if (!referer) return "/";
-  try {
-    const from = new URL(referer);
-    return from.origin === current.origin ? safeNext(`${from.pathname}${from.search}`) : "/";
-  } catch {
-    return "/";
-  }
-}

@@ -128,6 +128,7 @@ export async function postForm(
   path: string,
   cookie: string | null,
   data: Record<string, string> = {},
+  headers: Record<string, string> = {},
 ): Promise<Response> {
   const fields = cookie ? { ...data, _csrf: await csrfFor(cookie) } : data;
   return SELF.fetch(`${ORIGIN}${path}`, {
@@ -136,6 +137,7 @@ export async function postForm(
       "Content-Type": "application/x-www-form-urlencoded",
       ...SAME_ORIGIN,
       ...(cookie ? { Cookie: cookie } : {}),
+      ...headers,
     },
     body: new URLSearchParams(fields),
     redirect: "manual",
@@ -197,9 +199,11 @@ export async function seedAndToken(
 
 export const FLASH_CLEARED = new RegExp(`^${FLASH_COOKIE}=;.*Max-Age=0`, "i");
 
-export function flashCookie(res: Response): string | undefined {
-  return res.headers.getSetCookie().find((line) => line.startsWith(`${FLASH_COOKIE}=`));
+export function setCookieLine(res: Response, name: string): string | undefined {
+  return res.headers.getSetCookie().find((line) => line.startsWith(`${name}=`));
 }
+
+export const flashCookie = (res: Response) => setCookieLine(res, FLASH_COOKIE);
 
 export async function follow(res: Response, cookie: string): Promise<Response> {
   const location = res.headers.get("Location");
@@ -250,8 +254,10 @@ export async function indexAt(base: string, alias: "agent-skills" | "skills" = "
 export const indexNames = async (base: string, alias?: "agent-skills" | "skills") =>
   (await indexAt(base, alias)).map((s) => s.name);
 
-export const get = (path: string, cookie?: string) =>
-  SELF.fetch(`${ORIGIN}${path}`, { headers: cookie ? { Cookie: cookie } : {}, redirect: "manual" });
+export const fetchWith = (path: string, headers: Record<string, string> = {}) =>
+  SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
+
+export const get = (path: string, cookie?: string) => fetchWith(path, cookie ? { Cookie: cookie } : {});
 
 export function putSkill(
   token: string,

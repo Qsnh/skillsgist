@@ -6,7 +6,7 @@ import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
 import { FlashContext, takeFlash } from "./flash";
 import { LocaleContext, localeOf, messages } from "./i18n";
-import { returnPath } from "./paths";
+import { safeNext } from "./paths";
 
 
 const CsrfContext = createContext<string>("");
@@ -49,10 +49,11 @@ export async function page(
   returnTo?: string,
 ): Promise<Response> {
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
+  const here = new URL(c.req.url);
   return c.html(
     <LocaleContext.Provider value={localeOf(c)}>
-      <ReturnPathContext.Provider value={returnTo ?? returnPath(c.req.method, c.req.url, c.req.header("Referer"))}>
-        <OriginContext.Provider value={new URL(c.req.url).origin}>
+      <ReturnPathContext.Provider value={returnTo ?? safeNext(`${here.pathname}${here.search}`)}>
+        <OriginContext.Provider value={here.origin}>
           <CsrfContext.Provider value={token ?? ""}>
             <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
           </CsrfContext.Provider>

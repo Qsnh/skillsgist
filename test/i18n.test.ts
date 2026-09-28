@@ -5,16 +5,14 @@ import { localeOf } from "../src/i18n";
 import { en } from "../src/i18n/en";
 import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
+import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { follow, GOOD_MD, ORIGIN, postForm, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject, seedUser, seedWithSkills } from "./helpers";
+import { fetchWith, follow, GOOD_MD, ORIGIN, postForm, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject, seedUser, seedWithSkills } from "./helpers";
 
-const fetchIn = (path: string, headers: Record<string, string> = {}) =>
-  SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
+const htmlIn = async (path: string, headers: Record<string, string> = {}) => (await fetchWith(path, headers)).text();
 
-const htmlIn = async (path: string, headers: Record<string, string> = {}) => (await fetchIn(path, headers)).text();
-
-const withLang = (cookie: string, locale: string) => `${cookie}; sg_lang=${locale}`;
+const withLang = (cookie: string, locale: string) => `${cookie}; ${LOCALE_COOKIE}=${locale}`;
 
 function leaves(value: unknown, path = ""): Array<[string, unknown]> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -61,11 +59,11 @@ describe("locale detection", () => {
     [{ "Accept-Language": "fr-FR, ja;q=0.8, en;q=0.5" }, "ja"],
     [{ "Accept-Language": "fr" }, "en"],
     [{ "Accept-Language": "ja;q=0" }, "en"],
-    [{ Cookie: "sg_lang=ja", "Accept-Language": "zh-CN" }, "ja"],
-    [{ Cookie: "sg_lang=zh-TW", "Accept-Language": "zh-CN" }, "zh-TW"],
-    [{ Cookie: "sg_lang=klingon", "Accept-Language": "zh-CN" }, "zh-CN"],
+    [{ Cookie: `${LOCALE_COOKIE}=ja`, "Accept-Language": "zh-CN" }, "ja"],
+    [{ Cookie: `${LOCALE_COOKIE}=zh-TW`, "Accept-Language": "zh-CN" }, "zh-TW"],
+    [{ Cookie: `${LOCALE_COOKIE}=klingon`, "Accept-Language": "zh-CN" }, "zh-CN"],
   ])("answers %o in %s", async (headers, locale) => {
-    const res = await fetchIn("/", headers);
+    const res = await fetchWith("/", headers);
     expect(await res.text()).toContain(`<html lang="${locale}">`);
     expect(res.headers.get("Content-Language")).toBe(locale);
     expect(res.headers.get("Vary")).toContain("Accept-Language");
@@ -86,7 +84,7 @@ describe("locale detection", () => {
   });
 
   it("leaves the discovery index untouched", async () => {
-    const res = await fetchIn("/.well-known/agent-skills/index.json", { "Accept-Language": "ja" });
+    const res = await fetchWith("/.well-known/agent-skills/index.json", { "Accept-Language": "ja" });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Language")).toBeNull();
     expect(res.headers.get("Set-Cookie")).toBeNull();
@@ -137,12 +135,7 @@ describe("sign-in, account and user administration", () => {
   it("renders sign-in in Japanese and refuses a bad password in Japanese", async () => {
     await seedUser({ username: "alice" });
     expect(await htmlIn("/login", { "Accept-Language": "ja" })).toContain(ja.common.username);
-    const res = await SELF.fetch(`${ORIGIN}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, "Accept-Language": "ja" },
-      body: new URLSearchParams({ username: "alice", password: "wrong-password-123" }),
-      redirect: "manual",
-    });
+    const res = await postForm("/login", null, { username: "alice", password: "wrong-password-123" }, { "Accept-Language": "ja" });
     expect(res.status).toBe(401);
     expect(await res.text()).toContain(ja.auth.badCredentials);
   });
@@ -167,7 +160,7 @@ describe("sign-in, account and user administration", () => {
 
   it("refuses a member at an admin page in Japanese", async () => {
     const { cookie } = await seedAndLogin({ username: "bob", role: "member" });
-    const res = await fetchIn("/admin/users", { Cookie: withLang(cookie, "ja") });
+    const res = await fetchWith("/admin/users", { Cookie: withLang(cookie, "ja") });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe(ja.users.adminsOnly);
   });
@@ -289,7 +282,7 @@ describe("publishing", () => {
         Authorization: `Bearer ${token}`,
         "Content-Type": "text/markdown",
         "Accept-Language": "ja",
-        Cookie: "sg_lang=ja",
+        Cookie: `${LOCALE_COOKIE}=ja`,
       },
       body: "",
     });
