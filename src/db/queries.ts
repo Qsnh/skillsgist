@@ -20,6 +20,7 @@ export interface MembershipRow {
   role: "admin" | "member";
   install_key: string;
   created_at: number;
+  can_publish: number;
 }
 
 export type Membership = MembershipRow & { project_name: string };
@@ -240,11 +241,13 @@ export async function listProjects(db: D1Database): Promise<ProjectRow[]> {
 
 export async function addMembership(
   db: D1Database,
-  input: { project: string; userId: string; role: "admin" | "member"; installKey: string },
+  input: { project: string; userId: string; role: "admin" | "member"; installKey: string; canPublish?: boolean },
 ): Promise<void> {
   await db
-    .prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(input.project, input.userId, input.role, input.installKey, Date.now())
+    .prepare(
+      "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(input.project, input.userId, input.role, input.installKey, input.canPublish ? 1 : 0, Date.now())
     .run();
 }
 

@@ -312,6 +312,7 @@ describe("project membership", () => {
 
     const row = await membership(bob.id, "team-b");
     expect(row?.role).toBe("member");
+    expect(row?.can_publish).toBe(0);
     expect(row?.install_key).toMatch(/^[a-f0-9]{32}$/);
     expect(row?.install_key).not.toBe(await installKey(bob.id));
     expect(await indexStatus(row!.install_key)).toBe(200);

@@ -11,8 +11,8 @@ const viewer = (over: Partial<Viewer> = {}): Viewer => ({
   api_token_hash: null, created_at: 0, last_login_at: null, memberships: [], ...over,
 });
 
-const member = (project: string, role: "admin" | "member" = "member"): Membership => ({
-  project, project_name: project, user_id: "u1", role, install_key: "k", created_at: 0,
+const member = (project: string, role: "admin" | "member" = "member", can_publish = 1): Membership => ({
+  project, project_name: project, user_id: "u1", role, install_key: "k", created_at: 0, can_publish,
 });
 
 const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
