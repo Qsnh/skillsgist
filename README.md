@@ -151,12 +151,12 @@ npm install
 npm run deploy
 ```
 
-If you deployed with the button, your copy is a separate repository rather than a fork. Merge this repository into it and push; Workers Builds deploys again and applies any new migrations. Keep the `database_id` that Cloudflare wrote into your `wrangler.jsonc` if the merge touches it.
+If you deployed with the button, your copy is a separate repository rather than a fork. Merge this repository into it and push; Workers Builds deploys again and applies any new migrations.
 
 ```bash
 git remote add upstream https://github.com/Qsnh/skillsgist.git
 git fetch upstream
-git merge upstream/main    # the first time, Git may ask for --allow-unrelated-histories
+git merge upstream/main
 git push
 ```
 
