@@ -210,7 +210,7 @@ npm run verify:cli         # a contract test against the real npx skills
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. Code and docs are in English. UI text is written in English in `src/i18n/en.ts` and translated in `src/i18n/zh-CN.ts`, `src/i18n/zh-TW.ts` and `src/i18n/ja.ts`; `npm run typecheck` fails until a new message is in all four. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
+Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
 
 ## License
 
