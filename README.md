@@ -127,16 +127,6 @@ Each membership has its own role:
 
 **Deleting an account reassigns its skills and the author records on its versions to the admin who deletes it**, because neither may point at a user that no longer exists. The original authorship is lost.
 
-## Security model
-
-- **The install key sits in the URL.** `npx skills` sends no custom headers, so the credential for a private install can only live in the path. That is why the key can do nothing but install, why each key reaches only one project's skills, and why it resets in one click.
-- **API tokens live only in a header.** `/api/*` reads `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into publishing on someone's behalf. Tokens are stored as hashes.
-- **Web forms carry a CSRF token** bound to the session, on top of an `Origin` check.
-- **Sessions are signed cookies**, HMAC-signed with `SESSION_SECRET` and valid for 30 days. Passwords are hashed with PBKDF2.
-- **Every page is served with a Content-Security-Policy** that allows only same-origin scripts and forbids framing.
-
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
 ## Limits
 
 An upload may be at most 2 MB, unpack to at most 8 MB, and contain at most 200 files. These limits keep each request inside the Workers Free plan's 10 ms CPU budget. On Workers Paid you can raise `MAX_UPLOAD_BYTES`, `MAX_UNPACKED_BYTES` and `MAX_FILES` in `src/skills/normalize.ts`, and `PBKDF2_ITERATIONS` in `src/auth.ts`.
