@@ -405,6 +405,32 @@ describe("publishing into a project", () => {
     expect(await getSkill(env.DB, "team-b", "demo-skill")).not.toBeNull();
   });
 
+  it("refuses a member whose publishing is blocked, even a new version or a republish of their own skill", async () => {
+    const alice = await seedAndToken({ username: "alice", role: "member" });
+    await putSkill(alice.token, GOOD_MD);
+    await denyPublish(alice.user.id);
+    const refusal = {
+      error: "forbidden",
+      message: "You are not allowed to publish to default. Ask one of its admins to allow it.",
+    };
+    for (const [body, slug] of [[`${GOOD_MD}\nv2\n`, "demo-skill"], [GOOD_MD, "demo-skill"], [OTHER_MD, "other-skill"]]) {
+      const res = await putSkill(alice.token, body, { slug });
+      expect(res.status, slug).toBe(403);
+      expect(await res.json()).toEqual(refusal);
+    }
+    const form = await postMultipart("/new", alice.cookie, { markdown: OTHER_MD, project: "default" });
+    expect(form.status).toBe(403);
+    expect(await form.text()).toContain(refusal.message);
+    expect(await listVersions(env.DB, "default", "demo-skill")).toHaveLength(1);
+    expect(await getSkill(env.DB, "default", "other-skill")).toBeNull();
+  });
+
+  it("lets a project admin publish whatever their switch says", async () => {
+    const lead = await seedAndToken({ username: "lead", role: "member", projectRole: "admin" });
+    await denyPublish(lead.user.id);
+    expect((await putSkill(lead.token, GOOD_MD)).status).toBe(201);
+  });
+
   // `versions.author_id` must record
   // who actually published a version, not who owns the skill — otherwise
   // the column is just a copy of `skills.owner_id` and can never show that

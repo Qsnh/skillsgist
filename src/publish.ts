@@ -1,4 +1,4 @@
-import { canAccessProject, canManage, randomHex } from "./auth";
+import { canAccessProject, canManage, canPublishIn, randomHex } from "./auth";
 import { getProject, getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { VersionRow, Viewer } from "./db/queries";
 import { issue, IssueError } from "./i18n/issues";
@@ -47,6 +47,9 @@ export async function publishBytes(
     : [null, null];
   if (!project) {
     throw new ForbiddenError(issue("noSuchProject", opts.project));
+  }
+  if (!canPublishIn(user, project.slug)) {
+    throw new ForbiddenError(issue("publishNotAllowed", project.slug));
   }
   if (existing && !canManage(user, existing)) {
     throw new ForbiddenError(issue("notYours", normalized.name));

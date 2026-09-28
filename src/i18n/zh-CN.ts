@@ -272,6 +272,7 @@ export const zhCN: Messages = {
     invalidDescription: () => "SKILL.md frontmatter 中的 description 无效：不能为空，且最多 1024 个字符",
     slugMismatch: (url, declared) => `URL 中的 slug 是 ${url}，但 SKILL.md 声明的 name 是 ${declared}，两者必须一致`,
     noSuchProject: (project) => `不存在名为 ${project} 且你可以发布的项目`,
+    publishNotAllowed: (project) => `你没有向 ${project} 发布的权限。请联系该项目的管理员开通。`,
     notYours: (name) => `技能 ${name} 属于其他用户，你不能覆盖它`,
     unchanged: (version, slug) => `内容与 ${slug} 的最新版本 v${version} 完全相同，因此没有发布新版本`,
     archiveMissing: (version) =>

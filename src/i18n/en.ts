@@ -291,6 +291,8 @@ export const en = {
     slugMismatch: (url: string, declared: string) =>
       `The slug in the URL is ${url} but SKILL.md declares name ${declared}; they must agree`,
     noSuchProject: (project: string) => `There is no project named ${project} that you can publish to`,
+    publishNotAllowed: (project: string) =>
+      `You are not allowed to publish to ${project}. Ask one of its admins to allow it.`,
     notYours: (name: string) => `skill ${name} belongs to another user; you cannot overwrite it`,
     unchanged: (version: number, slug: string) =>
       `This is identical to v${version}, the latest version of ${slug}, so no new version was published`,

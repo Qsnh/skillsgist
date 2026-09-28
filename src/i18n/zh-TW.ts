@@ -272,6 +272,7 @@ export const zhTW: Messages = {
     invalidDescription: () => "SKILL.md frontmatter 中的 description 無效：不能為空，且最多 1024 個字元",
     slugMismatch: (url, declared) => `URL 中的 slug 是 ${url}，但 SKILL.md 宣告的 name 是 ${declared}，兩者必須一致`,
     noSuchProject: (project) => `沒有名為 ${project} 且你可以發佈的專案`,
+    publishNotAllowed: (project) => `你沒有發佈到 ${project} 的權限。請聯絡此專案的管理員開通。`,
     notYours: (name) => `技能 ${name} 屬於其他使用者，你無法覆寫它`,
     unchanged: (version, slug) => `內容與 ${slug} 的最新版本 v${version} 完全相同，因此沒有發佈新版本`,
     archiveMissing: (version) =>

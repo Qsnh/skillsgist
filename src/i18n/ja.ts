@@ -289,6 +289,7 @@ export const ja: Messages = {
     slugMismatch: (url, declared) =>
       `URL のスラッグは ${url} ですが、SKILL.md の name は ${declared} です。両者を一致させてください`,
     noSuchProject: (project) => `公開先として使える ${project} というプロジェクトはありません`,
+    publishNotAllowed: (project) => `${project} に公開する権限がありません。プロジェクトの管理者に許可を依頼してください。`,
     notYours: (name) => `スキル ${name} は別のユーザーのものなので、上書きできません`,
     unchanged: (version, slug) =>
       `${slug} の最新バージョン v${version} と同一のため、新しいバージョンは公開されませんでした`,
