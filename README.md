@@ -28,6 +28,7 @@ skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh).
 - Content-addressed artifacts, so the CLI can verify every download against its digest
 - Rendered `SKILL.md` pages with a file list and version history
 - Search across skill names, descriptions and body text
+- The web UI in English, Simplified Chinese, Traditional Chinese and Japanese, picked from the browser's language or the footer, at the same addresses in every language
 - Projects that group skills and people, with one install key per person per project that installs only that project's skills
 - API tokens for publishing from CI
 - Admin and member roles for the instance and for each project, with account and project administration in the browser
@@ -215,7 +216,7 @@ npm run verify:cli         # a contract test against the real npx skills
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. Code, docs and UI text are in English. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
+Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. Code and docs are in English. UI text is written in English in `src/i18n/en.ts` and translated in `src/i18n/zh-CN.ts`, `src/i18n/zh-TW.ts` and `src/i18n/ja.ts`; `npm run typecheck` fails until a new message is in all four. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
 
 ## License
 

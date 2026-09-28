@@ -1,4 +1,5 @@
 import { Form } from "../csrf";
+import { useT } from "../i18n";
 import { skillPath } from "../paths";
 import { Button, Layout, PageHead, Select } from "./layout";
 import type { SkillRow, UserRow } from "../db/queries";
@@ -30,45 +31,35 @@ export function NewSkillPage(props: {
   error?: string;
   markdown?: string;
 }) {
+  const t = useT();
   return (
-    <Layout title="Publish a skill" user={props.user}>
+    <Layout title={t.publish.title} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Publish a skill" error={props.error} />
+        <PageHead title={t.publish.title} error={props.error} />
         {props.projects.length === 0 ? (
           <div class="cf-frame">
             <div class="cf-empty">
-              <p class="cf-empty-title">You are not in a project yet.</p>
-              <p class="cf-empty-body">
-                Every skill belongs to a project, and only a project's members can publish to it. Ask an admin to add
-                you to one.
-              </p>
+              <p class="cf-empty-title">{t.projects.noneMember}</p>
+              <p class="cf-empty-body">{t.publish.noProjectBody}</p>
             </div>
           </div>
         ) : (
           <Form action="/new" enctype="multipart/form-data" class="cf-frame cf-form">
             <div class="cf-form-section">
-              <FilePicker
-                label="Upload an archive"
-                hint=".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum."
-              />
+              <FilePicker label={t.skills.uploadArchive} hint={t.publish.archiveHint} />
             </div>
             <div class="cf-form-section">
               <label class="cf-field">
-                <span class="cf-label">Or paste SKILL.md directly</span>
-                <textarea
-                  name="markdown"
-                  rows={16}
-                  class="cf-input cf-textarea"
-                  placeholder={"---\nname: my-skill\ndescription: One sentence on what this skill does\n---\n\n# Body"}
-                >
+                <span class="cf-label">{t.publish.pasteSkillMd}</span>
+                <textarea name="markdown" rows={16} class="cf-input cf-textarea" placeholder={t.publish.placeholder}>
                   {props.markdown ?? ""}
                 </textarea>
               </label>
             </div>
             <div class="cf-form-section">
-              <Select label="Project" name="project">
+              <Select label={t.publish.project} name="project">
                 {props.projects.length > 1 ? (
-                  <option value="" disabled selected={!props.project}>Choose a project</option>
+                  <option value="" disabled selected={!props.project}>{t.publish.chooseProject}</option>
                 ) : null}
                 {props.projects.map((p) => (
                   <option value={p.slug} selected={p.slug === props.project}>{p.name}</option>
@@ -76,14 +67,14 @@ export function NewSkillPage(props: {
               </Select>
             </div>
             <fieldset class="cf-form-section cf-fieldset">
-              <legend class="cf-label">Visibility</legend>
+              <legend class="cf-label">{t.publish.visibility}</legend>
               <div class="cf-choices">
-                <VisibilityChoice value="private" title="Private" detail="Visible to the project's members only" checked />
-                <VisibilityChoice value="public" title="Public" detail="Anyone can see and install it" />
+                <VisibilityChoice value="private" title={t.skills.private} detail={t.publish.privateDetail} checked />
+                <VisibilityChoice value="public" title={t.skills.public} detail={t.publish.publicDetail} />
               </div>
             </fieldset>
             <div class="cf-form-foot">
-              <Button>Publish</Button>
+              <Button>{t.publish.submit}</Button>
             </div>
           </Form>
         )}
@@ -99,13 +90,15 @@ export function EditSkillPage(props: {
   files: string[];
   error?: string;
 }) {
+  const t = useT();
+  const title = t.publish.editTitle(props.skill.slug);
   return (
-    <Layout title={`Edit ${props.skill.slug}`} user={props.user}>
+    <Layout title={title} user={props.user}>
       <div class="cf-narrow cf-narrow-wide">
-        <PageHead title={`Edit ${props.skill.slug}`} error={props.error}>
-          Saving publishes a new version; the old ones stay. To replace the whole archive (say, because you changed
-          files other than SKILL.md), use{" "}
-          <a href={`${skillPath(props.skill)}/upload`} class="cf-link">Upload an archive</a>.
+        <PageHead title={title} error={props.error}>
+          {t.publish.editLede(
+            <a href={`${skillPath(props.skill)}/upload`} class="cf-link">{t.skills.uploadArchive}</a>,
+          )}
         </PageHead>
         <Form action={`${skillPath(props.skill)}/edit`} enctype="multipart/form-data" class="cf-frame cf-form">
           <header class="cf-panel-head">
@@ -119,7 +112,7 @@ export function EditSkillPage(props: {
           </label>
           {props.files.length > 0 ? (
             <div class="cf-form-section cf-carry">
-              <p class="cf-hint">These files carry over to the new version unchanged:</p>
+              <p class="cf-hint">{t.publish.carryOver}</p>
               <ul class="cf-chips">
                 {props.files.map((f) => (
                   <li class="cf-chip">{f}</li>
@@ -128,8 +121,8 @@ export function EditSkillPage(props: {
             </div>
           ) : null}
           <div class="cf-form-foot">
-            <Button>Save as a new version</Button>
-            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">Cancel</a>
+            <Button>{t.publish.saveVersion}</Button>
+            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">{t.common.cancel}</a>
           </div>
         </Form>
       </div>
@@ -138,28 +131,20 @@ export function EditSkillPage(props: {
 }
 
 export function UploadVersionPage(props: { user: UserRow; skill: Pick<SkillRow, "project" | "slug">; error?: string }) {
+  const t = useT();
   return (
-    <Layout title={`Upload a new version · ${props.skill.slug}`} user={props.user}>
+    <Layout title={t.publish.uploadTitle(props.skill.slug)} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title={`Upload a new version: ${props.skill.slug}`} error={props.error}>
-          Whole-archive replacement: the new version is exactly what this archive contains; the old ones stay. To change
-          only SKILL.md, use <a href={`${skillPath(props.skill)}/edit`} class="cf-link">Edit</a>.
+        <PageHead title={t.publish.uploadHeading(props.skill.slug)} error={props.error}>
+          {t.publish.uploadLede(<a href={`${skillPath(props.skill)}/edit`} class="cf-link">{t.publish.edit}</a>)}
         </PageHead>
         <Form action={`${skillPath(props.skill)}/upload`} enctype="multipart/form-data" class="cf-frame cf-form">
           <div class="cf-form-section">
-            <FilePicker
-              label="Archive"
-              hint={
-                <>
-                  .zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper
-                  directory, and the name field in that SKILL.md must still be {props.skill.slug}. 2 MB maximum.
-                </>
-              }
-            />
+            <FilePicker label={t.publish.archive} hint={t.publish.uploadHint(props.skill.slug)} />
           </div>
           <div class="cf-form-foot">
-            <Button>Publish as a new version</Button>
-            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">Cancel</a>
+            <Button>{t.publish.publishVersion}</Button>
+            <a href={skillPath(props.skill)} class="cf-btn cf-btn-outline">{t.common.cancel}</a>
           </div>
         </Form>
       </div>

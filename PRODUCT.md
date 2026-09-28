@@ -49,16 +49,17 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 - Skill names are unique within a project. A project has a changeable name and a fixed address. A skill moves between projects with its versions, owner, visibility and download count, unless the target already has a skill with its name.
 - Search covers names, descriptions, and body text. Anonymous visitors see only public skills.
 - The discovery index drops any entry whose name, description, or digest would fail the CLI's own validation, rather than serving a half-broken index.
+- The web UI is in English, Simplified Chinese, Traditional Chinese and Japanese. The language comes from the `sg_lang` cookie that the footer switcher sets, then the browser's `Accept-Language`, then English. Taiwan, Hong Kong, Macau and `zh-Hant` browsers get Traditional Chinese (in Taiwan wording); every other Chinese variant gets Simplified. Page addresses, install commands, the discovery index and the API, error messages included, are the same in every language. Skill content and every name are never translated.
 
 **Durable constraints**
 
-- **Server-rendered HTML; client-side JavaScript only as progressive enhancement.** Every page works with JavaScript disabled, and all interaction that changes state is forms and links. There are two scripts, both same-origin and deferred: `public/copy.js` adds one-click copy to command blocks because no HTML or CSS feature can write to the clipboard, and `public/fold.js` folds a long SKILL.md, Files list or Versions list behind a Show more button because no HTML or CSS feature can tell whether an element overflows.
+- **Server-rendered HTML; client-side JavaScript only as progressive enhancement.** Every page works with JavaScript disabled, and all interaction that changes state is forms and links. There are three scripts, all same-origin and deferred: `public/copy.js` adds one-click copy to command blocks because no HTML or CSS feature can write to the clipboard, `public/fold.js` folds a long SKILL.md, Files list or Versions list behind a Show more button because no HTML or CSS feature can tell whether an element overflows, and `public/dismiss.js` closes an open menu or confirmation on Escape, on a press outside it, or when focus leaves it, because a `<details>` element never closes itself.
 - **The stock CLI is the contract.** `npx skills` sends no custom headers, so a private install credential can only live in the URL path. An install key therefore belongs to one person in one project and is install-only: it cannot sign in, publish, delete, or reach another project's skills, and it is rotatable from the project's settings page in one click.
 - **API tokens never travel in a URL.** `/api/*` reads only `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into making an API call on a user's behalf. The web forms take the other path: a session-bound CSRF token attached automatically.
 - Content-Security-Policy on every HTML response: `default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 - The last remaining admin can never be demoted or deleted.
 - Deleting a user reassigns the skills they own and the author records on their versions to the admin performing the delete, because neither column may be null. Original authorship is lost. Withdrawing access without that cost means removing the person from their projects and resetting their password.
-- Project language is English throughout — code, identifiers, documentation, commit messages, and UI text.
+- Code, identifiers, documentation and commit messages are in English. UI text is written in English and translated into Simplified Chinese, Traditional Chinese and Japanese; English is the source and the fallback.
 
 **Undecided**
 

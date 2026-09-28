@@ -27,3 +27,12 @@ export function installBase(
 export function userSettingsPath(id: string): string {
   return `/admin/users/${id}`;
 }
+
+const UNSAFE_IN_PATH = /[\u0000-\u001f\u007f\\]/;
+
+export function safeNext(value: unknown): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || UNSAFE_IN_PATH.test(value)) {
+    return "/";
+  }
+  return value;
+}

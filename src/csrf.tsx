@@ -5,11 +5,20 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
 import type { AppEnv, Ctx } from "./auth";
 import { FlashContext, takeFlash } from "./flash";
+import { LocaleContext, localeOf, messages } from "./i18n";
+import { safeNext } from "./paths";
 
 
 const CsrfContext = createContext<string>("");
 
 export const OriginContext = createContext<string>("");
+
+export const ReturnPathContext = createContext<string>("/");
+
+export function OptionalCsrfField() {
+  const token = useContext(CsrfContext);
+  return token ? <input type="hidden" name={CSRF_FIELD} value={token} /> : null;
+}
 
 export function CsrfField() {
   const token = useContext(CsrfContext);
@@ -37,14 +46,20 @@ export async function page(
   c: Ctx,
   element: JSX.Element,
   status?: ContentfulStatusCode,
+  returnTo?: string,
 ): Promise<Response> {
   const [token, flashed] = await Promise.all([sessionCsrf(c), takeFlash(c)]);
+  const here = new URL(c.req.url);
   return c.html(
-    <OriginContext.Provider value={new URL(c.req.url).origin}>
-      <CsrfContext.Provider value={token ?? ""}>
-        <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
-      </CsrfContext.Provider>
-    </OriginContext.Provider>,
+    <LocaleContext.Provider value={localeOf(c)}>
+      <ReturnPathContext.Provider value={returnTo ?? safeNext(`${here.pathname}${here.search}`)}>
+        <OriginContext.Provider value={here.origin}>
+          <CsrfContext.Provider value={token ?? ""}>
+            <FlashContext.Provider value={flashed}>{element}</FlashContext.Provider>
+          </CsrfContext.Provider>
+        </OriginContext.Provider>
+      </ReturnPathContext.Provider>
+    </LocaleContext.Provider>,
     status,
   );
 }
@@ -68,7 +83,7 @@ export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   const body = await c.req.parseBody();
   const supplied = body[CSRF_FIELD];
   if (typeof supplied !== "string" || !constantTimeEqual(supplied, expected)) {
-    return c.text("Request validation failed. Refresh the page and try again.", 403);
+    return c.text(messages(c).errors.requestValidation, 403);
   }
   return next();
 };

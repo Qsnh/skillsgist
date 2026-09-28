@@ -236,7 +236,7 @@
     border-color: var(--color-cf-ink);
   }
 
-  .cf-menu[open] > summary .cf-icon {
+  .cf-menu[open] > summary .cf-icon:last-child {
     rotate: 180deg;
   }
 
@@ -816,6 +816,52 @@
   .cf-footer-links a:hover {
     color: var(--color-cf-ink);
     text-decoration: underline;
+  }
+
+  .cf-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 24px;
+  }
+
+  .cf-lang-menu > summary {
+    padding-inline: 10px 9px;
+  }
+
+  .cf-lang-menu > summary .cf-icon:last-child {
+    rotate: 180deg;
+  }
+
+  .cf-lang-menu[open] > summary .cf-icon:last-child {
+    rotate: 0deg;
+  }
+
+  .cf-lang-menu > .cf-menu-panel {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+  }
+
+  .cf-lang-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .cf-lang-option[aria-current] {
+    font-weight: 500;
+    cursor: default;
+  }
+
+  .cf-lang-option[aria-current]:hover {
+    background: none;
+  }
+
+  .cf-lang-option .cf-icon {
+    color: var(--color-cf-orange-ink);
   }
 
   .cf-page-body {
@@ -2097,5 +2143,35 @@
 @keyframes cf-blink {
   50% {
     opacity: 0;
+  }
+}
+
+:root:lang(zh-CN) {
+  --font-sans: "Schibsted Grotesk", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root:lang(zh-TW) {
+  --font-sans: "Schibsted Grotesk", "PingFang TC", "Hiragino Sans TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root:lang(ja) {
+  --font-sans: "Schibsted Grotesk", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root:is(:lang(zh), :lang(ja)) :is(.cf-hero-title, .cf-head-title, .cf-registry-title, .cf-empty-title, .cf-panel-title, .cf-auth-title) {
+  letter-spacing: 0;
+}
+
+:root:is(:lang(zh), :lang(ja)) .cf-hero-title {
+  max-width: 16em;
+}
+
+:root:lang(ja) :is(.cf-hero-title, .cf-hero-lede, .cf-head-title, .cf-empty-title) {
+  word-break: auto-phrase;
+}
+
+@media (max-width: 639.98px) {
+  :root:lang(ja) .cf-toolbar {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -6,6 +6,7 @@ import {
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import { flash } from "../flash";
+import { messages } from "../i18n";
 import {
   countAdmins, countUsers, createFirstAdmin, createUser, deleteUserReassigning, getUserById,
   getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
@@ -41,6 +42,7 @@ const userSettings = async (
     c,
     <UserSettingsPage user={c.get("user")} target={target} error={extra.error} newToken={extra.newToken} />,
     extra.error ? 400 : undefined,
+    userSettingsPath(target.id),
   );
 };
 
@@ -51,14 +53,15 @@ usersRoutes.get("/setup", async (c) => {
 
 usersRoutes.post("/setup", async (c) => {
   if ((await countUsers(c.env.DB)) > 0) return c.notFound();
+  const t = messages(c);
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   if (!USERNAME.test(username)) {
-    return page(c, <SetupPage error="Username must be 2-32 lowercase letters, digits or hyphens" />, 400);
+    return page(c, <SetupPage error={t.auth.usernameInvalid} />, 400);
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <SetupPage error={`Password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
+    return page(c, <SetupPage error={t.auth.passwordTooShort(MIN_PASSWORD_LENGTH)} />, 400);
   }
   const id = randomHex(8);
   const inserted = await createFirstAdmin(c.env.DB, {
@@ -77,7 +80,7 @@ usersRoutes.post("/login", async (c) => {
   const password = String(body.password ?? "");
   const user = await getUserByUsername(c.env.DB, username);
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error="Incorrect username or password" />, 401);
+  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
   return c.redirect("/", 302);
 });
@@ -92,7 +95,7 @@ usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("us
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
   const { token, hash } = await issueApiToken(c.env.DB, user.id);
-  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />);
+  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />, undefined, "/me");
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -102,16 +105,17 @@ usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
 
 usersRoutes.post("/me/password", requireUser, async (c) => {
   const user = c.get("user");
+  const t = messages(c);
   const body = await c.req.parseBody();
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} error="Current password is incorrect" />, 400);
+    return page(c, <MePage user={user} error={t.auth.currentPasswordWrong} />, 400, "/me");
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} error={`New password must be at least ${MIN_PASSWORD_LENGTH} characters`} />, 400);
+    return page(c, <MePage user={user} error={t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH)} />, 400, "/me");
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
-  await flash(c, "Your password has been changed.");
+  await flash(c, t.auth.passwordChanged);
   return c.redirect("/me", 302);
 });
 
@@ -126,13 +130,14 @@ usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
   const role = roleOf(body.role);
+  const t = messages(c);
   const fail = (error: string) =>
     page(c, <NewUserPage user={c.get("user")} error={error} username={username} role={role} />, 400);
-  if (!USERNAME.test(username)) return fail("Username must be 2-32 lowercase letters, digits or hyphens");
+  if (!USERNAME.test(username)) return fail(t.auth.usernameInvalid);
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return fail(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    return fail(t.auth.passwordTooShort(MIN_PASSWORD_LENGTH));
   }
-  if (await getUserByUsername(c.env.DB, username)) return fail("That username is taken");
+  if (await getUserByUsername(c.env.DB, username)) return fail(t.users.usernameTaken);
   await createUser(c.env.DB, {
     id: randomHex(8),
     username,
@@ -155,7 +160,7 @@ async function adminTarget(
   if (target.id === admin.id && !opts.allowSelf) {
     return {
       ok: false,
-      response: await userSettings(c, target.id, { error: opts.selfError ?? "You cannot do this to your own account. Ask another admin." }),
+      response: await userSettings(c, target.id, { error: opts.selfError ?? messages(c).users.notToSelf }),
     };
   }
   return { ok: true, admin, target };
@@ -163,14 +168,14 @@ async function adminTarget(
 
 usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), {
-    selfError: "You cannot change your own role. Ask another admin.",
+    selfError: messages(c).users.notOwnRole,
   });
   if (!guard.ok) return guard.response;
   const { target } = guard;
   const body = await c.req.parseBody();
   const role = roleOf(body.role);
   if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return userSettings(c, target.id, { error: "You cannot demote the last admin" });
+    return userSettings(c, target.id, { error: messages(c).users.lastAdminDemote });
   }
   await updateUserRole(c.env.DB, target.id, role);
   return c.redirect(userSettingsPath(target.id), 302);
@@ -182,10 +187,10 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const password = String(body.password ?? "");
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return userSettings(c, guard.target.id, { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    return userSettings(c, guard.target.id, { error: messages(c).auth.passwordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
-  await flash(c, `Password reset for ${guard.target.username}.`);
+  await flash(c, messages(c).users.passwordReset(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
@@ -193,7 +198,7 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
-  await flash(c, `Install keys rotated for ${guard.target.username}. The old install commands no longer work.`);
+  await flash(c, messages(c).users.keysRotated(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
@@ -213,16 +218,16 @@ usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) =>
 
 usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), {
-    selfError: "You cannot delete your own account. Ask another admin.",
+    selfError: messages(c).users.notOwnDelete,
   });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
   if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
-    return userSettings(c, target.id, { error: "You cannot delete the last admin" });
+    return userSettings(c, target.id, { error: messages(c).users.lastAdminDelete });
   }
   // Reassigns owner_id and author_id in the same batch as the delete; the
   // foreign keys make that mandatory — see deleteUserReassigning.
   await deleteUserReassigning(c.env.DB, target.id, admin.id);
-  await flash(c, `Deleted ${target.username}.`);
+  await flash(c, messages(c).users.deleted(target.username));
   return c.redirect("/admin/users", 302);
 });

@@ -1,9 +1,9 @@
 import { Form } from "../csrf";
+import { useLocale, useT } from "../i18n";
+import { formatDate } from "../i18n/format";
 import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow, UserSummary, Viewer } from "../db/queries";
-
-const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 function AuthCard(props: { title: string; error?: string; children?: unknown }) {
   return (
@@ -19,18 +19,20 @@ function AuthCard(props: { title: string; error?: string; children?: unknown }) 
 }
 
 export function SetupPage(props: { error?: string }) {
+  const t = useT();
   return (
-    <Layout title="Setup" user={null} hideSignIn>
-      <AuthCard title="Create the first admin" error={props.error}>
+    <Layout title={t.auth.setupTitle} user={null} hideSignIn>
+      <AuthCard title={t.auth.setupHeading} error={props.error}>
         <form method="post" action="/setup" class="cf-stack">
+          <Field label={t.common.username} name="username" autocomplete="username" hint={t.common.usernameHint} />
           <Field
-            label="Username"
-            name="username"
-            autocomplete="username"
-            hint="Lowercase letters, digits and hyphens, 2-32 characters"
+            label={t.common.password}
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            hint={t.common.passwordHint}
           />
-          <Field label="Password" name="password" type="password" autocomplete="new-password" hint="At least 12 characters" />
-          <Button wide>Create</Button>
+          <Button wide>{t.common.create}</Button>
         </form>
       </AuthCard>
     </Layout>
@@ -38,13 +40,14 @@ export function SetupPage(props: { error?: string }) {
 }
 
 export function LoginPage(props: { error?: string }) {
+  const t = useT();
   return (
-    <Layout title="Sign in" user={null} hideSignIn>
-      <AuthCard title="Sign in" error={props.error}>
+    <Layout title={t.layout.signIn} user={null} hideSignIn>
+      <AuthCard title={t.layout.signIn} error={props.error}>
         <form method="post" action="/login" class="cf-stack">
-          <Field label="Username" name="username" autocomplete="username" />
-          <Field label="Password" name="password" type="password" autocomplete="current-password" />
-          <Button wide>Sign in</Button>
+          <Field label={t.common.username} name="username" autocomplete="username" />
+          <Field label={t.common.password} name="password" type="password" autocomplete="current-password" />
+          <Button wide>{t.layout.signIn}</Button>
         </form>
       </AuthCard>
     </Layout>
@@ -52,40 +55,48 @@ export function LoginPage(props: { error?: string }) {
 }
 
 export function RoleLabel(props: { role: UserRow["role"] }) {
-  return <span class={props.role === "admin" ? "cf-vis cf-vis-public" : "cf-vis cf-vis-private"}>{props.role}</span>;
+  const t = useT();
+  return (
+    <span class={props.role === "admin" ? "cf-vis cf-vis-public" : "cf-vis cf-vis-private"}>
+      {t.common.roles[props.role]}
+    </span>
+  );
 }
 
 function ShownOnceToken(props: { token: string }) {
+  const t = useT();
   return (
     <>
       <CodeBlock prompt={false}>{props.token}</CodeBlock>
       <p class="cf-notice">
         <AlertIcon />
-        This token is shown once. Save it now.
+        {t.auth.tokenShownOnce}
       </p>
     </>
   );
 }
 
 function TokenStatus(props: { active: boolean }) {
+  const t = useT();
   return (
     <p class="cf-status">
-      Status:{" "}
+      {t.auth.tokenStatus}{" "}
       <span class={props.active ? "cf-status-value cf-status-on" : "cf-status-value"}>
-        {props.active ? "active" : "not generated"}
+        {props.active ? t.auth.tokenActive : t.auth.tokenNotGenerated}
       </span>
     </p>
   );
 }
 
 export function MePage(props: { user: Viewer; newToken?: string; error?: string }) {
+  const t = useT();
   return (
-    <Layout title="Account" user={props.user}>
+    <Layout title={t.layout.account} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Account" error={props.error} />
+        <PageHead title={t.layout.account} error={props.error} />
 
         <div class="cf-stack-lg">
-          <Panel title="API token (for publishing with curl)">
+          <Panel title={t.auth.apiTokenPanel}>
             {props.newToken ? (
               <ShownOnceToken token={props.newToken} />
             ) : (
@@ -93,34 +104,33 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
             )}
             <div class="cf-actions">
               <Form action="/me/api-token">
-                <Button variant="outline">Generate a new token</Button>
+                <Button variant="outline">{t.auth.generateToken}</Button>
               </Form>
               {props.user.api_token_hash ? (
                 <ConfirmDelete
                   action="/me/api-token/revoke"
-                  label="Revoke"
-                  confirm="Revoke API token"
+                  label={t.auth.revoke}
+                  confirm={t.auth.revokeToken}
                   name="revoke-api-token"
                 >
-                  Revoking stops your current token from working at once, so publishing with it fails until you
-                  generate a new one.
+                  {t.auth.revokeOwnWarning}
                 </ConfirmDelete>
               ) : null}
             </div>
           </Panel>
 
-          <Panel title="Change password">
+          <Panel title={t.auth.changePassword}>
             <Form action="/me/password" class="cf-stack cf-stack-form">
-              <Field label="Current password" name="current" type="password" autocomplete="current-password" />
+              <Field label={t.auth.currentPassword} name="current" type="password" autocomplete="current-password" />
               <Field
-                label="New password"
+                label={t.common.newPassword}
                 name="next"
                 type="password"
                 autocomplete="new-password"
-                hint="At least 12 characters"
+                hint={t.common.passwordHint}
               />
               <div>
-                <Button>Save</Button>
+                <Button>{t.common.save}</Button>
               </div>
             </Form>
           </Panel>
@@ -131,15 +141,17 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
 }
 
 export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
+  const locale = useLocale();
+  const t = useT();
   return (
-    <Layout title="Users" user={props.user}>
+    <Layout title={t.layout.users} user={props.user}>
       <PageHead
-        title="Users"
+        title={t.layout.users}
         compact
         aside={
           <>
             <span class="cf-count">{props.users.length}</span>
-            <a href="/admin/users/new" class="cf-btn cf-btn-outline cf-head-action">Add a user</a>
+            <a href="/admin/users/new" class="cf-btn cf-btn-outline cf-head-action">{t.users.add}</a>
           </>
         }
       />
@@ -147,31 +159,31 @@ export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
         <table class="cf-table">
           <thead>
             <tr>
-              <th scope="col">Username</th>
-              <th scope="col">Role</th>
-              <th scope="col">Projects</th>
-              <th scope="col">Skills</th>
-              <th scope="col">Joined</th>
-              <th scope="col">Last sign-in</th>
+              <th scope="col">{t.common.username}</th>
+              <th scope="col">{t.common.role}</th>
+              <th scope="col">{t.users.columns.projects}</th>
+              <th scope="col">{t.users.columns.skills}</th>
+              <th scope="col">{t.users.columns.joined}</th>
+              <th scope="col">{t.users.columns.lastSignIn}</th>
             </tr>
           </thead>
           <tbody>
             {props.users.map((u) => (
               <tr>
-                <td data-label="Username">
+                <td data-label={t.common.username}>
                   <span class="cf-user">
                     <a href={userSettingsPath(u.id)} class="cf-link cf-user-name">{u.username}</a>
-                    {u.id === props.user.id ? <span class="cf-tag">You</span> : null}
+                    {u.id === props.user.id ? <span class="cf-tag">{t.common.you}</span> : null}
                   </span>
                 </td>
-                <td data-label="Role">
+                <td data-label={t.common.role}>
                   <RoleLabel role={u.role} />
                 </td>
-                <td data-label="Projects" class="cf-table-date">{u.projects}</td>
-                <td data-label="Skills" class="cf-table-date">{u.skills}</td>
-                <td data-label="Joined" class="cf-table-date">{DATE.format(new Date(u.created_at))}</td>
-                <td data-label="Last sign-in" class="cf-table-date">
-                  {u.last_login_at ? DATE.format(new Date(u.last_login_at)) : "—"}
+                <td data-label={t.users.columns.projects} class="cf-table-date">{u.projects}</td>
+                <td data-label={t.users.columns.skills} class="cf-table-date">{u.skills}</td>
+                <td data-label={t.users.columns.joined} class="cf-table-date">{formatDate(locale, u.created_at)}</td>
+                <td data-label={t.users.columns.lastSignIn} class="cf-table-date">
+                  {u.last_login_at ? formatDate(locale, u.last_login_at) : "—"}
                 </td>
               </tr>
             ))}
@@ -183,50 +195,51 @@ export function UsersPage(props: { user: UserRow; users: UserSummary[] }) {
 }
 
 export function UserSettingsPage(props: { user: UserRow; target: UserSummary; error?: string; newToken?: string }) {
+  const locale = useLocale();
+  const t = useT();
   const { target } = props;
   const isSelf = target.id === props.user.id;
   const path = userSettingsPath(target.id);
-  const projects = `${target.projects} ${target.projects === 1 ? "project" : "projects"}`;
+  const title = t.users.settingsTitle(target.username);
   return (
-    <Layout title={`${target.username} settings`} user={props.user}>
+    <Layout title={title} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title={`${target.username} settings`} error={props.error}>
-          Joined {DATE.format(new Date(target.created_at))},{" "}
-          {target.last_login_at ? `last signed in ${DATE.format(new Date(target.last_login_at))}` : "never signed in"}.
+        <PageHead title={title} error={props.error}>
+          {t.users.history(
+            formatDate(locale, target.created_at),
+            target.last_login_at ? formatDate(locale, target.last_login_at) : null,
+          )}
         </PageHead>
         <div class="cf-stack-lg">
-          <Panel title="Role">
+          <Panel title={t.common.role}>
             <p class="cf-status">
-              Role:{" "}
+              {t.users.roleStatus}{" "}
               <RoleLabel role={target.role} />
             </p>
             {isSelf ? (
-              <p class="cf-hint">Only another admin can change your role.</p>
+              <p class="cf-hint">{t.users.ownRole}</p>
             ) : (
               <Form action={`${path}/role`} class="cf-actions">
                 <input type="hidden" name="role" value={target.role === "admin" ? "member" : "admin"} />
-                <Button variant="outline">{target.role === "admin" ? "Demote to member" : "Promote to admin"}</Button>
+                <Button variant="outline">{target.role === "admin" ? t.users.demote : t.users.promote}</Button>
               </Form>
             )}
           </Panel>
 
-          <Panel title="Install keys">
+          <Panel title={t.users.installKeys}>
             {target.projects === 0 ? (
-              <p class="cf-hint">{target.username} is in no project, so they have no install keys.</p>
+              <p class="cf-hint">{t.users.noInstallKeys(target.username)}</p>
             ) : (
               <>
-                <p class="cf-hint">
-                  {target.username} has one install key per project and is in {projects}. Rotating replaces all of them
-                  at once, and the old install commands stop working.
-                </p>
+                <p class="cf-hint">{t.users.installKeysHint(target.username, target.projects)}</p>
                 <Form action={`${path}/install-key`} class="cf-actions">
-                  <Button variant="outline">Rotate install keys</Button>
+                  <Button variant="outline">{t.users.rotateKeys}</Button>
                 </Form>
               </>
             )}
           </Panel>
 
-          <Panel title="API token">
+          <Panel title={t.users.apiToken}>
             {props.newToken ? (
               <ShownOnceToken token={props.newToken} />
             ) : (
@@ -234,56 +247,56 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
                 <TokenStatus active={target.api_token_hash !== null} />
                 <p class="cf-hint">
                   {target.api_token_hash
-                    ? `Generating a token replaces ${isSelf ? "your" : `${target.username}'s`} current one at once. `
+                    ? isSelf
+                      ? t.users.tokenReplacesOwn
+                      : t.users.tokenReplacesUser(target.username)
                     : null}
-                  The new token is shown only once, on this page.
+                  {t.users.tokenShownOnPage}
                 </p>
               </>
             )}
             <div class="cf-actions">
               <Form action={`${path}/api-token`}>
-                <Button variant="outline">Generate a new token</Button>
+                <Button variant="outline">{t.auth.generateToken}</Button>
               </Form>
               {target.api_token_hash ? (
                 <ConfirmDelete
                   action={`${path}/api-token/revoke`}
-                  label="Revoke API token"
-                  confirm={isSelf ? "Revoke your token" : `Revoke ${target.username}'s token`}
+                  label={t.auth.revokeToken}
+                  confirm={isSelf ? t.users.revokeOwnToken : t.users.revokeUserToken(target.username)}
                   name="revoke-api-token"
                 >
-                  {`Revoking stops ${isSelf ? "your" : `${target.username}'s`} current token from working at once, so publishing with it fails until a new one is generated.`}
+                  {isSelf ? t.users.revokeOwnTokenWarning : t.users.revokeUserTokenWarning(target.username)}
                 </ConfirmDelete>
               ) : null}
             </div>
           </Panel>
 
-          <Panel title="Reset password">
+          <Panel title={t.users.resetPassword}>
             <Form action={`${path}/password`} class="cf-stack cf-stack-form">
               <Field
-                label="New password"
+                label={t.common.newPassword}
                 name="password"
                 type="password"
                 autocomplete="new-password"
-                hint="At least 12 characters"
+                hint={t.common.passwordHint}
               />
               <div>
-                <Button>Reset password</Button>
+                <Button>{t.users.resetPassword}</Button>
               </div>
             </Form>
           </Panel>
 
           {isSelf ? null : (
-            <Panel title="Delete this account">
+            <Panel title={t.users.deletePanel}>
               <div class="cf-actions">
                 <ConfirmDelete
                   action={`${path}/delete`}
-                  label="Delete account"
-                  confirm={`Delete ${target.username}`}
+                  label={t.users.deleteAccount}
+                  confirm={t.users.deleteUser(target.username)}
                   name="delete-user"
                 >
-                  Deleting reassigns this user's skills and their published versions' author records to you. To keep
-                  the author records, remove this user from their projects and reset their password instead of
-                  deleting.
+                  {t.users.deleteWarning}
                 </ConfirmDelete>
               </div>
             </Panel>
@@ -300,40 +313,38 @@ export function NewUserPage(props: {
   username?: string;
   role?: UserRow["role"];
 }) {
+  const t = useT();
   return (
-    <Layout title="Add a user" user={props.user}>
+    <Layout title={t.users.add} user={props.user}>
       <div class="cf-narrow">
-        <PageHead title="Add a user" error={props.error} />
+        <PageHead title={t.users.add} error={props.error} />
         <Form action="/admin/users/new" class="cf-frame cf-form">
           <div class="cf-form-section">
             <div class="cf-stack cf-stack-form">
               <Field
-                label="Username"
+                label={t.common.username}
                 name="username"
                 value={props.username}
                 autocomplete="off"
-                hint="Lowercase letters, digits and hyphens, 2-32 characters"
+                hint={t.common.usernameHint}
               />
               <Field
-                label="Initial password"
+                label={t.users.initialPassword}
                 name="password"
                 type="password"
                 autocomplete="new-password"
-                hint="At least 12 characters"
+                hint={t.common.passwordHint}
               />
-              <Select label="Role" name="role">
-                <option value="member">member</option>
-                <option value="admin" selected={props.role === "admin"}>admin</option>
+              <Select label={t.common.role} name="role">
+                <option value="member">{t.common.roles.member}</option>
+                <option value="admin" selected={props.role === "admin"}>{t.common.roles.admin}</option>
               </Select>
-              <p class="cf-hint">
-                New accounts start in no project. Add them to a project from its settings page to give them access to
-                its private skills.
-              </p>
+              <p class="cf-hint">{t.users.newAccountHint}</p>
             </div>
           </div>
           <div class="cf-form-foot">
-            <Button>Create</Button>
-            <a href="/admin/users" class="cf-btn cf-btn-outline">Cancel</a>
+            <Button>{t.common.create}</Button>
+            <a href="/admin/users" class="cf-btn cf-btn-outline">{t.common.cancel}</a>
           </div>
         </Form>
       </div>
