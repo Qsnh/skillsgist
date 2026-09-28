@@ -236,7 +236,7 @@
     border-color: var(--color-cf-ink);
   }
 
-  .cf-menu[open] > summary .cf-icon {
+  .cf-menu[open] > summary .cf-icon:last-child {
     rotate: 180deg;
   }
 
@@ -825,30 +825,43 @@
     gap: 8px 24px;
   }
 
-  .cf-lang {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 16px;
+  .cf-lang-menu > summary {
+    padding-inline: 10px 9px;
+  }
+
+  .cf-lang-menu > summary .cf-icon:last-child {
+    rotate: 180deg;
+  }
+
+  .cf-lang-menu[open] > summary .cf-icon:last-child {
+    rotate: 0deg;
+  }
+
+  .cf-lang-menu > .cf-menu-panel {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
   }
 
   .cf-lang-option {
-    color: var(--color-cf-ink-2);
-    text-underline-offset: 3px;
-  }
-
-  button.cf-lang-option {
-    cursor: pointer;
-  }
-
-  button.cf-lang-option:hover {
-    color: var(--color-cf-ink);
-    text-decoration: underline;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .cf-lang-option[aria-current] {
-    font-weight: 600;
-    color: var(--color-cf-ink);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  .cf-lang-option[aria-current]:hover {
+    background: none;
+  }
+
+  .cf-lang-option .cf-icon {
+    color: var(--color-cf-orange-ink);
   }
 
   .cf-page-body {

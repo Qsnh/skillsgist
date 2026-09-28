@@ -31,6 +31,23 @@ export function ChevronDown() {
   );
 }
 
+export function GlobeIcon() {
+  return (
+    <Icon>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z" />
+    </Icon>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <Icon>
+      <path d="M3.5 8.5l3 3 6-7" />
+    </Icon>
+  );
+}
+
 function AccountMenu(props: { user: UserRow }) {
   const t = useT();
   return (
@@ -56,18 +73,31 @@ function LanguageForm() {
   const t = useT();
   const next = useContext(ReturnPathContext);
   return (
-    <form method="post" action="/lang" class="cf-lang" aria-label={t.layout.language}>
+    <form method="post" action="/lang">
       <OptionalCsrfField />
       <input type="hidden" name="next" value={next} />
-      {LOCALES.map((option) =>
-        option === locale ? (
-          <span class="cf-lang-option" aria-current="true" lang={option}>{LOCALE_NAMES[option]}</span>
-        ) : (
-          <button type="submit" name="lang" value={option} class="cf-lang-option" lang={option}>
-            {LOCALE_NAMES[option]}
-          </button>
-        ),
-      )}
+      <details class="cf-menu cf-lang-menu">
+        <summary class="cf-btn cf-btn-outline cf-btn-sm">
+          <GlobeIcon />
+          <span class="sr-only">{t.layout.language}</span>
+          <span lang={locale}>{LOCALE_NAMES[locale]}</span>
+          <ChevronDown />
+        </summary>
+        <div class="cf-menu-panel">
+          {LOCALES.map((option) =>
+            option === locale ? (
+              <span class="cf-menu-item cf-lang-option" aria-current="true" lang={option}>
+                {LOCALE_NAMES[option]}
+                <CheckIcon />
+              </span>
+            ) : (
+              <button type="submit" name="lang" value={option} class="cf-menu-item cf-lang-option" lang={option}>
+                {LOCALE_NAMES[option]}
+              </button>
+            ),
+          )}
+        </div>
+      </details>
     </form>
   );
 }

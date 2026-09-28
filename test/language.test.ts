@@ -95,7 +95,8 @@ describe("footer language switcher", () => {
       await (await SELF.fetch(`${ORIGIN}/?q=x`, { headers: { "Accept-Language": "ja" } })).text(),
     );
     expect(form).toContain('<input type="hidden" name="next" value="/?q=x"/>');
-    expect(form).toContain('<span class="cf-lang-option" aria-current="true" lang="ja">日本語</span>');
+    expect(form).toContain('<span lang="ja">日本語</span>');
+    expect(form).toContain('<span class="cf-menu-item cf-lang-option" aria-current="true" lang="ja">日本語');
     expect(form).toContain('name="lang" value="en"');
     expect(form).toContain('name="lang" value="zh-CN"');
     expect(form).toContain('name="lang" value="zh-TW"');

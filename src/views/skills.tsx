@@ -3,7 +3,7 @@ import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
 import { installBase, projectPath, skillPath } from "../paths";
-import { Button, CodeBlock, ConfirmDelete, Icon, Layout, Panel, Select } from "./layout";
+import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
 function Visibility(props: { value: SkillRow["visibility"] }) {
@@ -227,15 +227,6 @@ function EditIcon() {
   return (
     <Icon>
       <path d="M10.25 2.75l3 3L6 13H3v-3l7.25-7.25zM8.75 4.25l3 3" />
-    </Icon>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <Icon>
-      <circle cx="8" cy="8" r="6" />
-      <path d="M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z" />
     </Icon>
   );
 }
