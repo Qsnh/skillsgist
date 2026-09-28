@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getProject, getSkill } from "../src/db/queries";
 import {
-  cellMeta, env, follow, get, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD, postForm,
-  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
+  cellMeta, denyPublish, env, follow, get, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD,
+  postForm, postMultipart, publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
 const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
@@ -161,6 +161,14 @@ describe("/p/:project", () => {
     expect(html).toContain('<a href="/p/team-b/settings">Settings</a>');
     expect(html).toContain("No skills in Team B yet.");
     expect(html).toContain('<a href="/new?project=team-b" class="cf-btn cf-btn-primary">Publish the first skill</a>');
+  });
+
+  it("offers a member whose publishing is blocked no way to publish into an empty project", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await denyPublish(alice.user.id);
+    const html = await (await get("/p/default", alice.cookie)).text();
+    expect(html).toContain("No skills in Default yet.");
+    expect(html).not.toContain("Publish the first skill");
   });
 
   it("shows an instance admin outside a project every skill in it and its public command", async () => {

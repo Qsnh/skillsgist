@@ -239,6 +239,9 @@ export const en = {
     title: "Publish a skill",
     noProjectBody:
       "Every skill belongs to a project, and only a project's members can publish to it. Ask an admin to add you to one.",
+    noPermission: "You cannot publish to any of your projects.",
+    noPermissionBody:
+      "Each project's admins decide which of its members can publish. Ask one of them to allow you; until then you can still see and install your projects' skills.",
     archiveHint:
       ".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum.",
     pasteSkillMd: "Or paste SKILL.md directly",

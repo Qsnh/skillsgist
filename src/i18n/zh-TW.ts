@@ -224,6 +224,8 @@ export const zhTW: Messages = {
   publish: {
     title: "發佈技能",
     noProjectBody: "每個技能都屬於一個專案，只有專案成員才能發佈到該專案。請聯絡管理員將你加入專案。",
+    noPermission: "你沒有權限發佈到所屬的任何專案。",
+    noPermissionBody: "每個專案的管理員會決定哪些成員可以發佈。請聯絡其中一位管理員為你開通；在此之前，你仍可檢視及安裝所屬專案的技能。",
     archiveHint: "支援 .zip 與 .tar.gz。壓縮檔必須包含 SKILL.md，可以放在一層外層資料夾中。上限 2 MB。",
     pasteSkillMd: "或直接貼上 SKILL.md",
     placeholder: "---\nname: my-skill\ndescription: 用一句話說明這個技能的用途\n---\n\n# 內文",

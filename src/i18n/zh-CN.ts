@@ -224,6 +224,8 @@ export const zhCN: Messages = {
   publish: {
     title: "发布技能",
     noProjectBody: "每个技能都属于一个项目，只有项目成员才能向其发布。请联系管理员把你加入项目。",
+    noPermission: "你无权向所在的任何项目发布。",
+    noPermissionBody: "每个项目的管理员决定哪些成员可以发布。请联系其中一位管理员为你开通；在此之前，你仍可查看和安装所在项目的技能。",
     archiveHint: "支持 .zip 和 .tar.gz。压缩包必须包含 SKILL.md，可以放在一层外包目录中。最大 2 MB。",
     pasteSkillMd: "或直接粘贴 SKILL.md",
     placeholder: "---\nname: my-skill\ndescription: 用一句话说明这个技能做什么\n---\n\n# 正文",

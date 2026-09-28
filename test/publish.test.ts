@@ -536,4 +536,13 @@ describe("the project select on /new", () => {
     expect(page).toContain("You are not in a project yet.");
     expect(page).not.toContain('name="file"');
   });
+
+  it("tells a member blocked in every project that its admins decide who publishes", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await denyPublish(alice.user.id);
+    const page = await html("/new", alice.cookie);
+    expect(page).toContain("You cannot publish to any of your projects.");
+    expect(page).not.toContain("You are not in a project yet.");
+    expect(page).not.toContain('name="file"');
+  });
 });

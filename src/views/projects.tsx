@@ -1,4 +1,4 @@
-import { membershipIn } from "../auth";
+import { canPublishIn, membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
@@ -108,10 +108,10 @@ function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPubli
   );
 }
 
-function EmptyProject(props: { project: ProjectRow; q: string }) {
+function EmptyProject(props: { project: ProjectRow; q: string; canPublish: boolean }) {
   const { project } = props;
   if (props.q) return <NoMatches q={props.q} within={project.name} clearHref={projectPath(project.slug)} />;
-  return <NoSkillsYet within={project.name} publishHref={`/new?project=${project.slug}`} />;
+  return <NoSkillsYet within={project.name} publishHref={props.canPublish ? `/new?project=${project.slug}` : undefined} />;
 }
 
 export function ProjectPage(props: {
@@ -142,7 +142,7 @@ export function ProjectPage(props: {
         q={props.q}
         clearHref={path}
         showDownloads={user !== null}
-        empty={<EmptyProject project={project} q={props.q} />}
+        empty={<EmptyProject project={project} q={props.q} canPublish={user !== null && canPublishIn(user, project.slug)} />}
       />
     </Layout>
   );
