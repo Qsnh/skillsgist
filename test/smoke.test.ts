@@ -31,6 +31,7 @@ it("renders pages through the shared Layout: a doctype, same-origin deferred scr
   expect(html.slice(0, 40)).toMatch(/^<!DOCTYPE html>\s*<html lang="en">/);
   expect(html).toContain(`<script src="/copy.js" defer=""></script>`);
   expect(html).toContain(`<script src="/fold.js" defer=""></script>`);
+  expect(html).toContain(`<script src="/dismiss.js" defer=""></script>`);
   expect(html).not.toContain(`<span class="cf-tag cf-nav-tag">`);
   expect(html).not.toContain("Public discovery index");
   expect(html).toContain(`<a href="https://github.com/Qsnh/skillsgist">Source on GitHub</a>`);

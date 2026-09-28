@@ -137,6 +137,7 @@ export function Layout(props: {
           <link rel="stylesheet" href="/app.css" />
           <script src="/copy.js" defer />
           <script src="/fold.js" defer />
+          <script src="/dismiss.js" defer />
         </head>
         <body
           class="cf-body"
