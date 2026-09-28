@@ -61,18 +61,18 @@ cd skillsgist
 npm install
 npx wrangler login
 
-npx wrangler d1 create skillsgist --binding DB   # writes the new database_id into wrangler.jsonc
-npx wrangler r2 bucket create skillsgist --binding BUCKET
+npx wrangler d1 create skillsgist --no-update-config
+npx wrangler r2 bucket create skillsgist --no-update-config
 openssl rand -hex 32 | npx wrangler secret put SESSION_SECRET
 
-npm run deploy                                   # applies migrations, builds the CSS, deploys
+npm run deploy                           # applies migrations, builds the CSS, deploys
 ```
 
-`--binding` fills in the `DB` and `BUCKET` entries already in `wrangler.jsonc`. Without it, Wrangler offers to add a second binding named `skillsgist`, and every later command fails with `Bindings must have unique names`. If that has happened, copy the new `database_id` into the `DB` entry and delete both `skillsgist` entries.
+You never edit `wrangler.jsonc`. Wrangler finds the database and the bucket by the name `skillsgist`, so the file stays as it is in git and `git pull` never conflicts with it. `--no-update-config` stops the create commands from offering to add a second `skillsgist` binding, which would break every later command with `Bindings must have unique names`. If Wrangler has already changed the file, run `git checkout wrangler.jsonc`.
 
 Then open `https://<your-worker>/setup` to create the first admin. The page switches itself off as soon as any user exists.
 
-To serve the instance on your own domain, add a route to `wrangler.jsonc` and deploy again. No code changes are needed:
+To serve the instance on your own domain, open the Worker in the Cloudflare dashboard and add a Custom Domain under Settings → Domains & Routes. Deploys leave domains added there in place, so `wrangler.jsonc` stays untouched. In a copy of the repository you own, such as one made by the button, a route in `wrangler.jsonc` works too:
 
 ```jsonc
 "routes": [{ "pattern": "skills.example.com", "custom_domain": true }]
