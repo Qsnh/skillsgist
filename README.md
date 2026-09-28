@@ -61,12 +61,14 @@ cd skillsgist
 npm install
 npx wrangler login
 
-npx wrangler d1 create skillsgist        # put the printed database_id into wrangler.jsonc
-npx wrangler r2 bucket create skillsgist
+npx wrangler d1 create skillsgist --binding DB   # writes the new database_id into wrangler.jsonc
+npx wrangler r2 bucket create skillsgist --binding BUCKET
 openssl rand -hex 32 | npx wrangler secret put SESSION_SECRET
 
-npm run deploy                           # applies migrations, builds the CSS, deploys
+npm run deploy                                   # applies migrations, builds the CSS, deploys
 ```
+
+`--binding` fills in the `DB` and `BUCKET` entries already in `wrangler.jsonc`. Without it, Wrangler offers to add a second binding named `skillsgist`, and every later command fails with `Bindings must have unique names`. If that has happened, copy the new `database_id` into the `DB` entry and delete both `skillsgist` entries.
 
 Then open `https://<your-worker>/setup` to create the first admin. The page switches itself off as soon as any user exists.
 
