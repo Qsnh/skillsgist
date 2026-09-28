@@ -4,8 +4,8 @@ import { getSkill, getVersion, listVersions } from "../src/db/queries";
 import { sha256Hex } from "../src/hash";
 import { readZip } from "../src/skills/zip";
 import {
-  env, fixture, FLAT_FILES, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, putSkill, resetDb, seedAndLogin,
-  seedAndToken, seedProject,
+  denyPublish, env, fixture, FLAT_FILES, GOOD_MD, joinProject, ORIGIN, OTHER_MD, postMultipart, putSkill, resetDb,
+  seedAndLogin, seedAndToken, seedProject,
 } from "./helpers";
 
 const flatZip = () => new File([fixture("FLAT_ZIP")], "flat.zip", { type: "application/zip" });
@@ -434,6 +434,12 @@ describe("the project select on /new", () => {
     const alice = await seedAndLogin({ username: "alice", role: "member" });
     await joinProject(alice.user.id, "team-c");
     expect(await optionsOn(alice.cookie)).toEqual([["default", "Default"], ["team-c", "Team C"]]);
+  });
+
+  it("leaves out a project where the member's publishing is blocked", async () => {
+    const alice = await inTwoProjects();
+    await denyPublish(alice.user.id, "team-b");
+    expect(await optionsOn(alice.cookie)).toEqual([["default", "Default"]]);
   });
 
   it("offers every project to an instance admin", async () => {

@@ -175,6 +175,10 @@ export function canAccessProject(viewer: Viewer, project: string): boolean {
   return viewer.role === "admin" || membershipIn(viewer, project) !== undefined;
 }
 
+export function canPublishIn(viewer: Viewer, project: string): boolean {
+  return canManageProject(viewer, project) || membershipIn(viewer, project)?.can_publish === 1;
+}
+
 export function canView(viewer: Viewer | null, skill: Pick<SkillRow, "visibility" | "project">): boolean {
   if (skill.visibility === "public") return true;
   return viewer !== null && canAccessProject(viewer, skill.project);
@@ -182,7 +186,7 @@ export function canView(viewer: Viewer | null, skill: Pick<SkillRow, "visibility
 
 export function canManage(viewer: Viewer, skill: Pick<SkillRow, "project" | "owner_id">): boolean {
   if (canManageProject(viewer, skill.project)) return true;
-  return skill.owner_id === viewer.id && membershipIn(viewer, skill.project) !== undefined;
+  return skill.owner_id === viewer.id && canPublishIn(viewer, skill.project);
 }
 
 export const roleOf = (value: unknown): "admin" | "member" => (value === "admin" ? "admin" : "member");
@@ -198,7 +202,9 @@ export async function publishableProjects(
   viewer: Viewer,
 ): Promise<Array<{ slug: string; name: string }>> {
   if (viewer.role === "admin") return listProjects(db);
-  return viewer.memberships.map((m) => ({ slug: m.project, name: m.project_name }));
+  return viewer.memberships
+    .filter((m) => canPublishIn(viewer, m.project))
+    .map((m) => ({ slug: m.project, name: m.project_name }));
 }
 
 /**

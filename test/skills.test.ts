@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
-  cellMeta, env, get, indexAt, indexNames, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish,
-  resetDb, seedAndLogin, seedProject, seedWithSkills, twoProjects,
+  cellMeta, denyPublish, env, get, indexAt, indexNames, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
+  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedWithSkills, twoProjects,
 } from "./helpers";
 
 // This file asserts the rendered body reaches the page, so it wants a heading
@@ -437,6 +437,24 @@ describe("project visibility", () => {
     expect((await postForm("/p/default/s/demo-skill/delete", alice.cookie)).status).toBe(404);
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
   });
+
+  it("leaves a member whose publishing is blocked seeing and installing their skill, but not managing it", async () => {
+    const alice = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
+    await denyPublish(alice.user.id);
+    const base = "/p/default/s/demo-skill";
+    const page = await get(base, alice.cookie);
+    expect(page.status).toBe(200);
+    expect(await page.text()).not.toContain(`href="${base}/edit"`);
+    expect((await get(`${base}/download`, alice.cookie)).status).toBe(200);
+    expect(await indexNames(`/i/${await installKey(alice.user.id)}`)).toEqual(["demo-skill"]);
+    for (const path of [`${base}/edit`, `${base}/upload`]) {
+      expect((await get(path, alice.cookie)).status, path).toBe(403);
+    }
+    for (const path of [`${base}/visibility`, `${base}/move`, `${base}/delete`]) {
+      expect((await postForm(path, alice.cookie)).status, path).toBe(403);
+    }
+    expect(await getSkill(env.DB, "default", "demo-skill")).toMatchObject({ visibility: "private" });
+  });
 });
 
 describe("moving a skill", () => {
@@ -503,6 +521,15 @@ describe("moving a skill", () => {
     for (const project of ["team-b", "nope"]) {
       expect((await postForm("/p/default/s/demo-skill/move", alice.cookie, { project })).status, project).toBe(403);
     }
+    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+  });
+
+  it("neither offers nor accepts a project where the mover's publishing is blocked", async () => {
+    const alice = await inTwoProjects();
+    await publish(alice.cookie, GOOD_MD, "private", "default");
+    await denyPublish(alice.user.id, "team-b");
+    expect(await (await get("/p/default/s/demo-skill", alice.cookie)).text()).not.toContain("cf-move");
+    expect((await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" })).status).toBe(403);
     expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
   });
 
