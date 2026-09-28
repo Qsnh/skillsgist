@@ -17,7 +17,7 @@ related_targets: ["src/views/layout.tsx"]
 
 - Signed-in members: copy the install-everything command (carries their install key), search, open a skill.
 - Anonymous visitors: see only public skills and the bare-origin install command; find the way to sign in.
-- No client-side JavaScript except the progressive-enhancement copy script (`public/copy.js`). Fonts self-hosted (CSP `default-src 'self'`). No Cloudflare logo or trademarked assets; the style is borrowed, not the brand.
+- Client-side JavaScript only as progressive enhancement, and every page works without it: `public/copy.js` copies the install command, `public/fold.js` folds a long SKILL.md, Files list or Versions list, and `public/dismiss.js` closes an open menu or confirmation on Escape or a press outside it. Fonts self-hosted (CSP `default-src 'self'`). No Cloudflare logo or trademarked assets; the style is borrowed, not the brand.
 - No invented claims: no counts beyond the real list, no uptime, no customers.
 
 ## Chosen direction
