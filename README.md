@@ -189,24 +189,20 @@ test/             unit and integration tests
 
 ## Development
 
-`wrangler dev` reads secrets from `.dev.vars`, which `.gitignore` excludes. Create one with a local-only session secret, then run:
-
 ```bash
 npm install
 echo "SESSION_SECRET=$(openssl rand -hex 32)" > .dev.vars
 npm run db:migrate:local
-npm run dev                # Tailwind in watch mode plus wrangler dev
+npm run dev
 ```
 
 Open `http://localhost:8787/setup` to create a local admin.
 
 ```bash
-npm test                   # unit and integration tests
+npm test
 npm run typecheck
-npm run verify:cli         # a contract test against the real npx skills
+npm run verify:cli
 ```
-
-`verify:cli` starts its own `wrangler dev` with a throwaway session secret, so it needs no `.dev.vars`.
 
 ## Contributing
 
