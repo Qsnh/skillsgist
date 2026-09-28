@@ -122,8 +122,8 @@ export async function createFirstAdmin(
       .bind(input.id, input.username, input.passwordHash, now),
     db
       .prepare(
-        `INSERT INTO memberships (project, user_id, role, install_key, created_at)
-         SELECT slug, ?, 'member', ?, ? FROM projects
+        `INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at)
+         SELECT slug, ?, 'member', ?, 1, ? FROM projects
          WHERE slug = ? AND EXISTS (SELECT 1 FROM users WHERE id = ?)`,
       )
       .bind(input.id, input.installKey, now, DEFAULT_PROJECT, input.id),
@@ -579,10 +579,13 @@ export async function deleteProject(db: D1Database, slug: string): Promise<boole
   return project.meta.changes === 1;
 }
 
-export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & { username: string };
+export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & {
+  username: string;
+  account_role: UserRow["role"];
+};
 
-const MEMBER_SQL =
-  "SELECT m.user_id, m.role, m.can_publish, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?";
+const MEMBER_SQL = `SELECT m.user_id, m.role, m.can_publish, u.username, u.role AS account_role
+  FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?`;
 
 export async function listMembers(db: D1Database, project: string): Promise<Member[]> {
   const { results } = await db.prepare(`${MEMBER_SQL} ORDER BY u.username`).bind(project).all<Member>();

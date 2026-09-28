@@ -474,6 +474,13 @@ describe("the publish switch", () => {
     expect((await membership(bob.user.id))?.can_publish).toBe(0);
   });
 
+  it("never marks an instance admin as unable to publish", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin", project: null });
+    expect((await postForm("/p/team-b/members", root.cookie, { user: root.user.id, role: "member" })).status).toBe(302);
+    expect((await membership(root.user.id, "team-b"))?.can_publish).toBe(0);
+    expect(rowOf(await (await get("/p/team-b/settings", root.cookie)).text(), "root")).not.toContain("Cannot publish");
+  });
+
   it("keeps a member's switch through a promotion and a demotion", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
     const bob = await seedAndLogin({ username: "bob", role: "member" });

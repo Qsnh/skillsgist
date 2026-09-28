@@ -196,7 +196,7 @@ export function ProjectSettingsPage(props: {
                     <span class="cf-row-main cf-user">
                       <span class="cf-user-name">{m.username}</span>
                       {m.user_id === props.user.id ? <span class="cf-tag">{t.common.you}</span> : null}
-                      {m.role === "member" && m.can_publish === 0 ? (
+                      {m.role === "member" && m.account_role === "member" && m.can_publish === 0 ? (
                         <span class="cf-tag">{t.projects.cannotPublish}</span>
                       ) : null}
                     </span>
