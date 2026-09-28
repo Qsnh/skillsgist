@@ -1,22 +1,19 @@
 import { canAccessProject, canManage, randomHex } from "./auth";
 import { getProject, getSkill, getVersion, insertVersion, setVisibility } from "./db/queries";
 import type { VersionRow, Viewer } from "./db/queries";
-import { en } from "./i18n/en";
-import { issue, issueText } from "./i18n/issues";
+import { issue, IssueError } from "./i18n/issues";
 import type { Issue } from "./i18n/issues";
 import { RENDER_REVISION, renderSkillMd } from "./render/markdown";
 import { normalizeUpload, UploadError } from "./skills/normalize";
 import { readZip, writeZip } from "./skills/zip";
 import type { Env } from "./types";
 
-export class ForbiddenError extends Error {
+export class ForbiddenError extends IssueError {
   readonly status = 403;
   readonly code = "forbidden";
-  readonly issue: Issue;
   constructor(found: Issue) {
-    super(issueText(en, found));
+    super(found);
     this.name = "ForbiddenError";
-    this.issue = found;
   }
 }
 

@@ -1,7 +1,9 @@
 const RESET_MS = 2000;
 const LABELS = document.body.dataset;
-const MANUAL = /Mac|iPhone|iPad/.test(navigator.userAgent) ? LABELS.copyMac : LABELS.copyOther;
-const TEXT = { copied: LABELS.copyDone, manual: MANUAL };
+const TEXT = {
+  copied: LABELS.copyDone,
+  manual: /Mac|iPhone|iPad/.test(navigator.userAgent) ? LABELS.copyMac : LABELS.copyOther,
+};
 const timers = new WeakMap();
 
 function selectContents(node) {

@@ -9,7 +9,7 @@ import type { Locale } from "./locales";
 import { zhCN } from "./zh-CN";
 import { zhTW } from "./zh-TW";
 
-export const CATALOGS: Record<Locale, Messages> = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja };
+const CATALOGS: Record<Locale, Messages> = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja };
 
 const TRADITIONAL = /^zh-(hant|tw|hk|mo)(-|$)/i;
 

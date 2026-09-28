@@ -1,7 +1,6 @@
 import { DIGEST_PREFIX } from "../artifact";
 import { sha256Hex } from "../hash";
-import { en } from "../i18n/en";
-import { issue, issueText } from "../i18n/issues";
+import { issue, IssueError } from "../i18n/issues";
 import type { Issue } from "../i18n/issues";
 import { isValidDescription, isValidSkillName, parseFrontmatter } from "./frontmatter";
 import { isGzip, readTarGz } from "./tar";
@@ -11,14 +10,12 @@ export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 export const MAX_UNPACKED_BYTES = 8 * 1024 * 1024;
 export const MAX_FILES = 200;
 
-export class UploadError extends Error {
+export class UploadError extends IssueError {
   readonly status = 400;
   readonly code = "invalid_upload";
-  readonly issue: Issue;
   constructor(found: Issue) {
-    super(issueText(en, found));
+    super(found);
     this.name = "UploadError";
-    this.issue = found;
   }
 }
 

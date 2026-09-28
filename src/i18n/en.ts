@@ -1,4 +1,4 @@
-export type Slot = unknown;
+type Slot = unknown;
 
 export type SkillAction = "modify" | "move" | "delete" | "edit" | "update";
 
