@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-27T10:57:21Z",
+  "generatedAt": "2026-09-28T00:42:09Z",
   "title": "Design System: skillsgist",
   "extensions": {
     "colorMeta": {
@@ -408,7 +408,7 @@
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "The single white headline inside the orange command panel."
+        "purpose": "The single white headline inside the orange command panel. In Chinese and Japanese its tracking resets to 0 and its cap becomes 16em, and Japanese breaks it at phrase boundaries."
       },
       "display-skill": {
         "displayName": "Display Skill",
@@ -416,19 +416,19 @@
       },
       "page-title": {
         "displayName": "Page Title",
-        "purpose": "Page head title on Publish, Edit, Upload, Account and Add a user; page-title-sm (30px) below 640px."
+        "purpose": "Page head title on Publish, Edit, Upload, Account and Add a user; page-title-sm (30px) below 640px. Tracking resets to 0 in Chinese and Japanese. Japanese breaks it at phrase boundaries."
       },
       "page-title-sm": {
         "displayName": "Page Title Small",
-        "purpose": "The page title below 640px."
+        "purpose": "The page title below 640px. Tracking resets to 0 in Chinese and Japanese. Japanese breaks it at phrase boundaries."
       },
       "headline": {
         "displayName": "Headline",
-        "purpose": "Section heading above a framed grid and the compact page title on Users; headline-sm (26px) below 640px."
+        "purpose": "Section heading above a framed grid and the compact page title on Users; headline-sm (26px) below 640px. Tracking resets to 0 in Chinese and Japanese."
       },
       "headline-sm": {
         "displayName": "Headline Small",
-        "purpose": "The registry heading and compact page title below 640px."
+        "purpose": "The registry heading and compact page title below 640px. Tracking resets to 0 in Chinese and Japanese."
       },
       "doc-h1": {
         "displayName": "SKILL.md H1",
@@ -436,7 +436,7 @@
       },
       "auth-title": {
         "displayName": "Auth Title",
-        "purpose": "Title inside the sign-in and setup frame."
+        "purpose": "Title inside the sign-in and setup frame. Tracking resets to 0 in Chinese and Japanese."
       },
       "doc-h2": {
         "displayName": "SKILL.md H2",
@@ -444,7 +444,7 @@
       },
       "title-lg": {
         "displayName": "Title Large",
-        "purpose": "Empty-state title inside a frame."
+        "purpose": "Empty-state title inside a frame. Tracking resets to 0 in Chinese and Japanese. Japanese breaks it at phrase boundaries."
       },
       "title": {
         "displayName": "Title",
@@ -460,11 +460,11 @@
       },
       "lede": {
         "displayName": "Lede",
-        "purpose": "Supporting line on the orange panel, set in Ember; 54ch on the index, 64ch on the skill page; 16px below 640px."
+        "purpose": "Supporting line on the orange panel, set in Ember; 54ch on the index, 64ch on the skill page; 16px below 640px. Japanese breaks it at phrase boundaries."
       },
       "panel-title": {
         "displayName": "Panel Title",
-        "purpose": "Title in a Paper Shade header strip, such as Files, Versions or Install every skill."
+        "purpose": "Title in a Paper Shade header strip, such as Files, Versions or Install every skill. Tracking resets to 0 in Chinese and Japanese."
       },
       "doc-h4": {
         "displayName": "SKILL.md H4",
@@ -480,7 +480,7 @@
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Base page size and empty-state copy."
+        "purpose": "Base page size and empty-state copy. Latin text keeps Schibsted Grotesk; Han and kana fall through to a stack chosen by `<html lang>`: PingFang SC, Hiragino Sans GB, Microsoft YaHei and Noto Sans CJK SC for zh-CN; PingFang TC, Hiragino Sans TC, Microsoft JhengHei and Noto Sans CJK TC for zh-TW; Hiragino Sans, Hiragino Kaku Gothic ProN, Yu Gothic UI, Meiryo and Noto Sans CJK JP for ja."
       },
       "body-sm": {
         "displayName": "Body Small",
@@ -488,7 +488,7 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Button, search-submit and field labels; 13px on small buttons."
+        "purpose": "Button, search-submit, field and menu-trigger labels; 13px on small buttons such as the footer's language menu."
       },
       "caption": {
         "displayName": "Caption",
@@ -536,7 +536,7 @@
       {
         "name": "popover",
         "value": "0 12px 32px -12px rgb(60 12 0 / 0.22)",
-        "purpose": "The open account and language menu panels."
+        "purpose": "The open account and language menu panels and every open confirmation: Move and Delete in the skill toolbar, a member's Remove, Revoke, Delete project and Delete account."
       }
     ],
     "motion": [
@@ -575,7 +575,7 @@
       {
         "name": "sm",
         "value": "640px",
-        "purpose": "Below: 16px gutters, one-column grid and choice cards, nav tag and sort note hidden, 6px panel inset with 12px corners, smaller titles, tighter form and panel padding, and the skill toolbar's buttons in two left-aligned columns. From here: two-column grid."
+        "purpose": "Below: 16px gutters, one-column grid and choice cards, nav tag and sort note hidden, 6px panel inset with 12px corners, smaller titles, tighter form and panel padding, and the skill toolbar's buttons in two left-aligned columns (one column on Japanese pages, whose labels are too wide for two). From here: two-column grid."
       },
       {
         "name": "md",
@@ -647,9 +647,17 @@
       "name": "Navigation",
       "kind": "nav",
       "refersTo": "nav",
-      "description": "White 64px bar holding the mark and the lowercase wordmark, a Publish pill and a native details account menu that opens a popover.",
-      "html": "<header class=\"ds-nav\"><nav class=\"ds-nav-inner\" aria-label=\"Main\"><a href=\"#\" class=\"ds-nav-wordmark\"><svg class=\"ds-nav-mark\" viewBox=\"0 0 100 100\" width=\"24\" height=\"24\" aria-hidden=\"true\"><defs><clipPath id=\"ds-nav-mark-clip\"><rect width=\"100\" height=\"100\" rx=\"25\"/></clipPath><mask id=\"ds-nav-mark-cut\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#fff\"/><g fill=\"#000\"><rect x=\"-100\" y=\"22\" width=\"130\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"47\" width=\"144\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"72\" width=\"124\" height=\"6\" rx=\"3\"/><circle cx=\"68\" cy=\"35.5\" r=\"13.5\"/><path d=\"M63 35.5L73 35.5L78 78L58 78Z\"/></g></mask></defs><g clip-path=\"url(#ds-nav-mark-clip)\" mask=\"url(#ds-nav-mark-cut)\"><rect width=\"100\" height=\"100\" fill=\"#7b5cff\"/><rect y=\"25\" width=\"100\" height=\"75\" fill=\"#ff3d7f\"/><rect y=\"50\" width=\"100\" height=\"50\" fill=\"#ff5e1f\"/><rect y=\"75\" width=\"100\" height=\"25\" fill=\"#ffb61e\"/></g></svg>skillsgist</a><span class=\"ds-nav-spacer\"></span><a href=\"#\" class=\"ds-nav-primary\">Publish</a><details class=\"ds-nav-menu\"><summary class=\"ds-nav-account\"><span class=\"ds-nav-name\">mira</span><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4 6l4 4 4-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></summary><div class=\"ds-nav-panel\"><a href=\"#\" class=\"ds-nav-item\">Account</a><a href=\"#\" class=\"ds-nav-item\">Users</a><button type=\"button\" class=\"ds-nav-item\">Sign out</button></div></details></nav></header>",
-      "css": ".ds-nav { background: #fff; border-bottom: 1px solid var(--color-cf-line, #efe6e1); font-family: var(--font-sans, \"Schibsted Grotesk\", ui-sans-serif, system-ui, sans-serif); } .ds-nav-inner { display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 24px; } .ds-nav-wordmark { display: inline-flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.035em; color: var(--color-cf-ink, #171717); text-decoration: none; } .ds-nav-spacer { flex: 1; } .ds-nav-primary { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--color-cf-action, #d63c01); color: #fff; font-size: 14px; font-weight: 500; line-height: 1; text-decoration: none; transition: background-color 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-primary:hover { background: var(--color-cf-action-hover, #b93300); } .ds-nav-menu { position: relative; } .ds-nav-account { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px 0 14px; border: 1px solid var(--color-cf-line-strong, #dfd2cb); border-radius: 999px; background: #fff; color: var(--color-cf-ink, #171717); font-size: 14px; font-weight: 500; line-height: 1; list-style: none; cursor: pointer; transition: border-color 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-account::-webkit-details-marker { display: none; } .ds-nav-account:hover, .ds-nav-menu[open] > .ds-nav-account { border-color: var(--color-cf-ink, #171717); } .ds-nav-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; } .ds-nav-account svg { width: 16px; height: 16px; color: var(--color-cf-muted, #6b6560); transition: rotate 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-menu[open] > .ds-nav-account svg { rotate: 180deg; } .ds-nav-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 180px; padding: 6px; border: 1px solid var(--color-cf-line, #efe6e1); border-radius: 12px; background: #fff; box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22); } .ds-nav-item { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; text-align: left; color: var(--color-cf-ink, #171717); text-decoration: none; cursor: pointer; } .ds-nav-item:hover { background: var(--color-cf-paper-2, #f9f7f6); } .ds-nav a:focus-visible, .ds-nav summary:focus-visible, .ds-nav button:focus-visible { outline: 2px solid var(--color-cf-orange, #ff5e1f); outline-offset: 2px; } .ds-nav-mark { display: block; flex: none; }"
+      "description": "White 64px bar holding the mark and the lowercase wordmark, a Publish pill and a native details account menu that opens a popover below its trigger.",
+      "html": "<header class=\"ds-nav\"><nav class=\"ds-nav-inner\" aria-label=\"Main\"><a href=\"#\" class=\"ds-nav-wordmark\"><svg class=\"ds-nav-mark\" viewBox=\"0 0 100 100\" width=\"24\" height=\"24\" aria-hidden=\"true\"><defs><clipPath id=\"ds-nav-mark-clip\"><rect width=\"100\" height=\"100\" rx=\"25\"/></clipPath><mask id=\"ds-nav-mark-cut\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#fff\"/><g fill=\"#000\"><rect x=\"-100\" y=\"22\" width=\"130\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"47\" width=\"144\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"72\" width=\"124\" height=\"6\" rx=\"3\"/><circle cx=\"68\" cy=\"35.5\" r=\"13.5\"/><path d=\"M63 35.5L73 35.5L78 78L58 78Z\"/></g></mask></defs><g clip-path=\"url(#ds-nav-mark-clip)\" mask=\"url(#ds-nav-mark-cut)\"><rect width=\"100\" height=\"100\" fill=\"#7b5cff\"/><rect y=\"25\" width=\"100\" height=\"75\" fill=\"#ff3d7f\"/><rect y=\"50\" width=\"100\" height=\"50\" fill=\"#ff5e1f\"/><rect y=\"75\" width=\"100\" height=\"25\" fill=\"#ffb61e\"/></g></svg>skillsgist</a><span class=\"ds-nav-spacer\"></span><a href=\"#\" class=\"ds-nav-primary\">Publish</a><details class=\"ds-nav-menu\"><summary class=\"ds-nav-account\"><span class=\"ds-nav-name\">mira</span><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4 6l4 4 4-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></summary><div class=\"ds-nav-panel\"><a href=\"#\" class=\"ds-nav-item\">Account</a><a href=\"#\" class=\"ds-nav-item\">Projects</a><a href=\"#\" class=\"ds-nav-item\">Users</a><button type=\"button\" class=\"ds-nav-item\">Sign out</button></div></details></nav></header>",
+      "css": ".ds-nav { background: #fff; border-bottom: 1px solid var(--color-cf-line, #efe6e1); font-family: var(--font-sans, \"Schibsted Grotesk\", ui-sans-serif, system-ui, sans-serif); } .ds-nav-inner { display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 24px; } .ds-nav-wordmark { display: inline-flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600; letter-spacing: -0.035em; color: var(--color-cf-ink, #171717); text-decoration: none; } .ds-nav-spacer { flex: 1; } .ds-nav-primary { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--color-cf-action, #d63c01); color: #fff; font-size: 14px; font-weight: 500; line-height: 1; text-decoration: none; transition: background-color 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-primary:hover { background: var(--color-cf-action-hover, #b93300); } .ds-nav-menu { position: relative; } .ds-nav-account { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px 0 14px; border: 1px solid var(--color-cf-line-strong, #dfd2cb); border-radius: 999px; background: #fff; color: var(--color-cf-ink, #171717); font-size: 14px; font-weight: 500; line-height: 1; list-style: none; cursor: pointer; transition: border-color 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-account::-webkit-details-marker { display: none; } .ds-nav-account:hover, .ds-nav-menu[open] > .ds-nav-account { border-color: var(--color-cf-ink, #171717); } .ds-nav-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; } .ds-nav-account svg { width: 16px; height: 16px; color: var(--color-cf-muted, #6b6560); transition: rotate 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-nav-menu[open] > .ds-nav-account svg { rotate: 180deg; } .ds-nav-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 180px; padding: 6px; border: 1px solid var(--color-cf-line, #efe6e1); border-radius: 12px; background: #fff; box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22); } .ds-nav-item { display: block; box-sizing: border-box; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; text-align: left; color: var(--color-cf-ink, #171717); text-decoration: none; cursor: pointer; } .ds-nav-item:hover { background: var(--color-cf-paper-2, #f9f7f6); } .ds-nav a:focus-visible, .ds-nav summary:focus-visible, .ds-nav button:focus-visible { outline: 2px solid var(--color-cf-orange, #ff5e1f); outline-offset: 2px; } .ds-nav-mark { display: block; flex: none; }"
+    },
+    {
+      "name": "Footer and Language Menu",
+      "kind": "nav",
+      "refersTo": "footer",
+      "description": "Paper Shade band closing every page: the 18px mark and 15px wordmark, a Warm Muted caption, and a native details language menu whose small outline trigger opens a popover upward, left-aligned, listing each language in its own script with an Orange Ink check on the current one.",
+      "html": "<footer class=\"ds-foot\"><div class=\"ds-foot-inner\"><p class=\"ds-foot-brand\"><a href=\"#\" class=\"ds-foot-wordmark\"><svg class=\"ds-foot-mark\" viewBox=\"0 0 100 100\" width=\"18\" height=\"18\" aria-hidden=\"true\"><defs><clipPath id=\"ds-foot-mark-clip\"><rect width=\"100\" height=\"100\" rx=\"25\"/></clipPath><mask id=\"ds-foot-mark-cut\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"100\" height=\"100\"><rect width=\"100\" height=\"100\" fill=\"#fff\"/><g fill=\"#000\"><rect x=\"-100\" y=\"22\" width=\"130\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"47\" width=\"144\" height=\"6\" rx=\"3\"/><rect x=\"-100\" y=\"72\" width=\"124\" height=\"6\" rx=\"3\"/><circle cx=\"68\" cy=\"35.5\" r=\"13.5\"/><path d=\"M63 35.5L73 35.5L78 78L58 78Z\"/></g></mask></defs><g clip-path=\"url(#ds-foot-mark-clip)\" mask=\"url(#ds-foot-mark-cut)\"><rect width=\"100\" height=\"100\" fill=\"#7b5cff\"/><rect y=\"25\" width=\"100\" height=\"75\" fill=\"#ff3d7f\"/><rect y=\"50\" width=\"100\" height=\"50\" fill=\"#ff5e1f\"/><rect y=\"75\" width=\"100\" height=\"25\" fill=\"#ffb61e\"/></g></svg>skillsgist</a><span>A private registry for Agent Skills, running on Cloudflare Workers.</span></p><div class=\"ds-foot-end\"><form class=\"ds-foot-lang\"><details class=\"ds-lang\"><summary class=\"ds-lang-trigger\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M2 8h12M8 2c1.7 1.8 2.5 3.8 2.5 6S9.7 12.2 8 14C6.3 12.2 5.5 10.2 5.5 8S6.3 3.8 8 2z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><span>English</span><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4 6l4 4 4-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></summary><div class=\"ds-lang-panel\"><span class=\"ds-lang-item\" aria-current=\"true\" lang=\"en\">English<svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M3.5 8.5l3 3 6-7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span><button type=\"button\" class=\"ds-lang-item\" lang=\"zh-CN\">简体中文</button><button type=\"button\" class=\"ds-lang-item\" lang=\"zh-TW\">繁體中文</button><button type=\"button\" class=\"ds-lang-item\" lang=\"ja\">日本語</button></div></details></form><nav class=\"ds-foot-links\" aria-label=\"Footer\"><a href=\"#\">Source on GitHub</a></nav></div></div></footer>",
+      "css": ".ds-foot { border-top: 1px solid var(--color-cf-line, #efe6e1); background: var(--color-cf-paper-2, #f9f7f6); font-family: var(--font-sans, \"Schibsted Grotesk\", ui-sans-serif, system-ui, sans-serif); } .ds-foot-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 32px; padding: 28px 24px; font-size: 13px; line-height: 1.5; color: var(--color-cf-muted, #6b6560); } .ds-foot-brand { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; } .ds-foot-wordmark { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.03em; color: var(--color-cf-ink, #171717); text-decoration: none; } .ds-foot-mark { display: block; flex: none; } .ds-foot-end { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; } .ds-foot-lang { margin: 0; } .ds-lang { position: relative; } .ds-lang-trigger { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px 0 10px; border: 1px solid var(--color-cf-line-strong, #dfd2cb); border-radius: 999px; background: #fff; color: var(--color-cf-ink, #171717); font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; list-style: none; cursor: pointer; transition: border-color 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-lang-trigger::-webkit-details-marker { display: none; } .ds-lang-trigger:hover, .ds-lang[open] > .ds-lang-trigger { border-color: var(--color-cf-ink, #171717); } .ds-lang-trigger svg { width: 16px; height: 16px; flex: none; color: var(--color-cf-muted, #6b6560); } .ds-lang-trigger svg:last-child { rotate: 180deg; transition: rotate 0.2s var(--ease-cf, cubic-bezier(0.16, 1, 0.3, 1)); } .ds-lang[open] > .ds-lang-trigger svg:last-child { rotate: 0deg; } .ds-lang-panel { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; min-width: 180px; padding: 6px; border: 1px solid var(--color-cf-line, #efe6e1); border-radius: 12px; background: #fff; box-shadow: 0 12px 32px -12px rgb(60 12 0 / 0.22); } .ds-lang-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; box-sizing: border-box; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; line-height: 1.5; text-align: left; color: var(--color-cf-ink, #171717); cursor: pointer; } .ds-lang-item:hover { background: var(--color-cf-paper-2, #f9f7f6); } .ds-lang-item[aria-current] { font-weight: 500; cursor: default; } .ds-lang-item[aria-current]:hover { background: none; } .ds-lang-item svg { width: 16px; height: 16px; flex: none; color: var(--color-cf-orange-ink, #c73a02); } .ds-foot-links a { color: var(--color-cf-ink-2, #404040); text-decoration: none; text-underline-offset: 3px; } .ds-foot-links a:hover { color: var(--color-cf-ink, #171717); text-decoration: underline; } .ds-foot a:focus-visible, .ds-foot summary:focus-visible, .ds-foot button:focus-visible { outline: 2px solid var(--color-cf-orange, #ff5e1f); outline-offset: 2px; }"
     },
     {
       "name": "Visibility Labels",
