@@ -61,8 +61,8 @@ cd skillsgist
 npm install
 npx wrangler login
 
-npx wrangler d1 create skillsgist        # put the printed database_id into wrangler.jsonc
-npx wrangler r2 bucket create skillsgist
+npx wrangler d1 create skillsgist --no-update-config
+npx wrangler r2 bucket create skillsgist --no-update-config
 openssl rand -hex 32 | npx wrangler secret put SESSION_SECRET
 
 npm run deploy                           # applies migrations, builds the CSS, deploys
@@ -70,11 +70,7 @@ npm run deploy                           # applies migrations, builds the CSS, d
 
 Then open `https://<your-worker>/setup` to create the first admin. The page switches itself off as soon as any user exists.
 
-To serve the instance on your own domain, add a route to `wrangler.jsonc` and deploy again. No code changes are needed:
-
-```jsonc
-"routes": [{ "pattern": "skills.example.com", "custom_domain": true }]
-```
+To serve the instance on your own domain, open the Worker in the Cloudflare dashboard and add a Custom Domain under Settings → Domains & Routes.
 
 ## Publish from a terminal or CI
 
