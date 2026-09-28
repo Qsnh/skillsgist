@@ -1,7 +1,7 @@
 {
   "name": "skillsgist",
   "version": "1.0.0",
-  "description": "A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.",
+  "description": "A private Agent Skills registry you self-host on Cloudflare.",
   "keywords": [
     "agent-skills",
     "skills",

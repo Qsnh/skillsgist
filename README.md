@@ -2,7 +2,7 @@
 
 # skillsgist
 
-A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.
+A private Agent Skills registry you self-host on Cloudflare.
 
 [![CI](https://github.com/Qsnh/skillsgist/actions/workflows/ci.yml/badge.svg)](https://github.com/Qsnh/skillsgist/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -10,8 +10,6 @@ A private Agent Skills registry you self-host on Cloudflare. Manage skills in th
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Qsnh/skillsgist)
 
 ![The skillsgist home page: a search box and the skill list](docs/images/home.png)
-
-skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh). You upload a skill in the browser; everyone on the team installs it with the same `npx skills add` they already use. There is no custom CLI, plugin or fork, and nothing is published to a shared public registry. The Worker, the database, the storage bucket and the credentials all live in your own Cloudflare account.
 
 ## Why skillsgist
 
