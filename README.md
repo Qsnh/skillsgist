@@ -72,10 +72,6 @@ Then open `https://<your-worker>/setup` to create the first admin. The page swit
 
 To serve the instance on your own domain, open the Worker in the Cloudflare dashboard and add a Custom Domain under Settings → Domains & Routes.
 
-```jsonc
-"routes": [{ "pattern": "skills.example.com", "custom_domain": true }]
-```
-
 ## Publish from a terminal or CI
 
 Generate an API token on `/me`, or have an admin generate one on your account's settings page, which suits an account used only by CI. It is shown once, and it travels only in the `Authorization` header, never in a URL.
