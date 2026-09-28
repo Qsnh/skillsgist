@@ -204,6 +204,11 @@ export const ja: Messages = {
     noMembers: "メンバーはまだいません。",
     makeMember: "メンバーにする",
     makeAdmin: "管理者にする",
+    cannotPublish: "公開不可",
+    allowPublishing: "公開を許可",
+    blockPublishing: "公開を禁止",
+    addMemberHint:
+      "新しいメンバーは公開が禁止された状態で始まります。プロジェクトのスキルの閲覧とインストールはできます。公開させるには、メンバーの行で「公開を許可」を選んでください。",
     remove: "外す",
     removeUser: (username) => `${username} を外す`,
     removeWarning: (username, name) =>

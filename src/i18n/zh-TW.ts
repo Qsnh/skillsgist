@@ -193,6 +193,10 @@ export const zhTW: Messages = {
     noMembers: "還沒有成員。",
     makeMember: "設為成員",
     makeAdmin: "設為管理員",
+    cannotPublish: "不可發佈",
+    allowPublishing: "允許發佈",
+    blockPublishing: "禁止發佈",
+    addMemberHint: "新成員預設禁止發佈，但可以檢視及安裝此專案的技能。在成員所在列點選「允許發佈」即可讓其發佈。",
     remove: "移除",
     removeUser: (username) => `移除 ${username}`,
     removeWarning: (username, name) =>

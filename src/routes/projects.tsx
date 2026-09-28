@@ -8,7 +8,7 @@ import { page } from "../csrf";
 import {
   addMembership, createProject, deleteMembership, deleteProject, getMember, getProject, getUserById, listMembers,
   listNonMembers, listProjectSummaries, listSkills, projectHasSkills, projectNameTaken, renameProject,
-  updateInstallKey, updateMembershipRole,
+  updateInstallKey, updateMembershipPublish, updateMembershipRole,
 } from "../db/queries";
 import type { ProjectRow, Viewer } from "../db/queries";
 import { flash } from "../flash";
@@ -168,6 +168,16 @@ projectsRoutes.post("/p/:project/members/:userId/role", requireUser, async (c) =
   if (!member) return c.notFound();
   const body = await c.req.parseBody();
   await updateMembershipRole(c.env.DB, guard.project.slug, member.user_id, roleOf(body.role));
+  return c.redirect(projectSettingsPath(guard.project.slug), 302);
+});
+
+projectsRoutes.post("/p/:project/members/:userId/publish", requireUser, async (c) => {
+  const guard = await projectGuard(c, c.req.param("project"), true);
+  if (!guard.ok) return guard.response;
+  const member = await getMember(c.env.DB, guard.project.slug, c.req.param("userId"));
+  if (!member) return c.notFound();
+  const body = await c.req.parseBody();
+  await updateMembershipPublish(c.env.DB, guard.project.slug, member.user_id, body.publish === "1");
   return c.redirect(projectSettingsPath(guard.project.slug), 302);
 });
 

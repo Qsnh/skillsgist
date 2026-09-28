@@ -54,6 +54,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /p/:project/rename": () => "/p/default/rename",
   "POST /p/:project/members": () => "/p/default/members",
   "POST /p/:project/members/:userId/role": ({ userId }) => `/p/default/members/${userId}/role`,
+  "POST /p/:project/members/:userId/publish": ({ userId }) => `/p/default/members/${userId}/publish`,
   "POST /p/:project/members/:userId/remove": ({ userId }) => `/p/default/members/${userId}/remove`,
   "POST /p/:project/delete": () => "/p/default/delete",
   "POST /p/:project/s/:slug/edit": ({ slug }) => `/p/default/s/${slug}/edit`,

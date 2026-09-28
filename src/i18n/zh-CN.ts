@@ -193,6 +193,10 @@ export const zhCN: Messages = {
     noMembers: "还没有成员。",
     makeMember: "设为成员",
     makeAdmin: "设为管理员",
+    cannotPublish: "不可发布",
+    allowPublishing: "允许发布",
+    blockPublishing: "禁止发布",
+    addMemberHint: "新成员默认禁止发布，但可以查看和安装该项目的技能。在成员所在行点击“允许发布”即可让其发布。",
     remove: "移除",
     removeUser: (username) => `移除 ${username}`,
     removeWarning: (username, name) =>

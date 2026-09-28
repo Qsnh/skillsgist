@@ -205,6 +205,11 @@ export const en = {
     noMembers: "No members yet.",
     makeMember: "Make member",
     makeAdmin: "Make admin",
+    cannotPublish: "Cannot publish",
+    allowPublishing: "Allow publishing",
+    blockPublishing: "Block publishing",
+    addMemberHint:
+      "New members start with publishing blocked. They can see and install the project's skills; choose Allow publishing on a member's row to let them publish.",
     remove: "Remove",
     removeUser: (username: string) => `Remove ${username}`,
     removeWarning: (username: string, name: string) =>

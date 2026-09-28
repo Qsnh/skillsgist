@@ -579,10 +579,10 @@ export async function deleteProject(db: D1Database, slug: string): Promise<boole
   return project.meta.changes === 1;
 }
 
-export type Member = Pick<MembershipRow, "user_id" | "role"> & { username: string };
+export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & { username: string };
 
 const MEMBER_SQL =
-  "SELECT m.user_id, m.role, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?";
+  "SELECT m.user_id, m.role, m.can_publish, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?";
 
 export async function listMembers(db: D1Database, project: string): Promise<Member[]> {
   const { results } = await db.prepare(`${MEMBER_SQL} ORDER BY u.username`).bind(project).all<Member>();
@@ -617,6 +617,18 @@ export async function updateMembershipRole(
   await db
     .prepare("UPDATE memberships SET role = ? WHERE project = ? AND user_id = ?")
     .bind(role, project, userId)
+    .run();
+}
+
+export async function updateMembershipPublish(
+  db: D1Database,
+  project: string,
+  userId: string,
+  canPublish: boolean,
+): Promise<void> {
+  await db
+    .prepare("UPDATE memberships SET can_publish = ? WHERE project = ? AND user_id = ?")
+    .bind(canPublish ? 1 : 0, project, userId)
     .run();
 }
 
