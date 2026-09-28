@@ -2,7 +2,7 @@
 
 # skillsgist
 
-A private Agent Skills registry you self-host on Cloudflare. Manage skills in the browser, install them with the stock `npx skills add`.
+A private Agent Skills registry you self-host on Cloudflare.
 
 [![CI](https://github.com/Qsnh/skillsgist/actions/workflows/ci.yml/badge.svg)](https://github.com/Qsnh/skillsgist/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -10,8 +10,6 @@ A private Agent Skills registry you self-host on Cloudflare. Manage skills in th
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Qsnh/skillsgist)
 
 ![The skillsgist home page: a search box and the skill list](docs/images/home.png)
-
-skillsgist gives a team one place to keep its [Agent Skills](https://skills.sh). You upload a skill in the browser; everyone on the team installs it with the same `npx skills add` they already use. There is no custom CLI, plugin or fork, and nothing is published to a shared public registry. The Worker, the database, the storage bucket and the credentials all live in your own Cloudflare account.
 
 ## Why skillsgist
 
@@ -129,16 +127,6 @@ Each membership has its own role:
 
 **Deleting an account reassigns its skills and the author records on its versions to the admin who deletes it**, because neither may point at a user that no longer exists. The original authorship is lost.
 
-## Security model
-
-- **The install key sits in the URL.** `npx skills` sends no custom headers, so the credential for a private install can only live in the path. That is why the key can do nothing but install, why each key reaches only one project's skills, and why it resets in one click.
-- **API tokens live only in a header.** `/api/*` reads `Authorization: Bearer` and never the session cookie, so a browser cannot be tricked into publishing on someone's behalf. Tokens are stored as hashes.
-- **Web forms carry a CSRF token** bound to the session, on top of an `Origin` check.
-- **Sessions are signed cookies**, HMAC-signed with `SESSION_SECRET` and valid for 30 days. Passwords are hashed with PBKDF2.
-- **Every page is served with a Content-Security-Policy** that allows only same-origin scripts and forbids framing.
-
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
 ## Limits
 
 An upload may be at most 2 MB, unpack to at most 8 MB, and contain at most 200 files. These limits keep each request inside the Workers Free plan's 10 ms CPU budget. On Workers Paid you can raise `MAX_UPLOAD_BYTES`, `MAX_UNPACKED_BYTES` and `MAX_FILES` in `src/skills/normalize.ts`, and `PBKDF2_ITERATIONS` in `src/auth.ts`.
@@ -153,12 +141,12 @@ npm install
 npm run deploy
 ```
 
-If you deployed with the button, your copy is a separate repository rather than a fork. Merge this repository into it and push; Workers Builds deploys again and applies any new migrations. Keep the `database_id` that Cloudflare wrote into your `wrangler.jsonc` if the merge touches it.
+If you deployed with the button, your copy is a separate repository rather than a fork. Merge this repository into it and push; Workers Builds deploys again and applies any new migrations.
 
 ```bash
 git remote add upstream https://github.com/Qsnh/skillsgist.git
 git fetch upstream
-git merge upstream/main    # the first time, Git may ask for --allow-unrelated-histories
+git merge upstream/main
 git push
 ```
 
@@ -191,28 +179,24 @@ test/             unit and integration tests
 
 ## Development
 
-`wrangler dev` reads secrets from `.dev.vars`, which `.gitignore` excludes. Create one with a local-only session secret, then run:
-
 ```bash
 npm install
 echo "SESSION_SECRET=$(openssl rand -hex 32)" > .dev.vars
 npm run db:migrate:local
-npm run dev                # Tailwind in watch mode plus wrangler dev
+npm run dev
 ```
 
 Open `http://localhost:8787/setup` to create a local admin.
 
 ```bash
-npm test                   # unit and integration tests
+npm test
 npm run typecheck
-npm run verify:cli         # a contract test against the real npx skills
+npm run verify:cli
 ```
-
-`verify:cli` starts its own `wrangler dev` with a throwaway session secret, so it needs no `.dev.vars`.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. Code and docs are in English. UI text is written in English in `src/i18n/en.ts` and translated in `src/i18n/zh-CN.ts`, `src/i18n/zh-TW.ts` and `src/i18n/ja.ts`; `npm run typecheck` fails until a new message is in all four. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
+Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.
 
 ## License
 
