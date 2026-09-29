@@ -60,13 +60,17 @@ export function NoMatches(props: { q: string; within?: string; clearHref: string
   );
 }
 
-export function NoSkillsYet(props: { within?: string; publishHref: string }) {
+export function NoSkillsYet(props: { within?: string; publishHref?: string }) {
   const t = useT();
   return (
     <div class="cf-empty">
       <p class="cf-empty-title">{t.skills.noSkillsYet(props.within ?? null)}</p>
-      <p class="cf-empty-body">{t.skills.publishHow}</p>
-      <a href={props.publishHref} class="cf-btn cf-btn-primary">{t.skills.publishFirst}</a>
+      {props.publishHref ? (
+        <>
+          <p class="cf-empty-body">{t.skills.publishHow}</p>
+          <a href={props.publishHref} class="cf-btn cf-btn-primary">{t.skills.publishFirst}</a>
+        </>
+      ) : null}
     </div>
   );
 }

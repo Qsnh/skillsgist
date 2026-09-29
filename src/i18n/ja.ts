@@ -204,6 +204,11 @@ export const ja: Messages = {
     noMembers: "メンバーはまだいません。",
     makeMember: "メンバーにする",
     makeAdmin: "管理者にする",
+    cannotPublish: "公開不可",
+    allowPublishing: "公開を許可",
+    blockPublishing: "公開を禁止",
+    addMemberHint:
+      "新しいメンバーは公開が禁止された状態で始まります。プロジェクトのスキルの閲覧とインストールはできます。公開させるには、メンバーの行で「公開を許可」を選んでください。",
     remove: "外す",
     removeUser: (username) => `${username} を外す`,
     removeWarning: (username, name) =>
@@ -238,6 +243,9 @@ export const ja: Messages = {
     title: "スキルを公開",
     noProjectBody:
       "スキルはすべていずれかのプロジェクトに属し、公開できるのはそのプロジェクトのメンバーだけです。管理者にプロジェクトへの追加を依頼してください。",
+    noPermission: "所属しているどのプロジェクトにも公開する権限がありません。",
+    noPermissionBody:
+      "どのメンバーが公開できるかは、各プロジェクトの管理者が決めます。管理者に許可を依頼してください。それまでも、所属プロジェクトのスキルの閲覧とインストールはできます。",
     archiveHint:
       ".zip と .tar.gz に対応しています。アーカイブには SKILL.md が必要です（1 階層のフォルダーに入っていても構いません）。最大 2 MB。",
     pasteSkillMd: "または SKILL.md を直接貼り付け",
@@ -289,6 +297,7 @@ export const ja: Messages = {
     slugMismatch: (url, declared) =>
       `URL のスラッグは ${url} ですが、SKILL.md の name は ${declared} です。両者を一致させてください`,
     noSuchProject: (project) => `公開先として使える ${project} というプロジェクトはありません`,
+    publishNotAllowed: (project) => `${project} に公開する権限がありません。プロジェクトの管理者に許可を依頼してください。`,
     notYours: (name) => `スキル ${name} は別のユーザーのものなので、上書きできません`,
     unchanged: (version, slug) =>
       `${slug} の最新バージョン v${version} と同一のため、新しいバージョンは公開されませんでした`,

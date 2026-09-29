@@ -8,6 +8,8 @@ const { MIGRATION_DB: db, TEST_MIGRATIONS: migrations } = env as unknown as {
 
 const beforeProjects = migrations.filter((m) => m.name < "0003");
 const fromProjects = migrations.filter((m) => m.name >= "0003");
+const beforePublishing = migrations.filter((m) => m.name < "0004");
+const fromPublishing = migrations.filter((m) => m.name >= "0004");
 
 async function wipe(): Promise<void> {
   for (const table of ["memberships", "versions", "skills", "users", "projects", "d1_migrations"]) {
@@ -135,5 +137,34 @@ describe("migration 0003 on a fresh instance", () => {
   it("leaves an empty default project", async () => {
     expect(await rows("SELECT slug, name FROM projects")).toEqual([{ slug: "default", name: "Default" }]);
     expect(await rows("SELECT * FROM memberships")).toEqual([]);
+  });
+});
+
+describe("migration 0004 on an instance that already has members", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, beforePublishing);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u1', 'member', 'k1', 0)"),
+    ]);
+    await applyD1Migrations(db, fromPublishing);
+  });
+
+  it("lets every existing member keep publishing", async () => {
+    expect(await rows("SELECT user_id, can_publish FROM memberships")).toEqual([{ user_id: "u1", can_publish: 1 }]);
+  });
+
+  it("starts a membership added afterwards blocked", async () => {
+    await db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u2', 'bob', 'h', 'member', 0)").run();
+    await db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u2', 'member', 'k2', 0)").run();
+    expect(await rows("SELECT can_publish FROM memberships WHERE user_id = 'u2'")).toEqual([{ can_publish: 0 }]);
+  });
+
+  it("stores the switch as 0 or 1 only", async () => {
+    const set = (value: number) =>
+      db.prepare("UPDATE memberships SET can_publish = ? WHERE user_id = 'u1'").bind(value).run();
+    await expect(set(0)).resolves.toBeDefined();
+    await expect(set(2)).rejects.toThrow(/CHECK/);
   });
 });

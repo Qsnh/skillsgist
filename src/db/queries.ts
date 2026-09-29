@@ -20,6 +20,7 @@ export interface MembershipRow {
   role: "admin" | "member";
   install_key: string;
   created_at: number;
+  can_publish: number;
 }
 
 export type Membership = MembershipRow & { project_name: string };
@@ -121,8 +122,8 @@ export async function createFirstAdmin(
       .bind(input.id, input.username, input.passwordHash, now),
     db
       .prepare(
-        `INSERT INTO memberships (project, user_id, role, install_key, created_at)
-         SELECT slug, ?, 'member', ?, ? FROM projects
+        `INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at)
+         SELECT slug, ?, 'member', ?, 1, ? FROM projects
          WHERE slug = ? AND EXISTS (SELECT 1 FROM users WHERE id = ?)`,
       )
       .bind(input.id, input.installKey, now, DEFAULT_PROJECT, input.id),
@@ -240,11 +241,13 @@ export async function listProjects(db: D1Database): Promise<ProjectRow[]> {
 
 export async function addMembership(
   db: D1Database,
-  input: { project: string; userId: string; role: "admin" | "member"; installKey: string },
+  input: { project: string; userId: string; role: "admin" | "member"; installKey: string; canPublish?: boolean },
 ): Promise<void> {
   await db
-    .prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(input.project, input.userId, input.role, input.installKey, Date.now())
+    .prepare(
+      "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(input.project, input.userId, input.role, input.installKey, input.canPublish ? 1 : 0, Date.now())
     .run();
 }
 
@@ -576,10 +579,13 @@ export async function deleteProject(db: D1Database, slug: string): Promise<boole
   return project.meta.changes === 1;
 }
 
-export type Member = Pick<MembershipRow, "user_id" | "role"> & { username: string };
+export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & {
+  username: string;
+  account_role: UserRow["role"];
+};
 
-const MEMBER_SQL =
-  "SELECT m.user_id, m.role, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?";
+const MEMBER_SQL = `SELECT m.user_id, m.role, m.can_publish, u.username, u.role AS account_role
+  FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?`;
 
 export async function listMembers(db: D1Database, project: string): Promise<Member[]> {
   const { results } = await db.prepare(`${MEMBER_SQL} ORDER BY u.username`).bind(project).all<Member>();
@@ -614,6 +620,18 @@ export async function updateMembershipRole(
   await db
     .prepare("UPDATE memberships SET role = ? WHERE project = ? AND user_id = ?")
     .bind(role, project, userId)
+    .run();
+}
+
+export async function updateMembershipPublish(
+  db: D1Database,
+  project: string,
+  userId: string,
+  canPublish: boolean,
+): Promise<void> {
+  await db
+    .prepare("UPDATE memberships SET can_publish = ? WHERE project = ? AND user_id = ?")
+    .bind(canPublish ? 1 : 0, project, userId)
     .run();
 }
 

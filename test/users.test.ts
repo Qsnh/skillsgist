@@ -37,6 +37,7 @@ describe("/setup", () => {
     const joined = await membership(user!.id);
     expect(joined?.role).toBe("member");
     expect(joined?.install_key).toMatch(/^[a-f0-9]{32}$/);
+    expect(joined?.can_publish).toBe(1);
 
     const second = await anon("/setup", { username: "intruder", password: "another-long-password" });
     expect(second.status).toBe(404);

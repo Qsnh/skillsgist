@@ -229,12 +229,16 @@ export const joinProject = (
   project: string,
   key: string = randomHex(16),
   role: "admin" | "member" = "member",
-) => addMembership(env.DB, { project, userId, role, installKey: key });
+  canPublish: boolean = true,
+) => addMembership(env.DB, { project, userId, role, installKey: key, canPublish });
 
 export const membership = (userId: string, project: string = DEFAULT_PROJECT) =>
-  env.DB.prepare("SELECT role, install_key FROM memberships WHERE project = ? AND user_id = ?")
+  env.DB.prepare("SELECT role, install_key, can_publish FROM memberships WHERE project = ? AND user_id = ?")
     .bind(project, userId)
-    .first<{ role: string; install_key: string }>();
+    .first<{ role: string; install_key: string; can_publish: number }>();
+
+export const denyPublish = (userId: string, project: string = DEFAULT_PROJECT) =>
+  env.DB.prepare("UPDATE memberships SET can_publish = 0 WHERE project = ? AND user_id = ?").bind(project, userId).run();
 
 export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
   const row = await membership(userId, project);

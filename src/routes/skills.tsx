@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import {
-  canAccessProject, canManage, canView, currentUser, publishableProjects, requireManagedSkill, requireUser, skillScope,
+  canManage, canPublishIn, canView, currentUser, publishableProjects, requireManagedSkill, requireUser, skillScope,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
@@ -104,7 +104,7 @@ skillsRoutes.post("/p/:project/s/:slug/move", requireUser, async (c) => {
   const { skill } = guard;
   const body = await c.req.parseBody();
   const target = await getProject(c.env.DB, typeof body.project === "string" ? body.project : "");
-  if (!target || !canAccessProject(c.get("user"), target.slug)) {
+  if (!target || !canPublishIn(c.get("user"), target.slug)) {
     return c.text(messages(c).skills.moveForbidden, 403);
   }
   if (await getSkill(c.env.DB, target.slug, skill.slug)) {

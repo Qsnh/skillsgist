@@ -193,6 +193,10 @@ export const zhTW: Messages = {
     noMembers: "還沒有成員。",
     makeMember: "設為成員",
     makeAdmin: "設為管理員",
+    cannotPublish: "不可發佈",
+    allowPublishing: "允許發佈",
+    blockPublishing: "禁止發佈",
+    addMemberHint: "新成員預設禁止發佈，但可以檢視及安裝此專案的技能。在成員所在列點選「允許發佈」即可讓其發佈。",
     remove: "移除",
     removeUser: (username) => `移除 ${username}`,
     removeWarning: (username, name) =>
@@ -224,6 +228,8 @@ export const zhTW: Messages = {
   publish: {
     title: "發佈技能",
     noProjectBody: "每個技能都屬於一個專案，只有專案成員才能發佈到該專案。請聯絡管理員將你加入專案。",
+    noPermission: "你沒有權限發佈到所屬的任何專案。",
+    noPermissionBody: "每個專案的管理員會決定哪些成員可以發佈。請聯絡其中一位管理員為你開通；在此之前，你仍可檢視及安裝所屬專案的技能。",
     archiveHint: "支援 .zip 與 .tar.gz。壓縮檔必須包含 SKILL.md，可以放在一層外層資料夾中。上限 2 MB。",
     pasteSkillMd: "或直接貼上 SKILL.md",
     placeholder: "---\nname: my-skill\ndescription: 用一句話說明這個技能的用途\n---\n\n# 內文",
@@ -272,6 +278,7 @@ export const zhTW: Messages = {
     invalidDescription: () => "SKILL.md frontmatter 中的 description 無效：不能為空，且最多 1024 個字元",
     slugMismatch: (url, declared) => `URL 中的 slug 是 ${url}，但 SKILL.md 宣告的 name 是 ${declared}，兩者必須一致`,
     noSuchProject: (project) => `沒有名為 ${project} 且你可以發佈的專案`,
+    publishNotAllowed: (project) => `你沒有發佈到 ${project} 的權限。請聯絡此專案的管理員開通。`,
     notYours: (name) => `技能 ${name} 屬於其他使用者，你無法覆寫它`,
     unchanged: (version, slug) => `內容與 ${slug} 的最新版本 v${version} 完全相同，因此沒有發佈新版本`,
     archiveMissing: (version) =>

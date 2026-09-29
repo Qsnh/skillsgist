@@ -205,6 +205,11 @@ export const en = {
     noMembers: "No members yet.",
     makeMember: "Make member",
     makeAdmin: "Make admin",
+    cannotPublish: "Cannot publish",
+    allowPublishing: "Allow publishing",
+    blockPublishing: "Block publishing",
+    addMemberHint:
+      "New members start with publishing blocked. They can see and install the project's skills; choose Allow publishing on a member's row to let them publish.",
     remove: "Remove",
     removeUser: (username: string) => `Remove ${username}`,
     removeWarning: (username: string, name: string) =>
@@ -239,6 +244,9 @@ export const en = {
     title: "Publish a skill",
     noProjectBody:
       "Every skill belongs to a project, and only a project's members can publish to it. Ask an admin to add you to one.",
+    noPermission: "You cannot publish to any of your projects.",
+    noPermissionBody:
+      "Each project's admins decide which of its members can publish. Ask one of them to allow you; until then you can still see and install your projects' skills.",
     archiveHint:
       ".zip and .tar.gz are supported. The archive must contain SKILL.md, optionally inside one wrapper directory. 2 MB maximum.",
     pasteSkillMd: "Or paste SKILL.md directly",
@@ -291,6 +299,8 @@ export const en = {
     slugMismatch: (url: string, declared: string) =>
       `The slug in the URL is ${url} but SKILL.md declares name ${declared}; they must agree`,
     noSuchProject: (project: string) => `There is no project named ${project} that you can publish to`,
+    publishNotAllowed: (project: string) =>
+      `You are not allowed to publish to ${project}. Ask one of its admins to allow it.`,
     notYours: (name: string) => `skill ${name} belongs to another user; you cannot overwrite it`,
     unchanged: (version: number, slug: string) =>
       `This is identical to v${version}, the latest version of ${slug}, so no new version was published`,

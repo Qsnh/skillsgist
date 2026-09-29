@@ -2,7 +2,7 @@ import { Form } from "../csrf";
 import { useT } from "../i18n";
 import { skillPath } from "../paths";
 import { Button, Layout, PageHead, Select } from "./layout";
-import type { SkillRow, UserRow } from "../db/queries";
+import type { SkillRow, UserRow, Viewer } from "../db/queries";
 
 function FilePicker(props: { label: string; hint: unknown }) {
   return (
@@ -25,13 +25,14 @@ function VisibilityChoice(props: { value: "private" | "public"; title: string; d
 }
 
 export function NewSkillPage(props: {
-  user: UserRow;
+  user: Viewer;
   projects: Array<{ slug: string; name: string }>;
   project?: string;
   error?: string;
   markdown?: string;
 }) {
   const t = useT();
+  const member = props.user.memberships.length > 0;
   return (
     <Layout title={t.publish.title} user={props.user}>
       <div class="cf-narrow">
@@ -39,8 +40,8 @@ export function NewSkillPage(props: {
         {props.projects.length === 0 ? (
           <div class="cf-frame">
             <div class="cf-empty">
-              <p class="cf-empty-title">{t.projects.noneMember}</p>
-              <p class="cf-empty-body">{t.publish.noProjectBody}</p>
+              <p class="cf-empty-title">{member ? t.publish.noPermission : t.projects.noneMember}</p>
+              <p class="cf-empty-body">{member ? t.publish.noPermissionBody : t.publish.noProjectBody}</p>
             </div>
           </div>
         ) : (

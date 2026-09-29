@@ -1,4 +1,4 @@
-import { membershipIn } from "../auth";
+import { canPublishIn, membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
@@ -108,10 +108,10 @@ function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPubli
   );
 }
 
-function EmptyProject(props: { project: ProjectRow; q: string }) {
+function EmptyProject(props: { project: ProjectRow; q: string; canPublish: boolean }) {
   const { project } = props;
   if (props.q) return <NoMatches q={props.q} within={project.name} clearHref={projectPath(project.slug)} />;
-  return <NoSkillsYet within={project.name} publishHref={`/new?project=${project.slug}`} />;
+  return <NoSkillsYet within={project.name} publishHref={props.canPublish ? `/new?project=${project.slug}` : undefined} />;
 }
 
 export function ProjectPage(props: {
@@ -142,7 +142,7 @@ export function ProjectPage(props: {
         q={props.q}
         clearHref={path}
         showDownloads={user !== null}
-        empty={<EmptyProject project={project} q={props.q} />}
+        empty={<EmptyProject project={project} q={props.q} canPublish={user !== null && canPublishIn(user, project.slug)} />}
       />
     </Layout>
   );
@@ -196,10 +196,21 @@ export function ProjectSettingsPage(props: {
                     <span class="cf-row-main cf-user">
                       <span class="cf-user-name">{m.username}</span>
                       {m.user_id === props.user.id ? <span class="cf-tag">{t.common.you}</span> : null}
+                      {m.role === "member" && m.account_role === "member" && m.can_publish === 0 ? (
+                        <span class="cf-tag">{t.projects.cannotPublish}</span>
+                      ) : null}
                     </span>
                     <RoleLabel role={m.role} />
                     {props.canManage ? (
                       <div class="cf-actions">
+                        {m.role === "member" ? (
+                          <Form action={`${path}/members/${m.user_id}/publish`}>
+                            <input type="hidden" name="publish" value={m.can_publish === 1 ? "0" : "1"} />
+                            <Button variant="outline" size="sm">
+                              {m.can_publish === 1 ? t.projects.blockPublishing : t.projects.allowPublishing}
+                            </Button>
+                          </Form>
+                        ) : null}
                         <Form action={`${path}/members/${m.user_id}/role`}>
                           <input type="hidden" name="role" value={m.role === "admin" ? "member" : "admin"} />
                           <Button variant="outline" size="sm">
@@ -235,6 +246,7 @@ export function ProjectSettingsPage(props: {
                   <option value="member">{t.common.roles.member}</option>
                   <option value="admin">{t.common.roles.admin}</option>
                 </Select>
+                <p class="cf-hint">{t.projects.addMemberHint}</p>
                 <div>
                   <Button>{t.projects.add}</Button>
                 </div>

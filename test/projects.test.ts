@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getProject, getSkill } from "../src/db/queries";
 import {
-  cellMeta, env, follow, get, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD, postForm,
-  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
+  cellMeta, denyPublish, env, follow, get, GOOD_MD, indexStatus, installKey, joinProject, membership, ORIGIN, OTHER_MD,
+  postForm, postMultipart, publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
 const cellLinks = (html: string) => [...html.matchAll(/<a href="([^"]+)" class="cf-cell-link">/g)].map((m) => m[1]);
@@ -163,6 +163,14 @@ describe("/p/:project", () => {
     expect(html).toContain('<a href="/new?project=team-b" class="cf-btn cf-btn-primary">Publish the first skill</a>');
   });
 
+  it("offers a member whose publishing is blocked no way to publish into an empty project", async () => {
+    const alice = await seedAndLogin({ username: "alice", role: "member" });
+    await denyPublish(alice.user.id);
+    const html = await (await get("/p/default", alice.cookie)).text();
+    expect(html).toContain("No skills in Default yet.");
+    expect(html).not.toContain("Publish the first skill");
+  });
+
   it("shows an instance admin outside a project every skill in it and its public command", async () => {
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(bob.cookie, GOOD_MD, "public", "team-b");
@@ -199,6 +207,7 @@ describe("/p/:project/settings", () => {
     expect(html).not.toContain('action="/p/default/members"');
     expect(html).not.toContain('action="/p/default/rename"');
     expect(html).not.toContain("/remove");
+    expect(html).not.toContain("/publish");
     expect(html).not.toContain('action="/p/default/delete"');
   });
 
@@ -312,6 +321,7 @@ describe("project membership", () => {
 
     const row = await membership(bob.id, "team-b");
     expect(row?.role).toBe("member");
+    expect(row?.can_publish).toBe(0);
     expect(row?.install_key).toMatch(/^[a-f0-9]{32}$/);
     expect(row?.install_key).not.toBe(await installKey(bob.id));
     expect(await indexStatus(row!.install_key)).toBe(200);
@@ -340,14 +350,17 @@ describe("project membership", () => {
     expect((await postForm("/p/default/members", alice.cookie, { user: carol.id, role: "member" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/role`, alice.cookie, { role: "admin" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/remove`, alice.cookie)).status).toBe(403);
+    expect((await postForm(`/p/default/members/${bob.id}/publish`, alice.cookie, { publish: "0" })).status).toBe(403);
     expect(await membership(carol.id)).toBeNull();
     expect((await membership(bob.id))?.role).toBe("member");
+    expect((await membership(bob.id))?.can_publish).toBe(1);
   });
 
   it("404s the member forms for someone outside the project", async () => {
     const outsider = await seedAndLogin({ username: "alice", role: "member" });
     const { user: bob } = await seedUser({ username: "bob", role: "member", project: "team-b" });
     expect((await postForm(`/p/team-b/members/${bob.id}/remove`, outsider.cookie)).status).toBe(404);
+    expect((await postForm(`/p/team-b/members/${bob.id}/publish`, outsider.cookie, { publish: "0" })).status).toBe(404);
     expect(await membership(bob.id, "team-b")).not.toBeNull();
   });
 
@@ -422,5 +435,60 @@ describe("deleting a project", () => {
     expect((await get("/p/team-b", cookie)).status).toBe(404);
     expect(await membership(bob.id, "team-b")).toBeNull();
     expect(await indexStatus(key)).toBe(404);
+  });
+});
+
+describe("the publish switch", () => {
+  const rowOf = (html: string, username: string) =>
+    html.split('<li class="cf-row cf-member">').slice(1).find((r) => r.includes(`>${username}</span>`)) ?? "";
+  const settings = async (cookie: string) => (await get("/p/default/settings", cookie)).text();
+  const publishAs = (cookie: string, markdown: string) =>
+    postMultipart("/new", cookie, { markdown, visibility: "private", project: "default" });
+
+  it("lets a project admin block and allow a member's publishing, marked on the member's row", async () => {
+    const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    await seedUser({ username: "carol", role: "member", project: null });
+    const path = `/p/default/members/${bob.user.id}/publish`;
+
+    const before = rowOf(await settings(lead.cookie), "bob");
+    expect(before).toContain(`action="${path}"`);
+    expect(before).toContain(">Block publishing</button>");
+    expect(before).not.toContain("Cannot publish");
+    expect(await settings(lead.cookie)).not.toContain(`/members/${lead.user.id}/publish`);
+    expect(await settings(lead.cookie)).toContain("New members start with publishing blocked.");
+
+    const blocked = await postForm(path, lead.cookie, { publish: "0" });
+    expect(blocked.status).toBe(302);
+    expect(blocked.headers.get("Location")).toBe("/p/default/settings");
+    expect((await membership(bob.user.id))?.can_publish).toBe(0);
+    expect((await publishAs(bob.cookie, GOOD_MD)).status).toBe(403);
+    expect(rowOf(await settings(lead.cookie), "bob")).toContain(">Allow publishing</button>");
+    expect(rowOf(await settings(bob.cookie), "bob")).toContain('<span class="cf-tag">Cannot publish</span>');
+
+    expect((await postForm(path, lead.cookie, { publish: "1" })).status).toBe(302);
+    expect((await membership(bob.user.id))?.can_publish).toBe(1);
+    expect((await publishAs(bob.cookie, GOOD_MD)).status).toBe(302);
+
+    await postForm(path, lead.cookie, { publish: "yes" });
+    expect((await membership(bob.user.id))?.can_publish).toBe(0);
+  });
+
+  it("never marks an instance admin as unable to publish", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin", project: null });
+    expect((await postForm("/p/team-b/members", root.cookie, { user: root.user.id, role: "member" })).status).toBe(302);
+    expect((await membership(root.user.id, "team-b"))?.can_publish).toBe(0);
+    expect(rowOf(await (await get("/p/team-b/settings", root.cookie)).text(), "root")).not.toContain("Cannot publish");
+  });
+
+  it("keeps a member's switch through a promotion and a demotion", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const bob = await seedAndLogin({ username: "bob", role: "member" });
+    await denyPublish(bob.user.id);
+    await postForm(`/p/default/members/${bob.user.id}/role`, root.cookie, { role: "admin" });
+    expect((await publishAs(bob.cookie, GOOD_MD)).status).toBe(302);
+    await postForm(`/p/default/members/${bob.user.id}/role`, root.cookie, { role: "member" });
+    expect((await publishAs(bob.cookie, OTHER_MD)).status).toBe(403);
+    expect(rowOf(await settings(root.cookie), "bob")).toContain(">Allow publishing</button>");
   });
 });

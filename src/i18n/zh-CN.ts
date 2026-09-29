@@ -193,6 +193,10 @@ export const zhCN: Messages = {
     noMembers: "还没有成员。",
     makeMember: "设为成员",
     makeAdmin: "设为管理员",
+    cannotPublish: "不可发布",
+    allowPublishing: "允许发布",
+    blockPublishing: "禁止发布",
+    addMemberHint: "新成员默认禁止发布，但可以查看和安装该项目的技能。在成员所在行点击“允许发布”即可让其发布。",
     remove: "移除",
     removeUser: (username) => `移除 ${username}`,
     removeWarning: (username, name) =>
@@ -224,6 +228,8 @@ export const zhCN: Messages = {
   publish: {
     title: "发布技能",
     noProjectBody: "每个技能都属于一个项目，只有项目成员才能向其发布。请联系管理员把你加入项目。",
+    noPermission: "你无权向所在的任何项目发布。",
+    noPermissionBody: "每个项目的管理员决定哪些成员可以发布。请联系其中一位管理员为你开通；在此之前，你仍可查看和安装所在项目的技能。",
     archiveHint: "支持 .zip 和 .tar.gz。压缩包必须包含 SKILL.md，可以放在一层外包目录中。最大 2 MB。",
     pasteSkillMd: "或直接粘贴 SKILL.md",
     placeholder: "---\nname: my-skill\ndescription: 用一句话说明这个技能做什么\n---\n\n# 正文",
@@ -272,6 +278,7 @@ export const zhCN: Messages = {
     invalidDescription: () => "SKILL.md frontmatter 中的 description 无效：不能为空，且最多 1024 个字符",
     slugMismatch: (url, declared) => `URL 中的 slug 是 ${url}，但 SKILL.md 声明的 name 是 ${declared}，两者必须一致`,
     noSuchProject: (project) => `不存在名为 ${project} 且你可以发布的项目`,
+    publishNotAllowed: (project) => `你没有向 ${project} 发布的权限。请联系该项目的管理员开通。`,
     notYours: (name) => `技能 ${name} 属于其他用户，你不能覆盖它`,
     unchanged: (version, slug) => `内容与 ${slug} 的最新版本 v${version} 完全相同，因此没有发布新版本`,
     archiveMissing: (version) =>

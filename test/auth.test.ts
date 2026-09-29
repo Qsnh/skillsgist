@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  canAccessProject, canManage, canManageProject, canView, hashPassword, PBKDF2_ITERATIONS, randomHex, skillScope,
-  verifyPassword,
+  canAccessProject, canManage, canManageProject, canPublishIn, canView, hashPassword, PBKDF2_ITERATIONS, randomHex,
+  skillScope, verifyPassword,
 } from "../src/auth";
 import { sha256Hex } from "../src/hash";
 import type { Membership, SkillRow, Viewer } from "../src/db/queries";
@@ -11,8 +11,8 @@ const viewer = (over: Partial<Viewer> = {}): Viewer => ({
   api_token_hash: null, created_at: 0, last_login_at: null, memberships: [], ...over,
 });
 
-const member = (project: string, role: "admin" | "member" = "member"): Membership => ({
-  project, project_name: project, user_id: "u1", role, install_key: "k", created_at: 0,
+const member = (project: string, role: "admin" | "member" = "member", can_publish = 1): Membership => ({
+  project, project_name: project, user_id: "u1", role, install_key: "k", created_at: 0, can_publish,
 });
 
 const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
@@ -83,6 +83,7 @@ describe("canManage", () => {
   it.each<[string, Viewer, Partial<SkillRow>, boolean]>([
     ["an owner, while they are in its project", inDefault, {}, true],
     ["an owner no longer in the project", viewer(), {}, false],
+    ["an owner whose publishing in its project is blocked", viewer({ memberships: [member("default", "member", 0)] }), {}, false],
     ["a project member, on someone else's skill", viewer({ id: "u2", memberships: [member("default")] }), {}, false],
     ["a project admin, on a skill in that project", lead, {}, true],
     ["a project admin, on a skill in another project", lead, { project: "other" }, false],
@@ -99,10 +100,22 @@ describe("canManageProject and canAccessProject", () => {
     expect(canManageProject(viewer({ role: "admin" }), "default")).toBe(true);
   });
 
-  it("lets every member, and instance admins, publish to a project", () => {
+  it("lets every member, and instance admins, into a project", () => {
     expect(canAccessProject(viewer({ memberships: [member("default")] }), "default")).toBe(true);
     expect(canAccessProject(viewer({ memberships: [member("default")] }), "other")).toBe(false);
     expect(canAccessProject(viewer({ role: "admin" }), "other")).toBe(true);
+  });
+});
+
+describe("canPublishIn", () => {
+  it.each<[string, Viewer, boolean]>([
+    ["a member whose publishing is allowed", inDefault, true],
+    ["a member whose publishing is blocked", viewer({ memberships: [member("default", "member", 0)] }), false],
+    ["a project admin, whatever their switch says", viewer({ memberships: [member("default", "admin", 0)] }), true],
+    ["an instance admin whose own membership is blocked", viewer({ role: "admin", memberships: [member("default", "member", 0)] }), true],
+    ["a member of another project only", inOther, false],
+  ])("answers %s", (_label, who, expected) => {
+    expect(canPublishIn(who, "default")).toBe(expected);
   });
 });
 
