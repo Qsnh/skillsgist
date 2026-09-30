@@ -17,7 +17,7 @@ import { sha256Hex } from "../hash";
 import { userSettingsPath } from "../paths";
 import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
 
-const USERNAME = /^[a-z0-9-]{2,32}$/;
+export const USERNAME = /^[a-z0-9-]{2,32}$/;
 
 const DUMMY_PASSWORD_HASH =
   "pbkdf2$10000$gjyRMe6k+HkicrCTiEY7zg==$ZV/Ne/ZKCLOQWmnxZmtXlwKrXq7/0Th3ydwHLStYv28=";

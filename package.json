@@ -36,6 +36,7 @@
     "deploy": "npm run db:migrate && npm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "reset-password": "node scripts/reset-password.mjs",
     "typecheck": "tsc --noEmit",
     "verify:cli": "node scripts/verify-cli.mjs",
     "logo": "node scripts/export-logo.mjs",
