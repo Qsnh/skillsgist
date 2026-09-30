@@ -150,6 +150,18 @@ git merge upstream/main
 git push
 ```
 
+## Reset a forgotten password
+
+An admin can set a new password for any account on that account's settings page. If no admin can sign in, reset the password from a terminal instead:
+
+```bash
+npm run reset-password                   # asks for the username and the new password
+npm run reset-password -- alice          # names the account up front
+npm run reset-password -- alice --local  # the local development database
+```
+
+The script writes the new password straight to the D1 database, so it needs the same Wrangler login as `npm run deploy`. If you deployed with the button, clone your copy and run `npm install` and `npx wrangler login` first. Sessions that are already signed in stay signed in; to sign everyone out, change `SESSION_SECRET`.
+
 ## How it works
 
 ```mermaid
@@ -173,7 +185,7 @@ src/
   render/         SKILL.md to HTML
 migrations/       D1 schema
 public/           static assets and fonts
-scripts/          verify-cli and test fixture tools
+scripts/          verify-cli, reset-password and test fixture tools
 test/             unit and integration tests
 ```
 
