@@ -25,6 +25,7 @@ A private Agent Skills registry you self-host on Cloudflare.
 - Immutable, numbered versions; every version stays viewable and downloadable, and republishing an older version's content rolls back
 - Content-addressed artifacts, so the CLI can verify every download against its digest
 - Rendered `SKILL.md` pages with a file list and version history
+- A copyable agent prompt next to each skill's install command that has an agent install the skill with `npx skills add` and follow it right away
 - Search across skill names, descriptions and body text
 - The web UI in English, Simplified Chinese, Traditional Chinese and Japanese, picked from the browser's language or the footer, at the same addresses in every language
 - Projects that group skills and people, with one install key per person per project that installs only that project's skills

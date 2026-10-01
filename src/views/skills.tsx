@@ -2,7 +2,7 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
-import { installBase, projectPath, skillPath } from "../paths";
+import { installBase, projectPath, projectSettingsPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -285,6 +285,51 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
+function skillsAdd(url: string) {
+  return `skills add ${url}`;
+}
+
+function KeyNote(props: { note: unknown }) {
+  return props.note ? <p class="cf-install-note">{props.note}</p> : null;
+}
+
+function Command(props: { url: string; note: unknown }) {
+  return (
+    <>
+      <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
+      <KeyNote note={props.note} />
+    </>
+  );
+}
+
+function Install(props: { url: string; promptUrl: string; slug: string; commandNote: unknown; promptNote: unknown }) {
+  const t = useT();
+  return (
+    <div class="cf-install">
+      <fieldset class="cf-install-modes">
+        <legend class="sr-only">{t.skills.installWith}</legend>
+        <label class="cf-install-mode">
+          <input type="radio" name="install-mode" value="command" class="sr-only" aria-controls="install-command" checked />
+          {t.skills.installCommand}
+        </label>
+        <label class="cf-install-mode">
+          <input type="radio" name="install-mode" value="prompt" class="sr-only" aria-controls="install-prompt" />
+          {t.skills.installPrompt}
+        </label>
+      </fieldset>
+      <div id="install-command" data-mode="command" role="group" aria-label={t.skills.installCommand}>
+        <Command url={props.url} note={props.commandNote} />
+      </div>
+      <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
+        <CodeBlock raised prompt={false}>
+          {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
+        </CodeBlock>
+        <KeyNote note={props.promptNote} />
+      </div>
+    </div>
+  );
+}
+
 export function SkillPage(props: {
   user: Viewer | null;
   skill: ListedSkill;
@@ -301,14 +346,29 @@ export function SkillPage(props: {
   const isLatest = version.version === skill.latest_version;
   const path = skillPath(skill);
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
-  const base = installBase(props.origin, skill.project, membership?.install_key, skill.visibility === "public");
+  const isPublic = skill.visibility === "public";
+  const base = installBase(props.origin, skill.project, membership?.install_key, isPublic);
+  const publicBase = installBase(props.origin, skill.project, undefined, isPublic);
+  const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
+  const settings = <a href={projectSettingsPath(skill.project)}>{t.projects.settings}</a>;
+  const commandNote = membership?.install_key ? t.skills.commandKeyNote(skill.project_name, settings) : null;
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
         <div class="cf-hero-inner cf-hero-start">
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
-          {base ? <CodeBlock raised>npx skills add {`${base}/.well-known/agent-skills/${skill.slug}`}</CodeBlock> : null}
+          {base === null ? null : isLatest ? (
+            <Install
+              url={address(base)}
+              promptUrl={address(publicBase ?? base)}
+              slug={skill.slug}
+              commandNote={commandNote}
+              promptNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
+            />
+          ) : (
+            <Command url={address(base)} note={commandNote} />
+          )}
         </div>
       </section>
 

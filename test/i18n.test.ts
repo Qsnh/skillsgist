@@ -40,6 +40,16 @@ describe("catalogs", () => {
       }
     }
   });
+
+  it.each([
+    ["en", en],
+    ["zh-CN", zhCN],
+    ["zh-TW", zhTW],
+    ["ja", ja],
+  ])("%s keeps the agent prompt's command verbatim, in backticks", (_name, catalog) => {
+    const command = "npx -y skills add https://example.com/.well-known/agent-skills/demo --skill demo -g -y";
+    expect(catalog.skills.agentPrompt(command)).toContain(`\`${command}\``);
+  });
 });
 
 describe("locale detection", () => {

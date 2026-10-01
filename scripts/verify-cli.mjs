@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Verify registry protocol compatibility against the real `npx skills`.
 // Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -41,12 +41,56 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+const temps = [];
+
+function tempDir(prefix = "skillsgist-verify-") {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  temps.push(dir);
+  return dir;
+}
+
+function isolatedEnv(home, extra = {}) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) =>
+      /^(PATH|PATHEXT|SystemRoot|ComSpec|TMPDIR|TEMP|TMP|LANG|LC_\w+|NODE_EXTRA_CA_CERTS|https?_proxy|no_proxy|npm_config_registry|DISABLE_TELEMETRY|DO_NOT_TRACK)$/i.test(name),
+    ),
+  );
+  return { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), ...extra };
+}
+
+function scriptArgs() {
+  if (process.platform === "darwin" || process.platform === "freebsd") return (command) => ["-q", "/dev/null", "sh", "-c", command];
+  const version = spawnSync("script", ["--version"], { encoding: "utf8" });
+  if (/util-linux/.test(version.stdout ?? "")) return (command) => ["-qec", command, "/dev/null"];
+  return null;
+}
+
+const terminalArgs = scriptArgs();
+
+function inTerminal(command, opts = {}) {
+  const sized = `stty cols 200 rows 50 2>/dev/null; ${command}`;
+  return new Promise((resolve, reject) => {
+    const child = spawn("script", terminalArgs(sized), { stdio: ["ignore", "pipe", "pipe"], cwd: opts.cwd, env: opts.env });
+    let out = "";
+    for (const stream of [child.stdout, child.stderr]) {
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => (out += chunk));
+    }
+    const timer = setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs ?? 180_000);
+    child.on("error", reject);
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      const text = out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\r/g, "");
+      if (code === 0) resolve(text);
+      else reject(new Error(`\`${command}\` ${signal ? "never finished and was killed" : `exited with code ${code}`}:\n${text}`));
+    });
+  });
+}
+
 /** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
 async function installTo(url, extraArgs = []) {
-  const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], {
-    env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config") },
-  });
+  const home = tempDir();
+  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], { env: isolatedEnv(home) });
   return home;
 }
 
@@ -116,6 +160,13 @@ async function stopServer(server) {
     server.kill("SIGKILL");
     await exited;
   }
+}
+
+if (!terminalArgs) {
+  process.stderr.write(
+    "[verify-cli] failed: running the agent prompt in a terminal needs `script` from util-linux (Linux) or BSD (macOS, FreeBSD), and this system has neither\n",
+  );
+  process.exit(1);
 }
 
 const server = spawn(
@@ -380,12 +431,53 @@ try {
   }
   log("project-scoped install keys passed");
 
+  await publishFixture("wrapped.zip", "application/zip", "?visibility=private");
+  const skillPage = await (await fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+  const shown = /`(npx [^`<]+)`/.exec(skillPage)?.[1];
+  if (!shown) throw new Error("the skill page shows no agent prompt");
+  if (!shown.includes(`/i/${installKey}/.well-known/agent-skills/demo-skill `)) {
+    throw new Error(`the private demo-skill's prompt does not install from its keyed single-skill address: ${shown}`);
+  }
+  const older = shown.replace(/\bskills add\b/, "skills@1.5.7 add");
+  if (older === shown) throw new Error(`the agent prompt does not run skills add: ${shown}`);
+  for (const [cli, command] of [["skills", shown], ["skills@1.5.7", older]]) {
+    for (const [where, agentEnv, agentDir] of [
+      ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
+      ["inside an agent the CLI does not know", {}, null],
+    ]) {
+      const label = `the agent prompt run with ${cli} ${where}`;
+      const project = tempDir();
+      const home = tempDir();
+      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: tempDir("skillsgist-verify-npm-") });
+      const output = await inTerminal(command, { cwd: project, env });
+      const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
+      if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
+      const dir = join(home, reported.slice(2));
+      if (
+        !existsSync(join(dir, "SKILL.md")) ||
+        !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
+        !existsSync(join(dir, "references", "api.md")) ||
+        !existsSync(join(dir, "scripts", "run.sh"))
+      ) {
+        throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
+      }
+      expectInstalled(home, ["demo-skill"], label);
+      if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
+        throw new Error(`${label} did not install demo-skill for that agent`);
+      }
+      const leftovers = readdirSync(project);
+      if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
+      log(`${label} installed demo-skill into ${reported} and left the project untouched`);
+    }
+  }
+
   log("all contract checks passed");
   exitCode = 0;
 } catch (err) {
   process.stderr.write(`[verify-cli] failed: ${err.message}\n`);
 } finally {
   await stopServer(server);
+  for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 }
 
 process.exit(exitCode);
