@@ -289,7 +289,11 @@ function skillsAdd(url: string) {
   return `skills add ${url}`;
 }
 
-function Install(props: { url: string; promptUrl: string; slug: string; keyNote: unknown }) {
+function KeyNote(props: { note: unknown }) {
+  return props.note ? <p class="cf-install-note">{props.note}</p> : null;
+}
+
+function Install(props: { url: string; promptUrl: string; slug: string; commandNote: unknown; promptNote: unknown }) {
   const t = useT();
   return (
     <div class="cf-install">
@@ -306,12 +310,13 @@ function Install(props: { url: string; promptUrl: string; slug: string; keyNote:
       </fieldset>
       <div data-mode="command">
         <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
+        <KeyNote note={props.commandNote} />
       </div>
       <div data-mode="prompt">
         <CodeBlock raised prompt={false}>
           {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
-        {props.keyNote ? <p class="cf-install-note">{props.keyNote}</p> : null}
+        <KeyNote note={props.promptNote} />
       </div>
     </div>
   );
@@ -337,6 +342,7 @@ export function SkillPage(props: {
   const base = installBase(props.origin, skill.project, membership?.install_key, isPublic);
   const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
   const settings = <a href={projectSettingsPath(skill.project)}>{t.projects.settings}</a>;
+  const commandNote = membership?.install_key ? t.skills.commandKeyNote(skill.project_name, settings) : null;
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
@@ -348,10 +354,14 @@ export function SkillPage(props: {
               url={address(base)}
               promptUrl={address(isPublic ? `${props.origin}${projectPath(skill.project)}` : base)}
               slug={skill.slug}
-              keyNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
+              commandNote={commandNote}
+              promptNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
             />
           ) : (
-            <CodeBlock raised>npx {skillsAdd(address(base))}</CodeBlock>
+            <>
+              <CodeBlock raised>npx {skillsAdd(address(base))}</CodeBlock>
+              <KeyNote note={commandNote} />
+            </>
           )}
         </div>
       </section>

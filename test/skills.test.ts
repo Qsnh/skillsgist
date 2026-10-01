@@ -18,6 +18,9 @@ const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 
 const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
+const COMMAND_KEY_NOTE =
+  '<p class="cf-install-note">This command carries your install key for Default, and installing into a code repository also records the key in its skills-lock.json. Keep both out of shared chats and public repositories, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p>';
+
 describe("GET /", () => {
   beforeEach(resetDb);
 
@@ -186,6 +189,7 @@ describe("GET /p/:project/s/:slug", () => {
     const { url, html } = await installCommandOn("/p/default/s/demo-skill");
     expect(url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
     expect(html).not.toContain("/i/");
+    expect(html).not.toContain("cf-install-note");
 
     const skills = await indexAt(url.slice(ORIGIN.length));
     expect(skills.map((s) => s.name)).toEqual(["demo-skill"]);
@@ -215,6 +219,7 @@ describe("GET /p/:project/s/:slug", () => {
     const { url, html } = await installCommandOn("/p/default/s/demo-skill", bob.cookie);
     expect(url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
     expect(html).not.toContain("cf-hero-note");
+    expect(html).not.toContain("cf-install-note");
   });
 
   it("offers an agent prompt that installs one skill with skills add, globally and without a question from npx or the CLI", async () => {
@@ -235,17 +240,19 @@ describe("GET /p/:project/s/:slug", () => {
     expect(skills.map((s) => s.name)).toEqual([member.skill]);
   });
 
-  it("keeps a member's install key out of the prompt for a public skill, and warns about it on a private one", async () => {
+  it("warns under every box that carries a member's install key, and keeps the key out of a public skill's prompt", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const key = await installKey(user.id);
 
     const open = await promptOn("/p/default/s/demo-skill", cookie);
     expect((await installCommandOn("/p/default/s/demo-skill", cookie)).url).toContain(`/i/${key}/`);
+    expect(open.html).toContain(`${COMMAND_KEY_NOTE}</div><div data-mode="prompt">`);
     expect(open.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
-    expect(open.html).not.toContain("cf-install-note");
+    expect(open.html.split('<div data-mode="prompt">')[1]).not.toContain("cf-install-note");
 
     const closed = await promptOn("/p/default/s/other-skill", cookie);
     expect(closed.url).toContain(`/i/${key}/`);
+    expect(closed.html).toContain(`${COMMAND_KEY_NOTE}</div><div data-mode="prompt">`);
     expect(closed.html).toContain(
       '<p class="cf-install-note">This prompt carries your install key for Default. Paste it only into an agent you trust, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p></div></div>',
     );
@@ -273,12 +280,18 @@ describe("GET /p/:project/s/:slug", () => {
   });
 
   it("offers only the install command on an older version's page, since the prompt would run the latest", async () => {
-    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [GOOD_MD.replace("Demo Heading", "Second Heading"), "public"]);
+    const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [GOOD_MD.replace("Demo Heading", "Second Heading"), "public"]);
 
     const older = await installCommandOn("/p/default/s/demo-skill?v=1");
     expect(older.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
     expect(older.html).not.toContain("cf-install");
     expect(older.html).not.toContain("npx -y skills add");
+
+    const keyed = await installCommandOn("/p/default/s/demo-skill?v=1", cookie);
+    expect(keyed.url).toContain(`/i/${await installKey(user.id)}/`);
+    expect(keyed.html).toContain(COMMAND_KEY_NOTE);
+    expect(keyed.html).not.toContain("cf-install-modes");
+    expect(keyed.html).not.toContain("npx -y skills add");
 
     const latest = await (await get("/p/default/s/demo-skill?v=2")).text();
     expect(latest).toContain("npx -y skills add");

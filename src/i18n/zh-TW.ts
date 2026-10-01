@@ -156,6 +156,11 @@ export const zhTW: Messages = {
     installPrompt: "提示詞",
     agentPrompt: (command) =>
       `執行 \`${command}\`。完整閱讀這個指令的輸出，必要時先將輸出重新導向到暫存檔，接著開啟輸出中列出的目錄裡的 SKILL.md，並立即依照其中的指示進行。相對路徑請以該目錄為基準。`,
+    commandKeyNote: (name, settings) => [
+      `這條指令包含你在 ${name} 的安裝金鑰，安裝到程式碼儲存庫時，金鑰還會被記進該程式碼儲存庫的 skills-lock.json。不要把它們貼到共用聊天室或公開的程式碼儲存庫；如果外洩，請前往`,
+      settings,
+      "重設金鑰。",
+    ],
     promptKeyNote: (name, settings) => [
       `這段提示詞包含你在 ${name} 的安裝金鑰，只貼給你信任的 AI 代理。如果外洩，請前往`,
       settings,
