@@ -41,6 +41,16 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+function capture(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "inherit"], ...opts });
+    let out = "";
+    child.stdout.on("data", (chunk) => (out += chunk));
+    child.on("exit", (code) => (code === 0 ? resolve(out) : reject(new Error(`${cmd} exited with code ${code}`))));
+    child.on("error", reject);
+  });
+}
+
 /** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
 async function installTo(url, extraArgs = []) {
   const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
@@ -379,6 +389,22 @@ try {
     throw new Error("verify-other's install key installed the wrong demo-skill");
   }
   log("project-scoped install keys passed");
+
+  const skillPage = await (await fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
+  const shown = /npx skills use &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot;/.exec(skillPage);
+  if (!shown) throw new Error("the skill page shows no skills use prompt");
+  const useHome = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+  const generated = await capture("npx", ["--yes", "skills", "use", shown[1], "--skill", shown[2]], {
+    env: { ...process.env, HOME: useHome, USERPROFILE: useHome, XDG_CONFIG_HOME: join(useHome, ".config") },
+  });
+  if (!generated.includes("<SKILL.md>") || !generated.includes("name: demo-skill")) {
+    throw new Error("skills use did not print demo-skill's SKILL.md");
+  }
+  const supportDir = /downloaded to:\n(.+)\n/.exec(generated)?.[1];
+  if (!supportDir || !existsSync(join(supportDir, "references", "api.md")) || !existsSync(join(supportDir, "scripts", "run.sh"))) {
+    throw new Error(`skills use did not hand over demo-skill's supporting files (${supportDir})`);
+  }
+  log("the skill page's skills use prompt passed");
 
   log("all contract checks passed");
   exitCode = 0;
