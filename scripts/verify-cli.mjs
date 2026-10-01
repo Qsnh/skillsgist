@@ -3,7 +3,7 @@
 // Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -41,22 +41,40 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-function capture(cmd, args, opts = {}) {
+function isolatedEnv(home, extra = {}) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) =>
+      /^(PATH|PATHEXT|SystemRoot|ComSpec|TMPDIR|TEMP|TMP|LANG|LC_\w+|NODE_EXTRA_CA_CERTS|https?_proxy|no_proxy|npm_config_registry|DISABLE_TELEMETRY|DO_NOT_TRACK)$/i.test(name),
+    ),
+  );
+  return { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), ...extra };
+}
+
+function inTerminal(command, opts = {}) {
+  const sized = `stty cols 200 rows 50 2>/dev/null; ${command}`;
+  const args = process.platform === "darwin" ? ["-q", "/dev/null", "sh", "-c", sized] : ["-qec", sized, "/dev/null"];
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "inherit"], ...opts });
+    const child = spawn("script", args, { stdio: ["ignore", "pipe", "pipe"], cwd: opts.cwd, env: opts.env });
     let out = "";
-    child.stdout.on("data", (chunk) => (out += chunk));
-    child.on("exit", (code) => (code === 0 ? resolve(out) : reject(new Error(`${cmd} exited with code ${code}`))));
+    for (const stream of [child.stdout, child.stderr]) {
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => (out += chunk));
+    }
+    const timer = setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs ?? 180_000);
     child.on("error", reject);
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      const text = out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\r/g, "");
+      if (code === 0) resolve(text);
+      else reject(new Error(`\`${command}\` ${signal ? "never finished and was killed" : `exited with code ${code}`}:\n${text}`));
+    });
   });
 }
 
 /** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
 async function installTo(url, extraArgs = []) {
   const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], {
-    env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config") },
-  });
+  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], { env: isolatedEnv(home) });
   return home;
 }
 
@@ -390,30 +408,44 @@ try {
   }
   log("project-scoped install keys passed");
 
+  await publishFixture("wrapped.zip", "application/zip", "?visibility=private");
   const skillPage = await (await fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
-  const shown = /npx skills add &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot; -y/.exec(skillPage);
+  const shown = /`(npx [^`<]+)`/.exec(skillPage)?.[1];
   if (!shown) throw new Error("the skill page shows no agent prompt");
-  const [, promptUrl, promptSkill] = shown;
-  for (const cli of ["skills", "skills@1.5.7"]) {
-    const project = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-    const agentHome = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-    mkdirSync(join(agentHome, ".claude"));
-    const output = await capture("npx", ["--yes", cli, "add", promptUrl, "--skill", promptSkill, "-y"], {
-      cwd: project,
-      env: { ...process.env, HOME: agentHome, USERPROFILE: agentHome, XDG_CONFIG_HOME: join(agentHome, ".config") },
-    });
-    const reported = /\.\/\.agents\/skills\/demo-skill\b/.exec(output.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ""))?.[0];
-    if (!reported) throw new Error(`${cli} add did not report where it installed demo-skill`);
-    const dir = join(project, reported);
-    if (
-      !existsSync(join(dir, "SKILL.md")) ||
-      !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
-      !existsSync(join(dir, "references", "api.md")) ||
-      !existsSync(join(dir, "scripts", "run.sh"))
-    ) {
-      throw new Error(`${cli} add did not install demo-skill and its supporting files into ${reported}`);
+  if (!shown.includes(`/i/${installKey}/.well-known/agent-skills/demo-skill `)) {
+    throw new Error(`the private demo-skill's prompt does not install from its keyed single-skill address: ${shown}`);
+  }
+  const older = shown.replace(/\bskills add\b/, "skills@1.5.7 add");
+  if (older === shown) throw new Error(`the agent prompt does not run skills add: ${shown}`);
+  for (const [cli, command] of [["skills", shown], ["skills@1.5.7", older]]) {
+    for (const [where, agentEnv, agentDir] of [
+      ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
+      ["inside an agent the CLI does not know", {}, null],
+    ]) {
+      const label = `the agent prompt run with ${cli} ${where}`;
+      const project = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+      const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: mkdtempSync(join(tmpdir(), "skillsgist-verify-npm-")) });
+      const output = await inTerminal(command, { cwd: project, env });
+      const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
+      if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
+      const dir = join(home, reported.slice(2));
+      if (
+        !existsSync(join(dir, "SKILL.md")) ||
+        !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
+        !existsSync(join(dir, "references", "api.md")) ||
+        !existsSync(join(dir, "scripts", "run.sh"))
+      ) {
+        throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
+      }
+      expectInstalled(home, ["demo-skill"], label);
+      if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
+        throw new Error(`${label} did not install demo-skill for that agent`);
+      }
+      const leftovers = readdirSync(project);
+      if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
+      log(`${label} installed demo-skill into ${reported} and left the project untouched`);
     }
-    log(`the skill page's agent prompt installed demo-skill into ${reported} with ${cli}`);
   }
 
   log("all contract checks passed");
