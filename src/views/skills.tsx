@@ -285,6 +285,8 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
+const SKILLS_USE_SPEC = "skills@^1.5.10";
+
 function Install(props: { url: string; slug: string }) {
   const t = useT();
   return (
@@ -305,7 +307,7 @@ function Install(props: { url: string; slug: string }) {
       </div>
       <div class="cf-install-pane" data-mode="prompt">
         <CodeBlock raised prompt={false}>
-          {t.skills.agentPrompt(`npx skills use "${props.url}" --skill "${props.slug}"`)}
+          {t.skills.agentPrompt(`npx -y "${SKILLS_USE_SPEC}" use "${props.url}" --skill "${props.slug}"`)}
         </CodeBlock>
       </div>
     </div>

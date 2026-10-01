@@ -166,7 +166,7 @@ describe("GET /p/:project/s/:slug", () => {
 
   const promptOn = async (path: string, cookie?: string) => {
     const html = await (await get(path, cookie)).text();
-    const match = /npx skills use &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot;/.exec(html);
+    const match = /npx -y &quot;skills@\^1\.5\.10&quot; use &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot;/.exec(html);
     if (!match) throw new Error(`${path} rendered no install prompt`);
     return { url: match[1], skill: match[2], html };
   };
@@ -230,7 +230,7 @@ describe("GET /p/:project/s/:slug", () => {
     const member = await promptOn("/p/default/s/other-skill", cookie);
     expect(member.url).toBe(`${ORIGIN}/i/${key}/.well-known/agent-skills/other-skill`);
     expect(member.html).toContain(
-      `Run \`npx skills use &quot;${member.url}&quot; --skill &quot;other-skill&quot;\` ${PROMPT_TAIL}`,
+      `Run \`npx -y &quot;skills@^1.5.10&quot; use &quot;${member.url}&quot; --skill &quot;other-skill&quot;\` ${PROMPT_TAIL}`,
     );
     const skills = await indexAt(member.url.slice(ORIGIN.length));
     expect(skills.map((s) => s.name)).toEqual([member.skill]);
@@ -246,14 +246,14 @@ describe("GET /p/:project/s/:slug", () => {
       '<div class="cf-install-pane" data-mode="command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
     );
     expect(html).toContain(
-      '<div class="cf-install-pane" data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx skills use',
+      '<div class="cf-install-pane" data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y &quot;skills@^1.5.10&quot; use &quot;',
     );
   });
 
   it("words the agent prompt in the reader's language and keeps the command verbatim", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const { url, html } = await promptOn("/p/default/s/demo-skill", `${LOCALE_COOKIE}=zh-CN`);
-    expect(html).toContain(`运行 \`npx skills use &quot;${url}&quot; --skill &quot;demo-skill&quot;\`，`);
+    expect(html).toContain(`运行 \`npx -y &quot;skills@^1.5.10&quot; use &quot;${url}&quot; --skill &quot;demo-skill&quot;\`，`);
     expect(html).toContain('<legend class="sr-only">安装方式</legend>');
   });
 
@@ -265,7 +265,7 @@ describe("GET /p/:project/s/:slug", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).not.toContain("npx skills add");
-    expect(html).not.toContain("npx skills use");
+    expect(html).not.toContain("npx -y");
     expect(html).not.toContain("cf-install");
     expect(html).not.toContain("cf-hero-note");
   });
