@@ -165,7 +165,12 @@ export const en = {
     installCommand: "Command",
     installPrompt: "Prompt",
     agentPrompt: (command: string) =>
-      `Run \`${command}\` and follow the instructions of the installed skill now. Read its complete output, redirecting it to a temporary file first if necessary, and open the SKILL.md in the directory it reports. Resolve relative paths from that directory.`,
+      `Run \`${command}\`. Read the complete output of that command, redirecting it to a temporary file first if necessary, then open the SKILL.md in the directory that output reports and follow the instructions in it now. Resolve relative paths from that directory.`,
+    promptKeyNote: (name: string, settings: Slot) => [
+      `This prompt carries your install key for ${name}. Paste it only into an agent you trust, and reset the key under `,
+      settings,
+      " if it leaks.",
+    ],
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",
     nameTakenIn: (project: string, slug: string) => `${project} already has a skill named ${slug}`,

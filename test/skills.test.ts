@@ -1,7 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
+import { en } from "../src/i18n/en";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
+import { zhCN } from "../src/i18n/zh-CN";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
   cellMeta, denyPublish, env, get, indexAt, indexNames, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
@@ -166,13 +168,10 @@ describe("GET /p/:project/s/:slug", () => {
 
   const promptOn = async (path: string, cookie?: string) => {
     const html = await (await get(path, cookie)).text();
-    const match = /npx skills add &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot; -y/.exec(html);
+    const match = /npx -y skills add (\S+) --skill (\S+) -g -y/.exec(html);
     if (!match) throw new Error(`${path} rendered no install prompt`);
-    return { url: match[1], skill: match[2], html };
+    return { command: match[0], url: match[1], skill: match[2], html };
   };
-
-  const PROMPT_TAIL =
-    "and follow the instructions of the installed skill now. Read its complete output, redirecting it to a temporary file first if necessary, and open the SKILL.md in the directory it reports. Resolve relative paths from that directory.";
 
   // Walk the displayed address the way the CLI actually does: append a
   // .well-known layer, fetch the index, then fetch entry.url. The index must
@@ -218,7 +217,7 @@ describe("GET /p/:project/s/:slug", () => {
     expect(html).not.toContain("cf-hero-note");
   });
 
-  it("offers an agent prompt that installs with skills add from the same single-skill address, never skills use", async () => {
+  it("offers an agent prompt that installs one skill with skills add, globally and without a question from npx or the CLI", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const key = await installKey(user.id);
 
@@ -229,12 +228,27 @@ describe("GET /p/:project/s/:slug", () => {
 
     const member = await promptOn("/p/default/s/other-skill", cookie);
     expect(member.url).toBe(`${ORIGIN}/i/${key}/.well-known/agent-skills/other-skill`);
-    expect(member.html).toContain(
-      `Run \`npx skills add &quot;${member.url}&quot; --skill &quot;other-skill&quot; -y\` ${PROMPT_TAIL}`,
-    );
+    expect(member.command).toBe(`npx -y skills add ${member.url} --skill other-skill -g -y`);
+    expect(member.html).toContain(en.skills.agentPrompt(member.command));
     expect(member.html).not.toMatch(/skills(@\S+)? use /);
     const skills = await indexAt(member.url.slice(ORIGIN.length));
     expect(skills.map((s) => s.name)).toEqual([member.skill]);
+  });
+
+  it("keeps a member's install key out of the prompt for a public skill, and warns about it on a private one", async () => {
+    const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
+    const key = await installKey(user.id);
+
+    const open = await promptOn("/p/default/s/demo-skill", cookie);
+    expect((await installCommandOn("/p/default/s/demo-skill", cookie)).url).toContain(`/i/${key}/`);
+    expect(open.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
+    expect(open.html).not.toContain("cf-install-note");
+
+    const closed = await promptOn("/p/default/s/other-skill", cookie);
+    expect(closed.url).toContain(`/i/${key}/`);
+    expect(closed.html).toContain(
+      '<p class="cf-install-note">This prompt carries your install key for Default. Paste it only into an agent you trust, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p></div></div>',
+    );
   });
 
   it("switches between command and prompt with a native radio pair, command first and the prompt without a $", async () => {
@@ -244,18 +258,30 @@ describe("GET /p/:project/s/:slug", () => {
     expect(html).toMatch(/<input type="radio" name="install-mode" value="command"[^>]*checked/);
     expect(html).toMatch(/<input type="radio" name="install-mode" value="prompt"(?![^>]*checked)[^>]*>Prompt/);
     expect(html).toContain(
-      '<div class="cf-install-pane" data-mode="command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
+      '<div data-mode="command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
     );
     expect(html).toContain(
-      '<div class="cf-install-pane" data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx skills add &quot;',
+      '<div data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y skills add ',
     );
   });
 
   it("words the agent prompt in the reader's language and keeps the command verbatim", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const { url, html } = await promptOn("/p/default/s/demo-skill", `${LOCALE_COOKIE}=zh-CN`);
-    expect(html).toContain(`运行 \`npx skills add &quot;${url}&quot; --skill &quot;demo-skill&quot; -y\`，`);
+    const { command, html } = await promptOn("/p/default/s/demo-skill", `${LOCALE_COOKIE}=zh-CN`);
+    expect(html).toContain(zhCN.skills.agentPrompt(command));
     expect(html).toContain('<legend class="sr-only">安装方式</legend>');
+  });
+
+  it("offers only the install command on an older version's page, since the prompt would run the latest", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [GOOD_MD.replace("Demo Heading", "Second Heading"), "public"]);
+
+    const older = await installCommandOn("/p/default/s/demo-skill?v=1");
+    expect(older.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
+    expect(older.html).not.toContain("cf-install");
+    expect(older.html).not.toContain("npx -y skills add");
+
+    const latest = await (await get("/p/default/s/demo-skill?v=2")).text();
+    expect(latest).toContain("npx -y skills add");
   });
 
   it("shows no install command to an admin outside a private skill's project", async () => {

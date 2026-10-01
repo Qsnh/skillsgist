@@ -2,7 +2,7 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
-import { installBase, projectPath, skillPath } from "../paths";
+import { installBase, projectPath, projectSettingsPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -285,7 +285,11 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
-function Install(props: { url: string; slug: string }) {
+function skillsAdd(url: string) {
+  return `skills add ${url}`;
+}
+
+function Install(props: { url: string; promptUrl: string; slug: string; keyNote: unknown }) {
   const t = useT();
   return (
     <div class="cf-install">
@@ -300,13 +304,14 @@ function Install(props: { url: string; slug: string }) {
           {t.skills.installPrompt}
         </label>
       </fieldset>
-      <div class="cf-install-pane" data-mode="command">
-        <CodeBlock raised>npx skills add {props.url}</CodeBlock>
+      <div data-mode="command">
+        <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
       </div>
-      <div class="cf-install-pane" data-mode="prompt">
+      <div data-mode="prompt">
         <CodeBlock raised prompt={false}>
-          {t.skills.agentPrompt(`npx skills add "${props.url}" --skill "${props.slug}" -y`)}
+          {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
+        {props.keyNote ? <p class="cf-install-note">{props.keyNote}</p> : null}
       </div>
     </div>
   );
@@ -328,14 +333,26 @@ export function SkillPage(props: {
   const isLatest = version.version === skill.latest_version;
   const path = skillPath(skill);
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
-  const base = installBase(props.origin, skill.project, membership?.install_key, skill.visibility === "public");
+  const isPublic = skill.visibility === "public";
+  const base = installBase(props.origin, skill.project, membership?.install_key, isPublic);
+  const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
+  const settings = <a href={projectSettingsPath(skill.project)}>{t.projects.settings}</a>;
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
         <div class="cf-hero-inner cf-hero-start">
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
-          {base ? <Install url={`${base}/.well-known/agent-skills/${skill.slug}`} slug={skill.slug} /> : null}
+          {base === null ? null : isLatest ? (
+            <Install
+              url={address(base)}
+              promptUrl={address(isPublic ? `${props.origin}${projectPath(skill.project)}` : base)}
+              slug={skill.slug}
+              keyNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
+            />
+          ) : (
+            <CodeBlock raised>npx {skillsAdd(address(base))}</CodeBlock>
+          )}
         </div>
       </section>
 

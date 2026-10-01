@@ -155,7 +155,12 @@ export const zhTW: Messages = {
     installCommand: "指令",
     installPrompt: "提示詞",
     agentPrompt: (command) =>
-      `執行 \`${command}\`，並立即依照安裝好的技能指示進行。完整閱讀它的輸出，必要時先將輸出重新導向到暫存檔，再開啟輸出中列出的目錄裡的 SKILL.md。相對路徑請以該目錄為基準解析。`,
+      `執行 \`${command}\`。完整閱讀這個指令的輸出，必要時先將輸出重新導向到暫存檔，接著開啟輸出中列出的目錄裡的 SKILL.md，並立即依照其中的指示進行。相對路徑請以該目錄為基準。`,
+    promptKeyNote: (name, settings) => [
+      `這段提示詞包含你在 ${name} 的安裝金鑰，只貼給你信任的 AI 代理。如果外洩，請前往`,
+      settings,
+      "重設金鑰。",
+    ],
     notAllowed: (action) => `你沒有權限${ACTIONS[action]}這個技能`,
     moveForbidden: "無法將技能移動到該專案",
     nameTakenIn: (project, slug) => `${project} 中已有名為 ${slug} 的技能`,
