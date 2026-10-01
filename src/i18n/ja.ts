@@ -165,7 +165,7 @@ export const ja: Messages = {
     installCommand: "コマンド",
     installPrompt: "プロンプト",
     agentPrompt: (command) =>
-      `\`${command}\` を実行し、生成されたスキルの指示に今すぐ従ってください。出力は最後まで読み、必要なら先に一時ファイルへリダイレクトしてください。相対パスは、出力に示されるサポートファイルのディレクトリを基準に解決してください。`,
+      `\`${command}\` を実行し、インストールされたスキルの指示に今すぐ従ってください。出力は最後まで読み（必要なら先に一時ファイルへリダイレクトしてください）、出力に示されたディレクトリの SKILL.md を開いてください。相対パスはそのディレクトリを基準に解決してください。`,
     notAllowed: (action) => `このスキルを${ACTIONS[action]}する権限がありません`,
     moveForbidden: "そのプロジェクトにはスキルを移動できません",
     nameTakenIn: (project, slug) => `${project} にはすでに ${slug} という名前のスキルがあります`,

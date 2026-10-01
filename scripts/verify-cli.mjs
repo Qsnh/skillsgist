@@ -3,7 +3,7 @@
 // Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -391,22 +391,29 @@ try {
   log("project-scoped install keys passed");
 
   const skillPage = await (await fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
-  const shown = /npx -y &quot;(skills@\^([\d.]+))&quot; use &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot;/.exec(skillPage);
-  if (!shown) throw new Error("the skill page shows no skills use prompt");
-  const [, spec, floor, useUrl, useSkill] = shown;
-  for (const version of [spec, `skills@${floor}`]) {
-    const useHome = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-    const generated = await capture("npx", ["--yes", version, "use", useUrl, "--skill", useSkill], {
-      env: { ...process.env, HOME: useHome, USERPROFILE: useHome, XDG_CONFIG_HOME: join(useHome, ".config") },
+  const shown = /npx skills add &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot; -y/.exec(skillPage);
+  if (!shown) throw new Error("the skill page shows no agent prompt");
+  const [, promptUrl, promptSkill] = shown;
+  for (const cli of ["skills", "skills@1.5.7"]) {
+    const project = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+    const agentHome = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+    mkdirSync(join(agentHome, ".claude"));
+    const output = await capture("npx", ["--yes", cli, "add", promptUrl, "--skill", promptSkill, "-y"], {
+      cwd: project,
+      env: { ...process.env, HOME: agentHome, USERPROFILE: agentHome, XDG_CONFIG_HOME: join(agentHome, ".config") },
     });
-    if (!generated.includes("<SKILL.md>") || !generated.includes("name: demo-skill")) {
-      throw new Error(`${version} use did not print demo-skill's SKILL.md`);
+    const reported = /\.\/\.agents\/skills\/demo-skill\b/.exec(output.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ""))?.[0];
+    if (!reported) throw new Error(`${cli} add did not report where it installed demo-skill`);
+    const dir = join(project, reported);
+    if (
+      !existsSync(join(dir, "SKILL.md")) ||
+      !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
+      !existsSync(join(dir, "references", "api.md")) ||
+      !existsSync(join(dir, "scripts", "run.sh"))
+    ) {
+      throw new Error(`${cli} add did not install demo-skill and its supporting files into ${reported}`);
     }
-    const supportDir = /downloaded to:\n(.+)\n/.exec(generated)?.[1];
-    if (!supportDir || !existsSync(join(supportDir, "references", "api.md")) || !existsSync(join(supportDir, "scripts", "run.sh"))) {
-      throw new Error(`${version} use did not hand over demo-skill's supporting files (${supportDir})`);
-    }
-    log(`the skill page's skills use prompt passed with ${version}`);
+    log(`the skill page's agent prompt installed demo-skill into ${reported} with ${cli}`);
   }
 
   log("all contract checks passed");

@@ -165,7 +165,7 @@ export const en = {
     installCommand: "Command",
     installPrompt: "Prompt",
     agentPrompt: (command: string) =>
-      `Run \`${command}\` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.`,
+      `Run \`${command}\` and follow the instructions of the installed skill now. Read its complete output, redirecting it to a temporary file first if necessary, and open the SKILL.md in the directory it reports. Resolve relative paths from that directory.`,
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",
     nameTakenIn: (project: string, slug: string) => `${project} already has a skill named ${slug}`,
