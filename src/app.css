@@ -1497,6 +1497,53 @@
     margin-top: 28px;
   }
 
+  .cf-install {
+    max-width: 100%;
+    margin-top: 28px;
+  }
+
+  .cf-install-modes {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgb(60 12 0 / 0.3);
+  }
+
+  .cf-install-mode {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding-inline: 12px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: #fff;
+    cursor: pointer;
+    transition:
+      background-color 0.2s var(--ease-cf),
+      color 0.2s var(--ease-cf);
+  }
+
+  .cf-install-mode:has(:checked) {
+    background: #fff;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-install-mode:has(:focus-visible) {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  .cf-hero-start .cf-install .cf-command-raised {
+    margin-top: 12px;
+  }
+
+  .cf-install:has([value="command"]:checked) [data-mode="prompt"],
+  .cf-install:has([value="prompt"]:checked) [data-mode="command"] {
+    display: none;
+  }
+
   .cf-skill-title {
     max-width: none;
     font-size: clamp(32px, 4.4vw, 48px);
@@ -2122,6 +2169,7 @@
     .cf-search,
     .cf-search-submit,
     .cf-command-copy,
+    .cf-install-mode,
     .cf-btn-ghost .cf-icon,
     .cf-menu > summary .cf-icon {
       transition: none;
