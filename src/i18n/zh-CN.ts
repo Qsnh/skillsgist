@@ -151,6 +151,11 @@ export const zhCN: Messages = {
     files: "文件",
     versions: "版本",
     downloadVersion: (version) => `下载 v${version}`,
+    installWith: "安装方式",
+    installCommand: "命令",
+    installPrompt: "提示词",
+    agentPrompt: (command) =>
+      `运行 \`${command}\`，然后立即按生成的技能指令执行。完整阅读它的输出，必要时先把输出重定向到临时文件。相对路径从它提供的支持文件目录解析。`,
     notAllowed: (action) => `你无权${ACTIONS[action]}这个技能`,
     moveForbidden: "不能把技能移动到该项目",
     nameTakenIn: (project, slug) => `${project} 中已有名为 ${slug} 的技能`,

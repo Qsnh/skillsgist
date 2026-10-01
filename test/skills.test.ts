@@ -1,6 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
+import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
   cellMeta, denyPublish, env, get, indexAt, indexNames, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
@@ -163,6 +164,16 @@ describe("GET /p/:project/s/:slug", () => {
     return { url, html };
   };
 
+  const promptOn = async (path: string, cookie?: string) => {
+    const html = await (await get(path, cookie)).text();
+    const match = /npx skills use &quot;([^&]+)&quot; --skill &quot;([^&]+)&quot;/.exec(html);
+    if (!match) throw new Error(`${path} rendered no install prompt`);
+    return { url: match[1], skill: match[2], html };
+  };
+
+  const PROMPT_TAIL =
+    "and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.";
+
   // Walk the displayed address the way the CLI actually does: append a
   // .well-known layer, fetch the index, then fetch entry.url. The index must
   // hold *only* this skill — `skills add` installs every entry it finds, so one
@@ -207,6 +218,45 @@ describe("GET /p/:project/s/:slug", () => {
     expect(html).not.toContain("cf-hero-note");
   });
 
+  it("offers an agent prompt that runs skills use on the same single-skill address as the command", async () => {
+    const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
+    const key = await installKey(user.id);
+
+    const anon = await promptOn("/p/default/s/demo-skill");
+    expect(anon.url).toBe((await installCommandOn("/p/default/s/demo-skill")).url);
+    expect(anon.skill).toBe("demo-skill");
+    expect(anon.html).not.toContain("/i/");
+
+    const member = await promptOn("/p/default/s/other-skill", cookie);
+    expect(member.url).toBe(`${ORIGIN}/i/${key}/.well-known/agent-skills/other-skill`);
+    expect(member.html).toContain(
+      `Run \`npx skills use &quot;${member.url}&quot; --skill &quot;other-skill&quot;\` ${PROMPT_TAIL}`,
+    );
+    const skills = await indexAt(member.url.slice(ORIGIN.length));
+    expect(skills.map((s) => s.name)).toEqual([member.skill]);
+  });
+
+  it("switches between command and prompt with a native radio pair, command first and the prompt without a $", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const html = await (await get("/p/default/s/demo-skill")).text();
+    expect(html).toContain('<legend class="sr-only">Install with</legend>');
+    expect(html).toMatch(/<input type="radio" name="install-mode" value="command"[^>]*checked/);
+    expect(html).toMatch(/<input type="radio" name="install-mode" value="prompt"(?![^>]*checked)[^>]*>Prompt/);
+    expect(html).toContain(
+      '<div class="cf-install-pane" data-mode="command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
+    );
+    expect(html).toContain(
+      '<div class="cf-install-pane" data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx skills use',
+    );
+  });
+
+  it("words the agent prompt in the reader's language and keeps the command verbatim", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const { url, html } = await promptOn("/p/default/s/demo-skill", `${LOCALE_COOKIE}=zh-CN`);
+    expect(html).toContain(`运行 \`npx skills use &quot;${url}&quot; --skill &quot;demo-skill&quot;\`，`);
+    expect(html).toContain('<legend class="sr-only">安装方式</legend>');
+  });
+
   it("shows no install command to an admin outside a private skill's project", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
     const root = await seedAndLogin({ username: "root", role: "admin", project: null });
@@ -215,6 +265,8 @@ describe("GET /p/:project/s/:slug", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skills use");
+    expect(html).not.toContain("cf-install");
     expect(html).not.toContain("cf-hero-note");
   });
 

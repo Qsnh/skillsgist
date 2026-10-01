@@ -161,6 +161,11 @@ export const ja: Messages = {
     files: "ファイル",
     versions: "バージョン",
     downloadVersion: (version) => `v${version} をダウンロード`,
+    installWith: "インストール方法",
+    installCommand: "コマンド",
+    installPrompt: "プロンプト",
+    agentPrompt: (command) =>
+      `\`${command}\` を実行し、生成されたスキルの指示に今すぐ従ってください。出力は最後まで読み、必要なら先に一時ファイルへリダイレクトしてください。相対パスは、出力に示されるサポートファイルのディレクトリを基準に解決してください。`,
     notAllowed: (action) => `このスキルを${ACTIONS[action]}する権限がありません`,
     moveForbidden: "そのプロジェクトにはスキルを移動できません",
     nameTakenIn: (project, slug) => `${project} にはすでに ${slug} という名前のスキルがあります`,

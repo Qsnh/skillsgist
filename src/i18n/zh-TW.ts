@@ -151,6 +151,11 @@ export const zhTW: Messages = {
     files: "檔案",
     versions: "版本",
     downloadVersion: (version) => `下載 v${version}`,
+    installWith: "安裝方式",
+    installCommand: "指令",
+    installPrompt: "提示詞",
+    agentPrompt: (command) =>
+      `執行 \`${command}\`，然後立即依照產生的技能指示執行。完整閱讀它的輸出，必要時先將輸出重新導向到暫存檔。相對路徑請從它提供的支援檔案目錄解析。`,
     notAllowed: (action) => `你沒有權限${ACTIONS[action]}這個技能`,
     moveForbidden: "無法將技能移動到該專案",
     nameTakenIn: (project, slug) => `${project} 中已有名為 ${slug} 的技能`,

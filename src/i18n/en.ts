@@ -161,6 +161,11 @@ export const en = {
     files: "Files",
     versions: "Versions",
     downloadVersion: (version: number) => `Download v${version}`,
+    installWith: "Install with",
+    installCommand: "Command",
+    installPrompt: "Prompt",
+    agentPrompt: (command: string) =>
+      `Run \`${command}\` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.`,
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",
     nameTakenIn: (project: string, slug: string) => `${project} already has a skill named ${slug}`,

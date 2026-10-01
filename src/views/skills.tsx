@@ -285,6 +285,33 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
+function Install(props: { url: string; slug: string }) {
+  const t = useT();
+  return (
+    <div class="cf-install">
+      <fieldset class="cf-install-modes">
+        <legend class="sr-only">{t.skills.installWith}</legend>
+        <label class="cf-install-mode">
+          <input type="radio" name="install-mode" value="command" class="sr-only" checked />
+          {t.skills.installCommand}
+        </label>
+        <label class="cf-install-mode">
+          <input type="radio" name="install-mode" value="prompt" class="sr-only" />
+          {t.skills.installPrompt}
+        </label>
+      </fieldset>
+      <div class="cf-install-pane" data-mode="command">
+        <CodeBlock raised>npx skills add {props.url}</CodeBlock>
+      </div>
+      <div class="cf-install-pane" data-mode="prompt">
+        <CodeBlock raised prompt={false}>
+          {t.skills.agentPrompt(`npx skills use "${props.url}" --skill "${props.slug}"`)}
+        </CodeBlock>
+      </div>
+    </div>
+  );
+}
+
 export function SkillPage(props: {
   user: Viewer | null;
   skill: ListedSkill;
@@ -308,7 +335,7 @@ export function SkillPage(props: {
         <div class="cf-hero-inner cf-hero-start">
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
-          {base ? <CodeBlock raised>npx skills add {`${base}/.well-known/agent-skills/${skill.slug}`}</CodeBlock> : null}
+          {base ? <Install url={`${base}/.well-known/agent-skills/${skill.slug}`} slug={skill.slug} /> : null}
         </div>
       </section>
 
