@@ -1498,12 +1498,14 @@
   }
 
   .cf-install {
+    display: grid;
     max-width: 100%;
     margin-top: 16px;
   }
 
   .cf-install-modes {
     display: none;
+    justify-self: start;
     gap: 2px;
     padding: 3px;
     border-radius: 8px;
@@ -1536,12 +1538,12 @@
   }
 
   .cf-hero-start .cf-install .cf-command-raised {
+    width: 100%;
     margin-top: 12px;
   }
 
-  .cf-hero-start .cf-install [data-mode="prompt"] .cf-command-raised {
-    width: 100%;
-    max-width: 820px;
+  .cf-install [data-mode="prompt"] {
+    contain: inline-size;
   }
 
   .cf-install [data-mode="prompt"] .cf-command-text {
@@ -1573,9 +1575,15 @@
       display: inline-flex;
     }
 
+    .cf-install [data-mode] {
+      grid-area: 2 / 1;
+    }
+
     .cf-install:has([value="command"]:checked) [data-mode="prompt"],
     .cf-install:has([value="prompt"]:checked) [data-mode="command"] {
-      display: none;
+      height: 0;
+      overflow: hidden;
+      visibility: hidden;
     }
   }
 

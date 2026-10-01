@@ -293,6 +293,15 @@ function KeyNote(props: { note: unknown }) {
   return props.note ? <p class="cf-install-note">{props.note}</p> : null;
 }
 
+function Command(props: { url: string; note: unknown }) {
+  return (
+    <>
+      <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
+      <KeyNote note={props.note} />
+    </>
+  );
+}
+
 function Install(props: { url: string; promptUrl: string; slug: string; commandNote: unknown; promptNote: unknown }) {
   const t = useT();
   return (
@@ -300,19 +309,18 @@ function Install(props: { url: string; promptUrl: string; slug: string; commandN
       <fieldset class="cf-install-modes">
         <legend class="sr-only">{t.skills.installWith}</legend>
         <label class="cf-install-mode">
-          <input type="radio" name="install-mode" value="command" class="sr-only" checked />
+          <input type="radio" name="install-mode" value="command" class="sr-only" aria-controls="install-command" checked />
           {t.skills.installCommand}
         </label>
         <label class="cf-install-mode">
-          <input type="radio" name="install-mode" value="prompt" class="sr-only" />
+          <input type="radio" name="install-mode" value="prompt" class="sr-only" aria-controls="install-prompt" />
           {t.skills.installPrompt}
         </label>
       </fieldset>
-      <div data-mode="command">
-        <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
-        <KeyNote note={props.commandNote} />
+      <div id="install-command" data-mode="command" role="group" aria-label={t.skills.installCommand}>
+        <Command url={props.url} note={props.commandNote} />
       </div>
-      <div data-mode="prompt">
+      <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
         <CodeBlock raised prompt={false}>
           {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
@@ -340,6 +348,7 @@ export function SkillPage(props: {
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
   const isPublic = skill.visibility === "public";
   const base = installBase(props.origin, skill.project, membership?.install_key, isPublic);
+  const publicBase = installBase(props.origin, skill.project, undefined, isPublic);
   const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
   const settings = <a href={projectSettingsPath(skill.project)}>{t.projects.settings}</a>;
   const commandNote = membership?.install_key ? t.skills.commandKeyNote(skill.project_name, settings) : null;
@@ -352,16 +361,13 @@ export function SkillPage(props: {
           {base === null ? null : isLatest ? (
             <Install
               url={address(base)}
-              promptUrl={address(isPublic ? `${props.origin}${projectPath(skill.project)}` : base)}
+              promptUrl={address(publicBase ?? base)}
               slug={skill.slug}
               commandNote={commandNote}
               promptNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
             />
           ) : (
-            <>
-              <CodeBlock raised>npx {skillsAdd(address(base))}</CodeBlock>
-              <KeyNote note={commandNote} />
-            </>
+            <Command url={address(base)} note={commandNote} />
           )}
         </div>
       </section>

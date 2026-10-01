@@ -246,13 +246,13 @@ describe("GET /p/:project/s/:slug", () => {
 
     const open = await promptOn("/p/default/s/demo-skill", cookie);
     expect((await installCommandOn("/p/default/s/demo-skill", cookie)).url).toContain(`/i/${key}/`);
-    expect(open.html).toContain(`${COMMAND_KEY_NOTE}</div><div data-mode="prompt">`);
+    expect(open.html).toContain(`${COMMAND_KEY_NOTE}</div><div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt">`);
     expect(open.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
-    expect(open.html.split('<div data-mode="prompt">')[1]).not.toContain("cf-install-note");
+    expect(open.html.split('data-mode="prompt"')[1]).not.toContain("cf-install-note");
 
     const closed = await promptOn("/p/default/s/other-skill", cookie);
     expect(closed.url).toContain(`/i/${key}/`);
-    expect(closed.html).toContain(`${COMMAND_KEY_NOTE}</div><div data-mode="prompt">`);
+    expect(closed.html).toContain(`${COMMAND_KEY_NOTE}</div><div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt">`);
     expect(closed.html).toContain(
       '<p class="cf-install-note">This prompt carries your install key for Default. Paste it only into an agent you trust, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p></div></div>',
     );
@@ -265,11 +265,20 @@ describe("GET /p/:project/s/:slug", () => {
     expect(html).toMatch(/<input type="radio" name="install-mode" value="command"[^>]*checked/);
     expect(html).toMatch(/<input type="radio" name="install-mode" value="prompt"(?![^>]*checked)[^>]*>Prompt/);
     expect(html).toContain(
-      '<div data-mode="command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
+      '<div id="install-command" data-mode="command" role="group" aria-label="Command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
     );
     expect(html).toContain(
-      '<div data-mode="prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y skills add ',
+      '<div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y skills add ',
     );
+  });
+
+  it("ties each radio to the box it shows and names both boxes for screen readers", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const html = await (await get("/p/default/s/demo-skill")).text();
+    expect(html).toMatch(/<input type="radio" name="install-mode" value="command"[^>]*aria-controls="install-command"/);
+    expect(html).toMatch(/<input type="radio" name="install-mode" value="prompt"[^>]*aria-controls="install-prompt"/);
+    expect(html).toContain('<div id="install-command" data-mode="command" role="group" aria-label="Command">');
+    expect(html).toContain('<div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt">');
   });
 
   it("words the agent prompt in the reader's language and keeps the command verbatim", async () => {
