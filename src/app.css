@@ -1540,7 +1540,19 @@
   }
 
   .cf-hero-start .cf-install [data-mode="prompt"] .cf-command-raised {
+    width: 100%;
     max-width: 820px;
+  }
+
+  .cf-install [data-mode="prompt"] .cf-command-text {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+  }
+
+  .cf-install [data-mode="prompt"] .cf-command-text::after {
+    content: none;
   }
 
   .cf-install-note {
