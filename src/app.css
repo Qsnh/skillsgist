@@ -1506,7 +1506,7 @@
     display: inline-flex;
     gap: 2px;
     padding: 3px;
-    border-radius: 999px;
+    border-radius: 8px;
     background: rgb(60 12 0 / 0.3);
   }
 
@@ -1515,9 +1515,9 @@
     align-items: center;
     height: 28px;
     padding-inline: 12px;
-    border-radius: 999px;
-    font-family: var(--font-mono);
-    font-size: 13px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: 500;
     color: #fff;
     cursor: pointer;
     transition:
