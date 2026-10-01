@@ -563,13 +563,13 @@
     color: var(--color-cf-ink-2);
   }
 
-  :is(.cf-link, .cf-hero-lede a, .skill-doc a) {
+  :is(.cf-link, .cf-hero-lede a, .cf-install-note a, .skill-doc a) {
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
 
-  :is(.cf-link, .cf-hero-lede a, .skill-doc a):hover {
+  :is(.cf-link, .cf-hero-lede a, .cf-install-note a, .skill-doc a):hover {
     text-decoration-thickness: 2px;
   }
 
@@ -1499,11 +1499,11 @@
 
   .cf-install {
     max-width: 100%;
-    margin-top: 28px;
+    margin-top: 16px;
   }
 
   .cf-install-modes {
-    display: inline-flex;
+    display: none;
     gap: 2px;
     padding: 3px;
     border-radius: 8px;
@@ -1539,9 +1539,40 @@
     margin-top: 12px;
   }
 
-  .cf-install:has([value="command"]:checked) [data-mode="prompt"],
-  .cf-install:has([value="prompt"]:checked) [data-mode="command"] {
-    display: none;
+  .cf-hero-start .cf-install [data-mode="prompt"] .cf-command-raised {
+    max-width: 820px;
+  }
+
+  .cf-install-note {
+    max-width: 64ch;
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-cf-ember);
+    text-wrap: pretty;
+  }
+
+  @supports selector(:has(*)) {
+    .cf-install {
+      margin-top: 28px;
+    }
+
+    .cf-install-modes {
+      display: inline-flex;
+    }
+
+    .cf-install:has([value="command"]:checked) [data-mode="prompt"],
+    .cf-install:has([value="prompt"]:checked) [data-mode="command"] {
+      display: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .cf-install-mode:has(:checked) {
+      forced-color-adjust: none;
+      background: SelectedItem;
+      color: SelectedItemText;
+    }
   }
 
   .cf-skill-title {
