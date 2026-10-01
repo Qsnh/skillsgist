@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Verify registry protocol compatibility against the real `npx skills`.
 // Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -41,6 +41,14 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+const temps = [];
+
+function tempDir(prefix = "skillsgist-verify-") {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  temps.push(dir);
+  return dir;
+}
+
 function isolatedEnv(home, extra = {}) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([name]) =>
@@ -50,11 +58,19 @@ function isolatedEnv(home, extra = {}) {
   return { ...env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), ...extra };
 }
 
+function scriptArgs() {
+  if (process.platform === "darwin" || process.platform === "freebsd") return (command) => ["-q", "/dev/null", "sh", "-c", command];
+  const version = spawnSync("script", ["--version"], { encoding: "utf8" });
+  if (/util-linux/.test(version.stdout ?? "")) return (command) => ["-qec", command, "/dev/null"];
+  return null;
+}
+
+const terminalArgs = scriptArgs();
+
 function inTerminal(command, opts = {}) {
   const sized = `stty cols 200 rows 50 2>/dev/null; ${command}`;
-  const args = process.platform === "darwin" ? ["-q", "/dev/null", "sh", "-c", sized] : ["-qec", sized, "/dev/null"];
   return new Promise((resolve, reject) => {
-    const child = spawn("script", args, { stdio: ["ignore", "pipe", "pipe"], cwd: opts.cwd, env: opts.env });
+    const child = spawn("script", terminalArgs(sized), { stdio: ["ignore", "pipe", "pipe"], cwd: opts.cwd, env: opts.env });
     let out = "";
     for (const stream of [child.stdout, child.stderr]) {
       stream.setEncoding("utf8");
@@ -73,7 +89,7 @@ function inTerminal(command, opts = {}) {
 
 /** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
 async function installTo(url, extraArgs = []) {
-  const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
+  const home = tempDir();
   await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], { env: isolatedEnv(home) });
   return home;
 }
@@ -144,6 +160,13 @@ async function stopServer(server) {
     server.kill("SIGKILL");
     await exited;
   }
+}
+
+if (!terminalArgs) {
+  process.stderr.write(
+    "[verify-cli] failed: running the agent prompt in a terminal needs `script` from util-linux (Linux) or BSD (macOS, FreeBSD), and this system has neither\n",
+  );
+  process.exit(1);
 }
 
 const server = spawn(
@@ -423,9 +446,9 @@ try {
       ["inside an agent the CLI does not know", {}, null],
     ]) {
       const label = `the agent prompt run with ${cli} ${where}`;
-      const project = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-      const home = mkdtempSync(join(tmpdir(), "skillsgist-verify-"));
-      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: mkdtempSync(join(tmpdir(), "skillsgist-verify-npm-")) });
+      const project = tempDir();
+      const home = tempDir();
+      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: tempDir("skillsgist-verify-npm-") });
       const output = await inTerminal(command, { cwd: project, env });
       const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
       if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
@@ -454,6 +477,7 @@ try {
   process.stderr.write(`[verify-cli] failed: ${err.message}\n`);
 } finally {
   await stopServer(server);
+  for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 }
 
 process.exit(exitCode);
