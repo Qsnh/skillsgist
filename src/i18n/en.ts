@@ -107,7 +107,7 @@ export const en = {
     title: "Skills",
     hero: "Find a skill to install",
     heroAnon: (cli: Slot, signIn: Slot) => [
-      "This registry serves Agent Skills to the stock ",
+      "This registry serves Agent Skills, installed with the ",
       cli,
       " CLI. Every skill has its install command on its page, and public skills need no key. ",
       signIn,
@@ -167,7 +167,7 @@ export const en = {
     agentPrompt: (command: string) =>
       `Run \`${command}\`. Read the complete output of that command, redirecting it to a temporary file first if necessary, then open the SKILL.md in the directory that output reports and follow the instructions in it now. Resolve relative paths from that directory.`,
     commandKeyNote: (name: string, settings: Slot) => [
-      `This command carries your install key for ${name}, and installing into a code repository also records the key in its skills-lock.json. Keep both out of shared chats and public repositories, and reset the key under `,
+      `This command carries your install key for ${name}. skillsgist does not store it anywhere, but your shell history and agent transcripts may keep it. Keep the command out of shared chats and public repositories, and reset the key under `,
       settings,
       " if it leaks.",
     ],

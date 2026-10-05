@@ -19,7 +19,7 @@ const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
 const COMMAND_KEY_NOTE =
-  '<p class="cf-install-note">This command carries your install key for Default, and installing into a code repository also records the key in its skills-lock.json. Keep both out of shared chats and public repositories, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p>';
+  '<p class="cf-install-note">This command carries your install key for Default. skillsgist does not store it anywhere, but your shell history and agent transcripts may keep it. Keep the command out of shared chats and public repositories, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p>';
 
 describe("GET /", () => {
   beforeEach(resetDb);
@@ -164,21 +164,21 @@ describe("GET /p/:project/s/:slug", () => {
   const installCommandOn = async (path: string, cookie?: string) => {
     const res = await get(path, cookie);
     const html = await res.text();
-    const url = /npx skills add ([^<\s]+)/.exec(html)?.[1];
+    const url = /npx skillsgist add ([^<\s]+)/.exec(html)?.[1];
     if (!url) throw new Error(`${path} rendered no install command (status ${res.status})`);
     return { url, html };
   };
 
   const promptOn = async (path: string, cookie?: string) => {
     const html = await (await get(path, cookie)).text();
-    const match = /npx -y skills add (\S+) --skill (\S+) -g -y/.exec(html);
+    const match = /npx -y skillsgist add (\S+) --skill (\S+) -g -y/.exec(html);
     if (!match) throw new Error(`${path} rendered no install prompt`);
     return { command: match[0], url: match[1], skill: match[2], html };
   };
 
   // Walk the displayed address the way the CLI actually does: append a
   // .well-known layer, fetch the index, then fetch entry.url. The index must
-  // hold *only* this skill — `skills add` installs every entry it finds, so one
+  // hold *only* this skill — `skillsgist add` installs every entry it finds, so one
   // extra entry is one extra skill installed.
   //
   // Both cases publish two skills: with only one, an un-narrowed index would
@@ -222,7 +222,7 @@ describe("GET /p/:project/s/:slug", () => {
     expect(html).not.toContain("cf-install-note");
   });
 
-  it("offers an agent prompt that installs one skill with skills add, globally and without a question from npx or the CLI", async () => {
+  it("offers an agent prompt that installs one skill with skillsgist add, globally and without a question from npx or the CLI", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const key = await installKey(user.id);
 
@@ -233,7 +233,7 @@ describe("GET /p/:project/s/:slug", () => {
 
     const member = await promptOn("/p/default/s/other-skill", cookie);
     expect(member.url).toBe(`${ORIGIN}/i/${key}/.well-known/agent-skills/other-skill`);
-    expect(member.command).toBe(`npx -y skills add ${member.url} --skill other-skill -g -y`);
+    expect(member.command).toBe(`npx -y skillsgist add ${member.url} --skill other-skill -g -y`);
     expect(member.html).toContain(en.skills.agentPrompt(member.command));
     expect(member.html).not.toMatch(/skills(@\S+)? use /);
     const skills = await indexAt(member.url.slice(ORIGIN.length));
@@ -268,7 +268,7 @@ describe("GET /p/:project/s/:slug", () => {
       '<div id="install-command" data-mode="command" role="group" aria-label="Command"><div class="cf-command cf-command-raised" data-copy="true"><span class="cf-command-prompt" aria-hidden="true">$</span>',
     );
     expect(html).toContain(
-      '<div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y skills add ',
+      '<div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt"><div class="cf-command cf-command-raised" data-copy="true"><code class="cf-command-text">Run `npx -y skillsgist add ',
     );
   });
 
@@ -294,16 +294,16 @@ describe("GET /p/:project/s/:slug", () => {
     const older = await installCommandOn("/p/default/s/demo-skill?v=1");
     expect(older.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
     expect(older.html).not.toContain("cf-install");
-    expect(older.html).not.toContain("npx -y skills add");
+    expect(older.html).not.toContain("npx -y skillsgist add");
 
     const keyed = await installCommandOn("/p/default/s/demo-skill?v=1", cookie);
     expect(keyed.url).toContain(`/i/${await installKey(user.id)}/`);
     expect(keyed.html).toContain(COMMAND_KEY_NOTE);
     expect(keyed.html).not.toContain("cf-install-modes");
-    expect(keyed.html).not.toContain("npx -y skills add");
+    expect(keyed.html).not.toContain("npx -y skillsgist add");
 
     const latest = await (await get("/p/default/s/demo-skill?v=2")).text();
-    expect(latest).toContain("npx -y skills add");
+    expect(latest).toContain("npx -y skillsgist add");
   });
 
   it("shows no install command to an admin outside a private skill's project", async () => {
@@ -313,7 +313,7 @@ describe("GET /p/:project/s/:slug", () => {
     const res = await get("/p/default/s/demo-skill", root.cookie);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).not.toContain("cf-install");
     expect(html).not.toContain("cf-hero-note");
   });
@@ -432,7 +432,7 @@ describe("home page hero", () => {
     expect(hero).toContain('<h1 id="hero-title" class="cf-hero-title">Find a skill to install</h1>');
     expect(hero).toContain('<form method="get" action="/" class="cf-search" role="search">');
     expect(hero).not.toContain("cf-command");
-    expect(hero).not.toContain("npx skills add");
+    expect(hero).not.toContain("npx skillsgist add");
   };
 
   it("shows no install command to an anonymous visitor, searching or not, and says where the commands are", async () => {
@@ -463,7 +463,7 @@ describe("home page hero", () => {
 
     const html = await homeOf("/", cookie);
     expectNoCommand(heroOf(html));
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).not.toContain("/i/");
     expect(html).not.toContain(await installKey(user.id));
     expect(html).not.toContain("b".repeat(32));

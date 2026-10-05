@@ -104,9 +104,9 @@ export const zhCN: Messages = {
     title: "技能",
     hero: "查找要安装的技能",
     heroAnon: (cli, signIn) => [
-      "本仓库通过原版 ",
+      "本仓库提供 Agent Skills，用 ",
       cli,
-      " CLI 提供 Agent Skills。每个技能的页面上都有它的安装命令，公开技能无需密钥。",
+      " CLI 安装。每个技能的页面上都有它的安装命令，公开技能无需密钥。",
       signIn,
       "后可查看私有技能。",
     ],
@@ -157,7 +157,7 @@ export const zhCN: Messages = {
     agentPrompt: (command) =>
       `运行 \`${command}\`。完整阅读这条命令的输出，必要时先把输出重定向到临时文件，然后打开输出中给出的目录里的 SKILL.md，立即按其中的指令执行。相对路径都以这个目录为基准。`,
     commandKeyNote: (name, settings) => [
-      `这条命令带有你在 ${name} 的安装密钥，安装到代码仓库时，密钥还会被记进该代码仓库的 skills-lock.json。不要把它们发到共享聊天或公开的代码仓库里；如果泄露，请前往`,
+      `这条命令带有你在 ${name} 的安装密钥。skillsgist 不会在任何地方保存它，但 shell 历史和智能体的对话记录可能会留下它。不要把这条命令发到共享聊天或公开的代码仓库里；如果泄露，请前往`,
       settings,
       "重置密钥。",
     ],

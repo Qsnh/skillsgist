@@ -47,7 +47,7 @@ describe("catalogs", () => {
     ["zh-TW", zhTW],
     ["ja", ja],
   ])("%s keeps the agent prompt's command verbatim, in backticks", (_name, catalog) => {
-    const command = "npx -y skills add https://example.com/.well-known/agent-skills/demo --skill demo -g -y";
+    const command = "npx -y skillsgist add https://example.com/.well-known/agent-skills/demo --skill demo -g -y";
     expect(catalog.skills.agentPrompt(command)).toContain(`\`${command}\``);
   });
 });
@@ -183,7 +183,7 @@ describe("registry and skill pages", () => {
     const html = await htmlIn("/?q=%E7%84%A1", { "Accept-Language": "ja" });
     expect(html).toContain(ja.skills.hero);
     expect(html).toContain(ja.skills.noMatches("無", null));
-    expect(html).toContain("<code>npx skills</code>");
+    expect(html).toContain("<code>npx skillsgist</code>");
     expect(html).toContain(`<a href="/login">${ja.layout.signIn}</a>`);
   });
 

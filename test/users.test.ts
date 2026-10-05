@@ -92,7 +92,7 @@ describe("/me", () => {
     expect(head).not.toContain("alice");
     expect(head).not.toContain("cf-vis");
     expect(html).not.toContain("Install keys");
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).not.toContain(await installKey(user.id));
     expect(html).not.toContain("b".repeat(32));
     expect(html).not.toContain("install-key");

@@ -93,7 +93,7 @@ function HeroLede(props: { user: Viewer | null }) {
   if (!props.user) {
     return (
       <p class="cf-hero-lede">
-        {t.skills.heroAnon(<code>npx skills</code>, <a href="/login">{t.layout.signIn}</a>)}
+        {t.skills.heroAnon(<code>npx skillsgist</code>, <a href="/login">{t.layout.signIn}</a>)}
       </p>
     );
   }
@@ -285,8 +285,8 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
-function skillsAdd(url: string) {
-  return `skills add ${url}`;
+function skillsgistAdd(url: string) {
+  return `skillsgist add ${url}`;
 }
 
 function KeyNote(props: { note: unknown }) {
@@ -296,7 +296,7 @@ function KeyNote(props: { note: unknown }) {
 function Command(props: { url: string; note: unknown }) {
   return (
     <>
-      <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
+      <CodeBlock raised>npx {skillsgistAdd(props.url)}</CodeBlock>
       <KeyNote note={props.note} />
     </>
   );
@@ -322,7 +322,7 @@ function Install(props: { url: string; promptUrl: string; slug: string; commandN
       </div>
       <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
         <CodeBlock raised prompt={false}>
-          {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
+          {t.skills.agentPrompt(`npx -y ${skillsgistAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
         <KeyNote note={props.promptNote} />
       </div>

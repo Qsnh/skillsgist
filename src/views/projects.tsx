@@ -132,7 +132,7 @@ export function ProjectPage(props: {
         <div class="cf-hero-inner cf-hero-center">
           <h1 id="hero-title" class="cf-hero-title cf-project-title">{project.name}</h1>
           <ProjectLede user={user} project={project} hasPublicSkills={props.hasPublicSkills} />
-          {base ? <CodeBlock raised>npx skills add {base}</CodeBlock> : null}
+          {base ? <CodeBlock raised>npx skillsgist add {base}</CodeBlock> : null}
           <SearchForm action={path} q={props.q} />
         </div>
       </section>
@@ -173,7 +173,7 @@ export function ProjectSettingsPage(props: {
           <Panel title={t.projects.installPanel}>
             {membership ? (
               <>
-                <CodeBlock>npx skills add {`${props.origin}${installKeyPath(membership.install_key)}`}</CodeBlock>
+                <CodeBlock>npx skillsgist add {`${props.origin}${installKeyPath(membership.install_key)}`}</CodeBlock>
                 <p class="cf-hint">{t.projects.installHint(project.name)}</p>
                 <Form action={`${path}/install-key`} class="cf-actions">
                   <Button variant="outline">{t.projects.resetKey}</Button>

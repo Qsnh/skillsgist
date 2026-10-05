@@ -104,9 +104,9 @@ export const zhTW: Messages = {
     title: "技能",
     hero: "尋找要安裝的技能",
     heroAnon: (cli, signIn) => [
-      "此儲存庫透過原版 ",
+      "此儲存庫提供 Agent Skills，以 ",
       cli,
-      " CLI 提供 Agent Skills。每個技能的頁面上都有它的安裝指令，公開技能不需要金鑰。",
+      " CLI 安裝。每個技能的頁面上都有它的安裝指令，公開技能不需要金鑰。",
       signIn,
       "後即可查看私人技能。",
     ],
@@ -157,7 +157,7 @@ export const zhTW: Messages = {
     agentPrompt: (command) =>
       `執行 \`${command}\`。完整閱讀這個指令的輸出，必要時先將輸出重新導向到暫存檔，接著開啟輸出中列出的目錄裡的 SKILL.md，並立即依照其中的指示進行。相對路徑請以該目錄為基準。`,
     commandKeyNote: (name, settings) => [
-      `這條指令包含你在 ${name} 的安裝金鑰，安裝到程式碼儲存庫時，金鑰還會被記進該程式碼儲存庫的 skills-lock.json。不要把它們貼到共用聊天室或公開的程式碼儲存庫；如果外洩，請前往`,
+      `這條指令包含你在 ${name} 的安裝金鑰。skillsgist 不會在任何地方保存它，但 shell 歷史記錄和 AI 代理的對話記錄可能會留下它。不要把這條指令貼到共用聊天室或公開的程式碼儲存庫；如果外洩，請前往`,
       settings,
       "重設金鑰。",
     ],

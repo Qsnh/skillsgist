@@ -94,7 +94,7 @@ describe("/p/:project", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('<h1 id="hero-title" class="cf-hero-title cf-project-title">Default</h1>');
-    expect(html).toContain(`npx skills add ${ORIGIN}/p/default`);
+    expect(html).toContain(`npx skillsgist add ${ORIGIN}/p/default`);
     expect(html).toContain('<form method="get" action="/p/default" class="cf-search" role="search">');
     expect(html).toContain('<a href="/login">Sign in</a>');
     expect(cellLinks(html)).toEqual(["/p/default/s/demo-skill"]);
@@ -132,7 +132,7 @@ describe("/p/:project", () => {
     await publish(bob.cookie, GOOD_MD, "public", "team-b");
 
     const html = await (await get("/p/default", alice.cookie)).text();
-    expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
+    expect(html).toContain(`npx skillsgist add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
     expect(cellLinks(html).sort()).toEqual(["/p/default/s/demo-skill", "/p/default/s/other-skill"]);
     expect(cellMeta(html)).toContain("<span>0 downloads</span>");
     expect(html).toContain('<a href="/p/default/settings">Settings</a>');
@@ -157,7 +157,7 @@ describe("/p/:project", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const html = await (await get("/p/team-b", cookie)).text();
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).toContain('<a href="/p/team-b/settings">Settings</a>');
     expect(html).toContain("No skills in Team B yet.");
     expect(html).toContain('<a href="/new?project=team-b" class="cf-btn cf-btn-primary">Publish the first skill</a>');
@@ -177,7 +177,7 @@ describe("/p/:project", () => {
     await publish(bob.cookie, OTHER_MD, "private", "team-b");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin", project: null });
     const html = await (await get("/p/team-b", cookie)).text();
-    expect(html).toContain(`npx skills add ${ORIGIN}/p/team-b`);
+    expect(html).toContain(`npx skillsgist add ${ORIGIN}/p/team-b`);
     expect(cellLinks(html).sort()).toEqual(["/p/team-b/s/demo-skill", "/p/team-b/s/other-skill"]);
   });
 });
@@ -199,7 +199,7 @@ describe("/p/:project/settings", () => {
     await seedUser({ username: "bob", role: "member" });
     await publish(alice.cookie, GOOD_MD, "private");
     const html = await (await get("/p/default/settings", alice.cookie)).text();
-    expect(html).toContain(`npx skills add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
+    expect(html).toContain(`npx skillsgist add ${ORIGIN}/i/${await installKey(alice.user.id)}`);
     expect(html).toContain('action="/p/default/install-key"');
     expect(html).toContain("bob");
     expect(html).toContain('<a href="/p/default" class="cf-link">');
@@ -246,7 +246,7 @@ describe("/p/:project/settings", () => {
     expect(blocks[0]).toContain('action="/p/team-b/delete"');
     expect(blocks[0]).toContain('<button type="submit" class="cf-btn cf-btn-danger">Delete Team B</button>');
     expect(html).toContain("You are not a member of Team B, so you have no install key for it.");
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).not.toContain("/install-key");
     expect(html).toContain(">root</option>");
   });
@@ -267,7 +267,7 @@ describe("resetting an install key", () => {
     expect(await indexStatus(before)).toBe(404);
     expect(await indexStatus(after)).toBe(200);
     expect(await installKey(user.id, "team-b")).toBe("b".repeat(32));
-    expect(await (await follow(res, cookie)).text()).toContain(`npx skills add ${ORIGIN}/i/${after}`);
+    expect(await (await follow(res, cookie)).text()).toContain(`npx skillsgist add ${ORIGIN}/i/${after}`);
   });
 
   it("404s a reset for a project the user is not in, even for an instance admin", async () => {
