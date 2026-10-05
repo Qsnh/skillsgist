@@ -25,7 +25,7 @@ A private Agent Skills registry you self-host on Cloudflare.
 - Immutable, numbered versions; every version stays viewable and downloadable, and republishing an older version's content rolls back
 - Content-addressed artifacts, so the CLI can verify every download against its digest
 - Rendered `SKILL.md` pages with a file list and version history
-- A copyable agent prompt next to each skill's install command that has an agent install the skill with `npx skills add` and follow it right away
+- A copyable agent prompt next to each skill's install command that has an agent install the skill with `npx skillsgist add` and follow it right away
 - Search across skill names, descriptions and body text
 - The web UI in English, Simplified Chinese, Traditional Chinese and Japanese, picked from the browser's language or the footer, at the same addresses in every language
 - Projects that group skills and people, with one install key per person per project that installs only that project's skills
@@ -114,6 +114,18 @@ jobs:
             https://skills.example.com/api/projects/<project>/skills/release-notes
 ```
 
+## Install skills
+
+Every skill page and project page shows its install command, for example:
+
+```bash
+npx skillsgist add https://skills.example.com/i/<install_key>
+```
+
+[`skillsgist`](https://www.npmjs.com/package/skillsgist) is a small installer that speaks the same discovery protocol as `npx skills` and puts skills in the same places for the same agents. Unlike `npx skills`, it keeps the install key to itself: it writes no lock file, sends no telemetry, contacts no host but your instance and masks the key in its output. `npx skills add` with the same address still works.
+
+The key still travels in the command, so shell history and agent transcripts can keep it. npm also writes the command line of every `npx` run to `_logs` in its cache directory (usually `~/.npm/_logs`). Run `npx --logs-max=0 skillsgist add ...` to skip that, and delete old logs from earlier `npx skills` runs.
+
 ## Projects, accounts and roles
 
 Every skill belongs to exactly one project, and people are members of projects. A project has a name, which its admins can change at any time, and an address such as `platform`, which is fixed when the project is created and appears in its page, install and API addresses. An instance has two roles:
@@ -167,7 +179,7 @@ The script writes the new password straight to the D1 database, so it needs the 
 
 ```mermaid
 flowchart LR
-  cli["npx skills add"] -- "GET /i/:key/.well-known/agent-skills/index.json" --> worker
+  cli["npx skillsgist add"] -- "GET /i/:key/.well-known/agent-skills/index.json" --> worker
   browser["Browser"] -- "HTML pages and forms" --> worker
   ci["CI / curl"] -- "PUT /api/projects/:project/skills/:name" --> worker
   worker["Cloudflare Worker<br/>(Hono)"] --> d1[("D1<br/>accounts, projects, skills, versions")]
@@ -206,6 +218,8 @@ npm test
 npm run typecheck
 npm run verify:cli
 ```
+
+Until `skillsgist` is published to npm, point `verify:cli` at a local build of [skillsgist-cli](../skillsgist-cli): `SKILLSGIST_CLI=../skillsgist-cli npm run verify:cli`.
 
 ## Contributing
 

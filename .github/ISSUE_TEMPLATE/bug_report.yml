@@ -15,7 +15,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Upload a skill at /new with ...
-        2. Run `npx skills add https://<your-domain>/i/<install_key>`
+        2. Run `npx skillsgist add https://<your-domain>/i/<install_key>`
         3. ...
     validations:
       required: true
@@ -24,7 +24,7 @@ body:
     attributes:
       label: Area
       options:
-        - Installing with npx skills
+        - Installing with npx skillsgist
         - Publishing from the web
         - Publishing through the API
         - Accounts and administration
@@ -42,8 +42,8 @@ body:
   - type: input
     id: cli-version
     attributes:
-      label: npx skills version
-      description: Only if the problem involves installing. Run `npx skills --version`.
+      label: npx skillsgist version
+      description: Only if the problem involves installing. Run `npx skillsgist --version`.
   - type: textarea
     id: logs
     attributes:

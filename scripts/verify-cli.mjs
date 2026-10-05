@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Verify registry protocol compatibility against the real `npx skills`.
+// Verify registry protocol compatibility against the real `npx skills`, and that the page's agent prompt installs through `npx skillsgist` without leaving the install key on disk.
 // Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync, lstatSync, readlinkSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
 const PORT = 8788;
@@ -142,6 +142,24 @@ function findFile(root, relative) {
     }
   }
   return null;
+}
+
+function filesContaining(root, needle) {
+  const hits = [];
+  if (!existsSync(root)) return hits;
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      const st = lstatSync(full);
+      if (st.isSymbolicLink()) {
+        if (readlinkSync(full).includes(needle)) hits.push(full);
+      } else if (st.isDirectory()) stack.push(full);
+      else if (readFileSync(full).includes(needle)) hits.push(full);
+    }
+  }
+  return hits;
 }
 
 // Kills the whole `wrangler dev` process tree and waits for it to actually
@@ -438,37 +456,40 @@ try {
   if (!shown.includes(`/i/${installKey}/.well-known/agent-skills/demo-skill `)) {
     throw new Error(`the private demo-skill's prompt does not install from its keyed single-skill address: ${shown}`);
   }
-  const older = shown.replace(/\bskills add\b/, "skills@1.5.7 add");
-  if (older === shown) throw new Error(`the agent prompt does not run skills add: ${shown}`);
-  for (const [cli, command] of [["skills", shown], ["skills@1.5.7", older]]) {
-    for (const [where, agentEnv, agentDir] of [
-      ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
-      ["inside an agent the CLI does not know", {}, null],
-    ]) {
-      const label = `the agent prompt run with ${cli} ${where}`;
-      const project = tempDir();
-      const home = tempDir();
-      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: tempDir("skillsgist-verify-npm-") });
-      const output = await inTerminal(command, { cwd: project, env });
-      const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
-      if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
-      const dir = join(home, reported.slice(2));
-      if (
-        !existsSync(join(dir, "SKILL.md")) ||
-        !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
-        !existsSync(join(dir, "references", "api.md")) ||
-        !existsSync(join(dir, "scripts", "run.sh"))
-      ) {
-        throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
-      }
-      expectInstalled(home, ["demo-skill"], label);
-      if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
-        throw new Error(`${label} did not install demo-skill for that agent`);
-      }
-      const leftovers = readdirSync(project);
-      if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
-      log(`${label} installed demo-skill into ${reported} and left the project untouched`);
+  if (!shown.startsWith("npx -y skillsgist add ")) throw new Error(`the agent prompt does not run skillsgist add: ${shown}`);
+  const localCli = process.env.SKILLSGIST_CLI ? join(resolve(process.env.SKILLSGIST_CLI), "dist", "cli.js") : null;
+  if (localCli && !existsSync(localCli)) throw new Error(`SKILLSGIST_CLI has no dist/cli.js at ${localCli}; run npm run build there first`);
+  const command = localCli ? shown.replace("npx -y skillsgist", `node ${JSON.stringify(localCli)}`) : shown;
+  for (const [where, agentEnv, agentDir] of [
+    ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
+    ["inside an agent the CLI does not know", {}, null],
+  ]) {
+    const label = `the agent prompt run with skillsgist ${where}`;
+    const project = tempDir();
+    const home = tempDir();
+    const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: tempDir("skillsgist-verify-npm-") });
+    const output = await inTerminal(command, { cwd: project, env });
+    const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
+    if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
+    const dir = join(home, reported.slice(2));
+    if (
+      !existsSync(join(dir, "SKILL.md")) ||
+      !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
+      !existsSync(join(dir, "references", "api.md")) ||
+      !existsSync(join(dir, "scripts", "run.sh"))
+    ) {
+      throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
     }
+    expectInstalled(home, ["demo-skill"], label);
+    if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
+      throw new Error(`${label} did not install demo-skill for that agent`);
+    }
+    const leftovers = readdirSync(project);
+    if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
+    if (output.includes(installKey)) throw new Error(`${label} printed the install key`);
+    const leaked = filesContaining(home, installKey);
+    if (leaked.length > 0) throw new Error(`${label} left the install key in: ${leaked.join(", ")}`);
+    log(`${label} installed demo-skill into ${reported}, left the project untouched and stored no key`);
   }
 
   log("all contract checks passed");
