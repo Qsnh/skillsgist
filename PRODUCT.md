@@ -21,7 +21,7 @@ Every skill belongs to one project. An instance has two roles, `admin` and `memb
 
 A private registry for Agent Skills that one person can stand up on Cloudflare and manage from the browser. Skills are uploaded, edited, and versioned from the web, and installed with a single `npx skillsgist add` command.
 
-Success means a team can keep their skills private — not published to any shared public registry — and still install them with one command, on infrastructure they own, without the install key being stored on the installing machine or sent to a third party.
+Success means a team can keep their skills private — not published to any shared public registry — and still install them with one command, on infrastructure they own, without the installer storing the install key or sending it to a third party.
 
 ## Positioning
 
@@ -75,7 +75,7 @@ The mechanism that makes this practical: skillsgist serves the skills.sh discove
 ## Evidence on Hand
 
 - `README.md` — real install, publish, deploy, and user-management instructions.
-- `npm run verify:cli` (`scripts/verify-cli.mjs`) — a contract test run against the real `npx skills` binary and the skillsgist CLI, the proof that the protocol works with the stock client and that the recommended one leaves no install key behind.
+- `npm run verify:cli` (`scripts/verify-cli.mjs`) — a contract test run against the real `npx skills` binary and the skillsgist CLI, the proof that the protocol works with the stock client and that the recommended one leaves no install key in the home directory it installs into.
 - `test/` — the unit and integration suite, run under `@cloudflare/vitest-pool-workers`.
 - `docs/superpowers/plans/` — implementation plans for shipped work.
 

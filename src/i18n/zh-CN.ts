@@ -157,7 +157,7 @@ export const zhCN: Messages = {
     agentPrompt: (command) =>
       `运行 \`${command}\`。完整阅读这条命令的输出，必要时先把输出重定向到临时文件，然后打开输出中给出的目录里的 SKILL.md，立即按其中的指令执行。相对路径都以这个目录为基准。`,
     commandKeyNote: (name, settings) => [
-      `这条命令带有你在 ${name} 的安装密钥。skillsgist 不会在任何地方保存它，但 shell 历史和智能体的对话记录可能会留下它。不要把这条命令发到共享聊天或公开的代码仓库里；如果泄露，请前往`,
+      `这条命令带有你在 ${name} 的安装密钥。skillsgist 不会保存它，但 shell 历史、npm 的日志和智能体的对话记录可能会留下它（给 npx 加上 --logs-max=0 即可跳过 npm 的日志）。不要把这条命令发到共享聊天或公开的代码仓库里；如果泄露，请前往`,
       settings,
       "重置密钥。",
     ],

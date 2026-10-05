@@ -19,7 +19,7 @@ const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
 const COMMAND_KEY_NOTE =
-  '<p class="cf-install-note">This command carries your install key for Default. skillsgist does not store it anywhere, but your shell history and agent transcripts may keep it. Keep the command out of shared chats and public repositories, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p>';
+  '<p class="cf-install-note">This command carries your install key for Default. skillsgist does not store it, but your shell history, npm&#39;s logs and agent transcripts may keep it (run npx with --logs-max=0 to skip npm&#39;s logs). Keep the command out of shared chats and public repositories, and reset the key under <a href="/p/default/settings">Settings</a> if it leaks.</p>';
 
 describe("GET /", () => {
   beforeEach(resetDb);

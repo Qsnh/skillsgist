@@ -167,7 +167,7 @@ export const en = {
     agentPrompt: (command: string) =>
       `Run \`${command}\`. Read the complete output of that command, redirecting it to a temporary file first if necessary, then open the SKILL.md in the directory that output reports and follow the instructions in it now. Resolve relative paths from that directory.`,
     commandKeyNote: (name: string, settings: Slot) => [
-      `This command carries your install key for ${name}. skillsgist does not store it anywhere, but your shell history and agent transcripts may keep it. Keep the command out of shared chats and public repositories, and reset the key under `,
+      `This command carries your install key for ${name}. skillsgist does not store it, but your shell history, npm's logs and agent transcripts may keep it (run npx with --logs-max=0 to skip npm's logs). Keep the command out of shared chats and public repositories, and reset the key under `,
       settings,
       " if it leaks.",
     ],
