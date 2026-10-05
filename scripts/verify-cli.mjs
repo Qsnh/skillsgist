@@ -461,8 +461,8 @@ try {
   if (localCli && !existsSync(localCli)) throw new Error(`SKILLSGIST_CLI has no dist/cli.js at ${localCli}; run npm run build there first`);
   const command = localCli ? shown.replace("npx -y skillsgist", `node ${JSON.stringify(localCli)}`) : shown;
   for (const [where, agentEnv, agentDir] of [
-    ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
-    ["inside an agent the CLI does not know", {}, null],
+    ["inside Claude Code", { CLAUDECODE: "1", AI_AGENT: "claude-code_2-1-280_harness" }, ".claude"],
+    ["inside an agent the CLI does not know", { AI_AGENT: "some-unknown-agent" }, null],
   ]) {
     const label = `the agent prompt run with skillsgist ${where}`;
     const project = tempDir();
