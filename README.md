@@ -118,15 +118,6 @@ npm install
 npm run deploy
 ```
 
-A button deploy is a separate repository, not a fork: merge upstream and push, and Workers Builds redeploys with new migrations.
-
-```bash
-git remote add upstream https://github.com/Qsnh/skillsgist.git
-git fetch upstream
-git merge upstream/main
-git push
-```
-
 ## Reset a forgotten password
 
 An admin can set a new password on any account's settings page. If no admin can sign in, use a terminal:
