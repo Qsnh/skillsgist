@@ -35,10 +35,6 @@ A private Agent Skills registry you self-host on Cloudflare.
 
 ## Deploy
 
-### One click
-
-The Deploy to Cloudflare button above copies this repository into your GitHub or GitLab account, creates the D1 database and R2 bucket, asks for `SESSION_SECRET` (a long random value, e.g. from `openssl rand -hex 32`), then builds, migrates and deploys the Worker. Open `/setup` on its URL to create the first admin. Every push to the copy redeploys via Workers Builds.
-
 ### With Wrangler
 
 Requires Node.js 22+ and a Cloudflare account.
