@@ -101,18 +101,6 @@ jobs:
             https://skills.example.com/api/projects/<project>/skills/release-notes
 ```
 
-## Install skills
-
-Each skill and project page shows its install command, e.g.:
-
-```bash
-npx skillsgist add https://skills.example.com/i/<install_key>
-```
-
-[`skillsgist`](https://www.npmjs.com/package/skillsgist) is a small installer with the same discovery protocol and install locations as `npx skills`, but keeps the install key to itself: no lock file, telemetry or other hosts, and the key masked in output. `npx skills add` still works.
-
-The key is still in the command, so shell history and agent transcripts can keep it, and npm logs each `npx` command line to its cache's `_logs` (usually `~/.npm/_logs`). `npx --logs-max=0 skillsgist add ...` skips that log; delete logs from earlier `npx skills` runs.
-
 ## Projects, accounts and roles
 
 Every skill belongs to one project, and people are project members. A project has a name its admins can change and a fixed address such as `platform` used in its page, install and API URLs.
@@ -121,8 +109,6 @@ Every skill belongs to one project, and people are project members. A project ha
 - **Instance admins** also manage every project, skill and account, and create and delete projects.
 - **Project members** see and install its skills; once a project admin allows it (new members start blocked), they also publish there and manage the skills they own.
 - **Project admins** can always publish, and also manage every skill in the project, rename it, add, remove, promote and demote members, and allow or block their publishing.
-
-**Deleting an account reassigns its skills and version authorship to the deleting admin**; the original authorship is lost.
 
 ## Limits
 
@@ -156,8 +142,6 @@ npm run reset-password                   # asks for the username and the new pas
 npm run reset-password -- alice          # names the account up front
 npm run reset-password -- alice --local  # the local development database
 ```
-
-The script writes to D1 directly, so it needs your `npm run deploy` Wrangler login; for a button deploy, clone your copy and run `npm install` and `npx wrangler login` first. Existing sessions stay signed in; change `SESSION_SECRET` to sign everyone out.
 
 ## How it works
 
@@ -202,8 +186,6 @@ npm test
 npm run typecheck
 npm run verify:cli
 ```
-
-Until `skillsgist` is on npm, run `SKILLSGIST_CLI=../skillsgist-cli npm run verify:cli` against a local [skillsgist-cli](../skillsgist-cli) build.
 
 ## Contributing
 
