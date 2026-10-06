@@ -35,8 +35,6 @@ A private Agent Skills registry you self-host on Cloudflare.
 
 ## Deploy
 
-### With Wrangler
-
 Requires Node.js 22+ and a Cloudflare account.
 
 ```bash
