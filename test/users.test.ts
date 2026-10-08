@@ -226,12 +226,16 @@ describe("CLI sign-ins on /me", () => {
     expect(await (await get("/me", cookie)).text()).toContain("<code>npx skillsgist login http://localhost</code>");
   });
 
-  it("404s revoking another user's sign-in", async () => {
-    const { cookie } = await seedAndLogin({ username: "alice" });
+  it("404s revoking another user's sign-in, or one already revoked", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
     const bob = await seedUser({ username: "bob" });
     const { id, token } = await signInDevice(bob.user.id, ["default"]);
     expect((await postForm(`/me/cli-logins/${id}/revoke`, cookie)).status).toBe(404);
     expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(200);
+    const own = await signInDevice(user.id, ["default"], Date.now(), "");
+    const first = await postForm(`/me/cli-logins/${own.id}/revoke`, cookie);
+    expect(await (await follow(first, cookie)).text()).toContain("Signed Unnamed computer out.");
+    expect((await postForm(`/me/cli-logins/${own.id}/revoke`, cookie)).status).toBe(404);
   });
 
   it("signs every computer out when the password changes", async () => {

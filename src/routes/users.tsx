@@ -134,10 +134,10 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
 });
 
 usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
-  const user = c.get("user");
-  const login = (await listUserLogins(c.env.DB, user.id)).find((l) => l.id === c.req.param("id"));
-  if (!login || !(await deleteUserLogin(c.env.DB, user.id, login.id))) return c.notFound();
-  await flash(c, messages(c).auth.cliLoginRevoked(login.device_name || messages(c).auth.unnamedComputer));
+  const name = await deleteUserLogin(c.env.DB, c.get("user").id, c.req.param("id"));
+  if (name === null) return c.notFound();
+  const t = messages(c);
+  await flash(c, t.auth.cliLoginRevoked(name || t.auth.unnamedComputer));
   return c.redirect("/me", 302);
 });
 

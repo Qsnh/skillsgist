@@ -202,30 +202,59 @@ describe("migration 0005 on an instance that already has members", () => {
   });
 });
 
-describe("migration 0006", () => {
+describe("migrations 0006 and 0007", () => {
   beforeAll(async () => {
     await wipe();
     await applyD1Migrations(db, migrations);
     await db.batch([
       db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u1', 'admin', 'sgi_k', 0)"),
       db.prepare(
         "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l1', 'active', 'u1', 'x', 5, 0, 0)",
       ),
-      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'default')"),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project, user_id) VALUES ('l1', 'default', 'u1')"),
     ]);
   });
 
-  it("refuses an unknown status, user or project", async () => {
+  it("refuses an unknown status or user, and a grant without a membership", async () => {
     const insert = (status: string, user: string) =>
       db.prepare("INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l2', ?, ?, 'x', 5, 0, 0)").bind(status, user).run();
     await expect(insert("lost", "u1")).rejects.toThrow(/CHECK/);
     await expect(insert("active", "nobody")).rejects.toThrow(/FOREIGN KEY/);
-    await expect(db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'nope')").run()).rejects.toThrow(/FOREIGN KEY/);
+    const grant = (project: string) =>
+      db.prepare("INSERT INTO cli_login_projects (login_id, project, user_id) VALUES ('l1', ?, 'u1')").bind(project).run();
+    await expect(grant("nope")).rejects.toThrow(/FOREIGN KEY/);
+    await db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)").run();
+    await expect(grant("team-b")).rejects.toThrow(/FOREIGN KEY/);
   });
 
-  it("cascades from a deleted user to their sign-ins and grants", async () => {
+  it("drops a grant when its membership ends, and a sign-in when its user is deleted", async () => {
+    await db.prepare("DELETE FROM memberships WHERE user_id = 'u1'").run();
+    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([]);
+    expect(await rows("SELECT id FROM cli_logins")).toEqual([{ id: "l1" }]);
     await db.prepare("DELETE FROM users WHERE id = 'u1'").run();
     expect(await rows("SELECT * FROM cli_logins")).toEqual([]);
-    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([]);
+  });
+});
+
+describe("migration 0007 on an instance that already has sign-ins", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations.filter((m) => m.name < "0007"));
+    await db.batch([
+      db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)"),
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u1', 'admin', 'sgi_k', 0)"),
+      db.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l1', 'active', 'u1', 'x', 5, 0, 0)",
+      ),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'default')"),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'team-b')"),
+    ]);
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0007"));
+  });
+
+  it("keeps the grants of current memberships, records their user, and drops the rest", async () => {
+    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([{ login_id: "l1", project: "default", user_id: "u1" }]);
   });
 });

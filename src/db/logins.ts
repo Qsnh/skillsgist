@@ -88,8 +88,8 @@ export async function approveLogin(
   const grants = [...new Set(projects)].map((project) =>
     db
       .prepare(
-        `INSERT OR IGNORE INTO cli_login_projects (login_id, project)
-         SELECT ?1, ?2
+        `INSERT OR IGNORE INTO cli_login_projects (login_id, project, user_id)
+         SELECT ?1, ?2, ?4
          WHERE EXISTS (SELECT 1 FROM cli_logins WHERE id = ?1 AND status = 'pending' AND expires_at > ?3)
            AND EXISTS (SELECT 1 FROM memberships WHERE project = ?2 AND user_id = ?4)`,
       )
@@ -129,8 +129,7 @@ export async function getDecidedLogin(
       .prepare(
         `SELECT p.name FROM cli_login_projects clp
          JOIN projects p ON p.slug = clp.project
-         JOIN memberships m ON m.project = clp.project AND m.user_id = ?2
-         WHERE clp.login_id = ?1
+         WHERE clp.login_id = ?1 AND clp.user_id = ?2
          ORDER BY p.name`,
       )
       .bind(id, userId),
@@ -164,32 +163,23 @@ export async function loginProjects(db: D1Database, id: string): Promise<string[
 }
 
 export async function deleteLogin(db: D1Database, id: string): Promise<void> {
-  await db.batch([
-    db.prepare("DELETE FROM cli_login_projects WHERE login_id = ?").bind(id),
-    db.prepare("DELETE FROM cli_logins WHERE id = ?").bind(id),
-  ]);
+  await db.prepare("DELETE FROM cli_logins WHERE id = ?").bind(id).run();
 }
 
 export async function deleteLoginByTokenHash(db: D1Database, hash: string): Promise<void> {
-  await db.batch([
-    db.prepare("DELETE FROM cli_login_projects WHERE login_id IN (SELECT id FROM cli_logins WHERE token_hash = ?)").bind(hash),
-    db.prepare("DELETE FROM cli_logins WHERE token_hash = ?").bind(hash),
-  ]);
+  await db.prepare("DELETE FROM cli_logins WHERE token_hash = ?").bind(hash).run();
 }
 
-export async function deleteUserLogin(db: D1Database, userId: string, id: string): Promise<boolean> {
-  const [, login] = await db.batch([
-    db.prepare("DELETE FROM cli_login_projects WHERE login_id IN (SELECT id FROM cli_logins WHERE id = ? AND user_id = ?)").bind(id, userId),
-    db.prepare("DELETE FROM cli_logins WHERE id = ? AND user_id = ?").bind(id, userId),
-  ]);
-  return login.meta.changes === 1;
+export async function deleteUserLogin(db: D1Database, userId: string, id: string): Promise<string | null> {
+  const row = await db
+    .prepare("DELETE FROM cli_logins WHERE id = ? AND user_id = ? AND status = 'active' RETURNING device_name")
+    .bind(id, userId)
+    .first<{ device_name: string }>();
+  return row ? row.device_name : null;
 }
 
 export async function deleteUserLogins(db: D1Database, userId: string): Promise<void> {
-  await db.batch([
-    db.prepare("DELETE FROM cli_login_projects WHERE login_id IN (SELECT id FROM cli_logins WHERE user_id = ?)").bind(userId),
-    db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId),
-  ]);
+  await db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId).run();
 }
 
 export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {
@@ -204,7 +194,6 @@ export async function loginAccessByTokenHash(db: D1Database, hash: string): Prom
       .prepare(
         `SELECT clp.project FROM cli_login_projects clp
          JOIN cli_logins l ON l.id = clp.login_id
-         JOIN memberships m ON m.project = clp.project AND m.user_id = l.user_id
          WHERE l.token_hash = ? AND l.status = 'active'
          ORDER BY clp.project`,
       )
@@ -247,8 +236,7 @@ export async function listUserLogins(db: D1Database, userId: string): Promise<Cl
         `SELECT clp.login_id, p.name FROM cli_login_projects clp
          JOIN cli_logins l ON l.id = clp.login_id
          JOIN projects p ON p.slug = clp.project
-         JOIN memberships m ON m.project = clp.project AND m.user_id = l.user_id
-         WHERE l.user_id = ? AND l.status = 'active'
+         WHERE clp.user_id = ? AND l.status = 'active'
          ORDER BY p.name`,
       )
       .bind(userId),

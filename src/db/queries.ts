@@ -187,9 +187,6 @@ export async function deleteUserReassigning(
     db.prepare("UPDATE skills SET owner_id = ? WHERE owner_id = ?").bind(reassignTo, userId),
     db.prepare("UPDATE versions SET author_id = ? WHERE author_id = ?").bind(reassignTo, userId),
     db.prepare("DELETE FROM memberships WHERE user_id = ?").bind(userId),
-    db.prepare("DELETE FROM cli_login_projects WHERE login_id IN (SELECT id FROM cli_logins WHERE user_id = ?)").bind(userId),
-    db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId),
-    db.prepare("DELETE FROM device_code_attempts WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
   ]);
 }
@@ -554,10 +551,7 @@ export async function renameProject(db: D1Database, slug: string, name: string):
 }
 
 export async function deleteProject(db: D1Database, slug: string): Promise<boolean> {
-  const [, , project] = await db.batch([
-    db
-      .prepare("DELETE FROM cli_login_projects WHERE project = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
-      .bind(slug),
+  const [, project] = await db.batch([
     db
       .prepare("DELETE FROM memberships WHERE project = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
       .bind(slug),
@@ -625,12 +619,7 @@ export async function updateMembershipPublish(
 }
 
 export async function deleteMembership(db: D1Database, project: string, userId: string): Promise<void> {
-  await db.batch([
-    db
-      .prepare("DELETE FROM cli_login_projects WHERE project = ? AND login_id IN (SELECT id FROM cli_logins WHERE user_id = ?)")
-      .bind(project, userId),
-    db.prepare("DELETE FROM memberships WHERE project = ? AND user_id = ?").bind(project, userId),
-  ]);
+  await db.prepare("DELETE FROM memberships WHERE project = ? AND user_id = ?").bind(project, userId).run();
 }
 
 export async function projectHasSkills(db: D1Database, project: string, publicOnly: boolean): Promise<boolean> {
