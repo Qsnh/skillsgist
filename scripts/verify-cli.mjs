@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { createInterface } from "node:readline";
 
 const PORT = 8788;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -17,7 +18,7 @@ const PASSWORD = "verify-cli-password";
 // injects it for just this process without requiring any file on disk.
 const SESSION_SECRET = randomBytes(32).toString("hex");
 
-const seenSecrets = new Set();
+const seenSecrets = new Set([SESSION_SECRET]);
 
 function remember(secret) {
   if (secret) seenSecrets.add(secret);
@@ -251,8 +252,11 @@ if (!terminalArgs) {
 const server = spawn(
   "npx",
   ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--var", `SESSION_SECRET:${SESSION_SECRET}`],
-  { stdio: ["ignore", "inherit", "inherit"] },
+  { stdio: ["ignore", "pipe", "pipe"] },
 );
+for (const [from, to] of [[server.stdout, process.stdout], [server.stderr, process.stderr]]) {
+  createInterface({ input: from, crlfDelay: Infinity }).on("line", (line) => to.write(`${redact(line)}\n`));
+}
 
 let exitCode = 1;
 try {
