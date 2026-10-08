@@ -15,6 +15,11 @@ export const CODE_LOCK_MS = 10 * 60 * 1000;
 export const MAX_SCOPE_PROJECTS = 50;
 export const DEVICE_NAME_MAX = 64;
 
+export const loginIdleCutoff = (now: number) => now - LOGIN_IDLE_MS;
+
+export const loginExpired = (lastUsedAt: number | null, now: number) =>
+  lastUsedAt === null || lastUsedAt <= loginIdleCutoff(now);
+
 const USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ";
 const USER_CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{8}$/;
 

@@ -1,5 +1,5 @@
 import type { Ctx } from "./auth";
-import { DEVICE_TOKEN_PREFIX, INSTALL_KEY_PREFIX, LAST_USED_WRITE_MS, LOGIN_IDLE_MS } from "./credentials";
+import { DEVICE_TOKEN_PREFIX, INSTALL_KEY_PREFIX, LAST_USED_WRITE_MS, loginExpired } from "./credentials";
 import { loginAccessByTokenHash, markLoginUsed } from "./db/logins";
 import { getInstallKeyAccess } from "./db/queries";
 import { sha256Hex } from "./hash";
@@ -45,8 +45,8 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
   if (!token.startsWith(DEVICE_TOKEN_PREFIX)) return INVALID;
   const login = await loginAccessByTokenHash(c.env.DB, await sha256Hex(token));
   const now = Date.now();
-  if (!login || login.last_used_at === null || login.last_used_at <= now - LOGIN_IDLE_MS) return INVALID;
-  if (now - login.last_used_at >= LAST_USED_WRITE_MS) {
+  if (!login || loginExpired(login.last_used_at, now)) return INVALID;
+  if (now - (login.last_used_at ?? 0) >= LAST_USED_WRITE_MS) {
     c.executionCtx.waitUntil(
       markLoginUsed(c.env.DB, login.id, now).catch((err) => console.error("cli login use write failed", err)),
     );

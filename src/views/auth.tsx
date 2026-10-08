@@ -1,4 +1,4 @@
-import { LOGIN_IDLE_MS } from "../credentials";
+import { loginExpired } from "../credentials";
 import { Form } from "../csrf";
 import type { CliLoginSummary } from "../db/logins";
 import { useLocale, useT } from "../i18n";
@@ -133,7 +133,7 @@ export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin:
               <ul class="cf-rows">
                 {props.logins.map((login) => {
                   const name = login.device_name || t.auth.unnamedComputer;
-                  const expired = (login.last_used_at ?? 0) <= now - LOGIN_IDLE_MS;
+                  const expired = loginExpired(login.last_used_at, now);
                   return (
                     <li class="cf-row cf-member">
                       <span class="cf-row-main cf-login">
