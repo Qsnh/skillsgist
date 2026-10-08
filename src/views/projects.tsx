@@ -186,7 +186,7 @@ export function ProjectSettingsPage(props: {
             <Panel title={t.projects.installKeyPanel}>
               <CodeBlock prompt={false}>{membership.install_key}</CodeBlock>
               <p class="cf-hint">{t.projects.installKeyHint(project.name)}</p>
-              <CodeBlock>SKILLSGIST_HOST={props.origin} npx skillsgist add {`${props.origin}${path}`}</CodeBlock>
+              <CodeBlock>SKILLSGIST_HOST={props.origin} npx skillsgist add {`${props.origin}${path} -g -y`}</CodeBlock>
               <Form action={`${path}/install-key`} class="cf-actions">
                 <Button variant="outline">{t.projects.resetKey}</Button>
               </Form>

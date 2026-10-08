@@ -76,7 +76,8 @@ async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
 
 const indexRoute = (c: Ctx) => {
   const req = indexRequest(c.req.path);
-  return req ? serveIndex(c, req) : notFound();
+  if (req) return serveIndex(c, req);
+  return /^\/p\/[^/]+/.test(c.req.path) ? privateNotFound() : notFound();
 };
 
 for (const suffix of INDEX_SUFFIXES) {

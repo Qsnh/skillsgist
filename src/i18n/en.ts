@@ -189,7 +189,7 @@ export const en = {
     promptLoginNote: (login: Slot) => [
       "This skill is private, so the agent's computer must be signed in with ",
       login,
-      " or have SKILLSGIST_INSTALL_KEY set.",
+      " or have SKILLSGIST_HOST and SKILLSGIST_INSTALL_KEY set.",
     ],
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",

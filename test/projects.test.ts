@@ -262,7 +262,7 @@ describe("install keys for CI", () => {
     expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
     const settings = await (await get("/p/default/settings", cookie)).text();
     expect(settings).toContain(key);
-    expect(settings).toContain(`SKILLSGIST_HOST=${ORIGIN} npx skillsgist add ${ORIGIN}/p/default`);
+    expect(settings).toContain(`SKILLSGIST_HOST=${ORIGIN} npx skillsgist add ${ORIGIN}/p/default -g -y`);
     expect(settings).not.toContain(`npx skillsgist add ${ORIGIN}/p/default ${key}`);
     for (const path of ["/", "/me", "/p/default", "/p/default/s/demo-skill"]) {
       expect(await (await get(path, cookie)).text(), path).not.toContain(key);

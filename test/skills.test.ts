@@ -20,7 +20,7 @@ const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(ht
 
 const LOGIN_COMMAND = "<code>npx skillsgist login http://localhost</code>";
 const COMMAND_LOGIN_NOTE = `<p class="cf-install-note">This skill is private. Sign this computer in once with ${LOGIN_COMMAND} before you run the command.</p>`;
-const PROMPT_LOGIN_NOTE = `<p class="cf-install-note">This skill is private, so the agent&#39;s computer must be signed in with ${LOGIN_COMMAND} or have SKILLSGIST_INSTALL_KEY set.</p>`;
+const PROMPT_LOGIN_NOTE = `<p class="cf-install-note">This skill is private, so the agent&#39;s computer must be signed in with ${LOGIN_COMMAND} or have SKILLSGIST_HOST and SKILLSGIST_INSTALL_KEY set.</p>`;
 
 describe("GET /", () => {
   beforeEach(resetDb);

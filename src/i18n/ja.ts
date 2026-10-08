@@ -180,7 +180,7 @@ export const ja: Messages = {
     promptLoginNote: (login) => [
       "このスキルはプライベートなので、エージェントのコンピューターが ",
       login,
-      " でサインイン済みか、SKILLSGIST_INSTALL_KEY が設定されている必要があります。",
+      " でサインイン済みか、SKILLSGIST_HOST と SKILLSGIST_INSTALL_KEY が設定されている必要があります。",
     ],
     notAllowed: (action) => `このスキルを${ACTIONS[action]}する権限がありません`,
     moveForbidden: "そのプロジェクトにはスキルを移動できません",

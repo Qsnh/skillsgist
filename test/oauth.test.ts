@@ -141,6 +141,15 @@ describe("POST /api/oauth/token", () => {
     expect(await (await poll(device_code)).json()).toEqual({ error: "invalid_grant" });
   });
 
+  it("does not slow_down a second poll made 5 seconds after the first", async () => {
+    const { device_code, user_code } = await start({ scope: "project:default" });
+    const row = await loginRow(user_code);
+    expect(await (await poll(device_code)).json()).toEqual({ error: "authorization_pending" });
+    await env.DB.prepare("UPDATE cli_logins SET last_polled_at = ? WHERE id = ?").bind(Date.now() - 5000, row.id).run();
+    expect(await (await poll(device_code)).json()).toEqual({ error: "authorization_pending" });
+    expect((await env.DB.prepare("SELECT poll_interval FROM cli_logins WHERE id = ?").bind(row.id).first())?.poll_interval).toBe(5);
+  });
+
   it("tells the CLI a request was denied, once", async () => {
     const { device_code, user_code } = await start();
     await denyLogin(env.DB, (await loginRow(user_code)).id, Date.now());

@@ -1,5 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { approveLogin } from "../src/db/logins";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { env, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject } from "./helpers";
@@ -114,6 +115,19 @@ describe("approving", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toContain("Request denied");
     expect(await status()).toBe("denied");
+  });
+
+  it("does not claim success when the code was already approved elsewhere", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const confirm = await postForm("/device", cookie, { code: user_code });
+    expect(confirm.status).toBe(200);
+    const login = await env.DB.prepare("SELECT id FROM cli_logins WHERE user_code = ?").bind(user_code).first<{ id: string }>();
+    expect(await approveLogin(env.DB, login!.id, user.id, ["default"], Date.now())).toBe(true);
+    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
+    expect(res.status).toBe(400);
+    expect(await res.text()).not.toContain("Request denied");
+    expect(await status()).toBe("approved");
   });
 
   it("refuses a used code", async () => {

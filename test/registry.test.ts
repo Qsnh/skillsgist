@@ -112,6 +112,11 @@ describe("registry index", () => {
 
     expect((await get("/.well-known/agent-skills/demo-skill")).status).toBe(404);
     expect((await get("/.well-known/agent-skills/demo-skill/nope.json")).status).toBe(404);
+
+    const projectScoped = await get("/p/default/.well-known/agent-skills/demo-skill");
+    expect(projectScoped.status).toBe(404);
+    expect(projectScoped.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(projectScoped.headers.get("Vary")).toBe("Authorization");
   });
 });
 

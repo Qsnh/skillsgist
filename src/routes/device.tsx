@@ -53,7 +53,9 @@ deviceRoutes.post("/device", requireUser, async (c) => {
   }
   const decision = values(body.decision)[0];
   if (decision === "deny") {
-    await denyLogin(c.env.DB, login.id, now);
+    if (!(await denyLogin(c.env.DB, login.id, now))) {
+      return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
+    }
     return page(c, <DeviceDonePage user={user} projects={null} />);
   }
   if (decision === "approve") {
