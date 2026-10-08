@@ -14,7 +14,7 @@ A private Agent Skills registry you self-host on Cloudflare.
 ## Why skillsgist
 
 - **Private by default.** A new skill is visible only to the members of its project. Making one public is a deliberate switch on that one skill.
-- **Access controlled per project.** Each project has its own members and admins. Project admins manage their project's people and skills without instance-wide rights, and an install key opens only one project.
+- **Access controlled per project.** Each project has its own members and admins. Project admins manage their project's people and skills without instance-wide rights, and an install key or a sign-in opens only the projects it was given.
 - **Your infrastructure, nearly free.** One Worker, one D1 database and one R2 bucket. The default limits fit the Workers Free plan.
 - **Managed from the browser.** Publishing, editing, versions, visibility, projects and accounts are all web pages. There is no config file to maintain.
 
@@ -25,10 +25,10 @@ A private Agent Skills registry you self-host on Cloudflare.
 - Immutable, numbered versions; every version stays viewable and downloadable, and republishing an older version's content rolls back
 - Content-addressed artifacts, so the CLI can verify every download against its digest
 - Rendered `SKILL.md` pages with a file list and version history
-- A copyable agent prompt next to each skill's install command that has an agent install the skill with `npx skills add` and follow it right away
+- A copyable agent prompt next to each skill's install command that has an agent install the skill with `npx skillsgist add` and follow it right away
 - Search across skill names, descriptions and body text
 - The web UI in English, Simplified Chinese, Traditional Chinese and Japanese, picked from the browser's language or the footer, at the same addresses in every language
-- Projects that group skills and people, with one install key per person per project that installs only that project's skills
+- Projects that group skills and people: `npx skillsgist login` signs a computer in through the browser for the projects you tick, and per-project install keys cover CI; neither ever appears in a URL
 - API tokens for publishing from CI
 - Admin and member roles for the instance and for each project, with account and project administration in the browser
 - Server-rendered pages that work without JavaScript, under a strict Content-Security-Policy
@@ -70,6 +70,26 @@ npm run deploy                           # applies migrations, builds the CSS, d
 Then open `https://<your-worker>/setup` to create the first admin. The page switches itself off as soon as any user exists.
 
 To serve the instance on your own domain, open the Worker in the Cloudflare dashboard and add a Custom Domain under Settings → Domains & Routes.
+
+## Install skills
+
+```bash
+npx skillsgist add https://skills.example.com/p/<project>          # public skills, no sign-in
+npx skillsgist login https://skills.example.com                    # once per computer, for private skills
+```
+
+In CI, skip the sign-in and use the key from the project's settings page, stored as a masked secret:
+
+```yaml
+      - run: npx skillsgist add https://skills.example.com/p/<project> -g -y
+        env:
+          SKILLSGIST_HOST: https://skills.example.com
+          SKILLSGIST_INSTALL_KEY: ${{ secrets.SKILLSGIST_INSTALL_KEY }}
+```
+
+- `SKILLSGIST_INSTALL_KEY` is not `SKILLSGIST_TOKEN`, which is the publish token described below.
+- The CLI sends the key only when `SKILLSGIST_HOST` names the address being installed from.
+- One key covers one project.
 
 ## Publish from a terminal or CI
 
@@ -151,6 +171,10 @@ git merge upstream/main
 git push
 ```
 
+### Upgrading to the release with sign-ins
+
+The migrations in this release replace every install key with a new `sgi_` key and delete the `/i/` install addresses. Old `npx skills add https://…/i/<key>` commands and agent prompts stop working at once. Run `npx skillsgist login <origin>` to sign a computer in, or copy the new key for CI from the project's settings page. The stock `npx skills` keeps installing public skills; it cannot install private ones. Until you upgrade an instance, keep using `npx skillsgist@0.4.1` against it.
+
 ## Reset a forgotten password
 
 An admin can set a new password for any account on that account's settings page. If no admin can sign in, reset the password from a terminal instead:
@@ -167,7 +191,8 @@ The script writes the new password straight to the D1 database, so it needs the 
 
 ```mermaid
 flowchart LR
-  cli["npx skills add"] -- "GET /i/:key/.well-known/agent-skills/index.json" --> worker
+  cli["npx skillsgist add"] -- "GET /p/:project/.well-known/agent-skills/index.json\nAuthorization: Bearer" --> worker
+  login["npx skillsgist login"] -- "/api/oauth/*" --> worker
   browser["Browser"] -- "HTML pages and forms" --> worker
   ci["CI / curl"] -- "PUT /api/projects/:project/skills/:name" --> worker
   worker["Cloudflare Worker<br/>(Hono)"] --> d1[("D1<br/>accounts, projects, skills, versions")]

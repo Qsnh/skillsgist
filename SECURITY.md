@@ -16,6 +16,6 @@ The report stays private between you and the maintainer until a fix is released,
 
 ## Scope
 
-In scope: the Worker in this repository — authentication, sessions and CSRF, install keys and API tokens, visibility of private skills, archive handling, and the discovery endpoints under `/.well-known/agent-skills/`.
+In scope: the Worker in this repository — authentication, sessions and CSRF, install keys, CLI sign-ins (the OAuth device grant under `/api/oauth/` and `/device`), API tokens, visibility of private skills, archive handling, and the discovery endpoints under `/.well-known/agent-skills/` and `/p/<project>/.well-known/`.
 
-Out of scope: vulnerabilities in Cloudflare's platform or in the `npx skills` CLI, which should be reported to their own maintainers, and weaknesses in a deployment's own configuration, such as a leaked `SESSION_SECRET`.
+Out of scope: vulnerabilities in Cloudflare's platform or in the `npx skills` CLI, which should be reported to their own maintainers; vulnerabilities in the skillsgist CLI, which should go to `Qsnh/skillsgist-cli`; and weaknesses in a deployment's own configuration, such as a leaked `SESSION_SECRET`.
