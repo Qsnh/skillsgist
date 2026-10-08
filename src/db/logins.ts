@@ -1,4 +1,4 @@
-import { CODE_ATTEMPT_LIMIT, CODE_LOCK_MS, DEVICE_CODE_TTL_S, POLL_INTERVAL_S } from "../credentials";
+import { CODE_ATTEMPT_LIMIT, CODE_LOCK_MS, DEVICE_CODE_TTL_S, loginIdleCutoff, POLL_INTERVAL_S } from "../credentials";
 
 export type LoginStatus = "pending" | "approved" | "denied" | "active";
 
@@ -64,7 +64,10 @@ export async function createPendingLogin(
 }
 
 export async function deleteStaleLogins(db: D1Database, now: number): Promise<void> {
-  await db.prepare("DELETE FROM cli_logins WHERE status <> 'active' AND expires_at <= ?").bind(now).run();
+  await db.batch([
+    db.prepare("DELETE FROM cli_logins WHERE status IN ('pending', 'approved', 'denied') AND expires_at <= ?").bind(now),
+    db.prepare("DELETE FROM cli_logins WHERE status = 'active' AND last_used_at <= ?").bind(loginIdleCutoff(now)),
+  ]);
 }
 
 export function getPendingLoginByUserCode(db: D1Database, userCode: string, now: number): Promise<CliLoginRow | null> {

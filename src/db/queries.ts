@@ -148,16 +148,19 @@ export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_
 const USER_SUMMARY_SQL = `SELECT u.id, u.username, u.role, u.api_token_hash, u.created_at, u.last_login_at,
          (SELECT COUNT(*) FROM memberships m WHERE m.user_id = u.id) AS projects,
          (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills,
-         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active') AS cli_logins
+         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active' AND l.last_used_at > ?1) AS cli_logins
   FROM users u`;
 
-export async function listUserSummaries(db: D1Database): Promise<UserSummary[]> {
-  const { results } = await db.prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`).all<UserSummary>();
+export async function listUserSummaries(db: D1Database, loginsUsedAfter: number): Promise<UserSummary[]> {
+  const { results } = await db
+    .prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`)
+    .bind(loginsUsedAfter)
+    .all<UserSummary>();
   return results;
 }
 
-export function getUserSummary(db: D1Database, id: string): Promise<UserSummary | null> {
-  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?`).bind(id).first<UserSummary>();
+export function getUserSummary(db: D1Database, id: string, loginsUsedAfter: number): Promise<UserSummary | null> {
+  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?2`).bind(loginsUsedAfter, id).first<UserSummary>();
 }
 
 export async function countAdmins(db: D1Database): Promise<number> {

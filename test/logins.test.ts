@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { newDeviceCode, newDeviceToken, newUserCode, normalizeUserCode } from "../src/credentials";
+import { LOGIN_IDLE_MS, newDeviceCode, newDeviceToken, newUserCode, normalizeUserCode } from "../src/credentials";
 import * as logins from "../src/db/logins";
 import { deleteMembership, deleteProject, deleteUserReassigning } from "../src/db/queries";
 import { sha256Hex } from "../src/hash";
@@ -56,15 +56,20 @@ describe("pending logins", () => {
     ).toBe(false);
   });
 
-  it("deletes expired requests that never became active, and keeps active sign-ins", async () => {
+  it("deletes expired requests that never became active and sign-ins unused for 90 days, and keeps the rest", async () => {
     const { user } = await seedUser({ username: "alice" });
     await pending({ id: "old" });
-    await pending({ id: "live", userCode: "CDFG-HJKL" });
-    await logins.approveLogin(env.DB, "live", user.id, ["default"], NOW);
-    await logins.activateLogin(env.DB, "live", "token-hash", NOW);
+    for (const [id, userCode, usedAt] of [["live", "CDFG-HJKL", NOW], ["idle", "DFGH-JKLM", NOW - LOGIN_IDLE_MS]] as const) {
+      await pending({ id, userCode });
+      await logins.approveLogin(env.DB, id, user.id, ["default"], NOW);
+      await logins.activateLogin(env.DB, id, `token-${id}`, usedAt);
+    }
     await logins.deleteStaleLogins(env.DB, NOW + 600_001);
     expect(await row("old")).toBeNull();
+    expect(await row("idle")).toBeNull();
+    expect(await grants("idle")).toEqual([]);
     expect((await row("live"))?.status).toBe("active");
+    expect(await grants("live")).toEqual(["default"]);
   });
 });
 

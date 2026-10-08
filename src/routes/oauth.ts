@@ -76,7 +76,9 @@ oauthRoutes.post("/api/oauth/device", async (c) => {
   const body = await formFields(c);
   if (body.client_id !== CLIENT_ID) return oauthError("invalid_client", 401);
   const now = Date.now();
-  await deleteStaleLogins(c.env.DB, now);
+  c.executionCtx.waitUntil(
+    deleteStaleLogins(c.env.DB, now).catch((err) => console.error("stale cli login cleanup failed", err)),
+  );
   const deviceCode = newDeviceCode();
   const deviceCodeHash = await sha256Hex(deviceCode);
   const origin = new URL(c.req.url).origin;

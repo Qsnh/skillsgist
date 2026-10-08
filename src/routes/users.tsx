@@ -4,7 +4,7 @@ import {
   verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
-import { newInstallKey } from "../credentials";
+import { loginIdleCutoff, newInstallKey } from "../credentials";
 import { page } from "../csrf";
 import { deleteUserLogin, deleteUserLogins, listUserLogins } from "../db/logins";
 import { flash } from "../flash";
@@ -48,7 +48,7 @@ const userSettings = async (
   id: string,
   extra: { error?: string; newToken?: string } = {},
 ): Promise<Response> => {
-  const target = await getUserSummary(c.env.DB, id);
+  const target = await getUserSummary(c.env.DB, id, loginIdleCutoff(Date.now()));
   if (!target) return c.notFound();
   return page(
     c,
@@ -142,7 +142,7 @@ usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
 });
 
 usersRoutes.get("/admin/users", requireAdmin, async (c) =>
-  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB)} />),
+  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB, loginIdleCutoff(Date.now()))} />),
 );
 
 usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));

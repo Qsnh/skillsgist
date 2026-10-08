@@ -73,7 +73,7 @@ To serve the instance on your own domain, open the Worker in the Cloudflare dash
 
 ### Rate-limit sign-in requests
 
-`POST /api/oauth/device`, where `skillsgist login` starts, needs no credentials, and every call writes a row to D1. The Worker deletes expired requests as new ones arrive but does not limit how fast they come, so once the instance has a custom domain, add a rate limiting rule to it: in the Cloudflare dashboard, open the domain, go to Security → Security rules, and choose Create rule → Rate limiting rules.
+`POST /api/oauth/device`, where `skillsgist login` starts, needs no credentials, and every call writes a row to D1. As new requests arrive, the Worker deletes expired ones and sign-ins unused for 90 days, but it does not limit how fast requests come, so once the instance has a custom domain, add a rate limiting rule to it: in the Cloudflare dashboard, open the domain, go to Security → Security rules, and choose Create rule → Rate limiting rules.
 
 - **If incoming requests match:** URI Path equals `/api/oauth/device`
 - **With the same characteristics:** IP
