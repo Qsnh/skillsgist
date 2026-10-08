@@ -142,11 +142,13 @@ export function getUserById(db: D1Database, id: string): Promise<UserRow | null>
 export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_hash" | "created_at" | "last_login_at"> & {
   projects: number;
   skills: number;
+  cli_logins: number;
 };
 
 const USER_SUMMARY_SQL = `SELECT u.id, u.username, u.role, u.api_token_hash, u.created_at, u.last_login_at,
          (SELECT COUNT(*) FROM memberships m WHERE m.user_id = u.id) AS projects,
-         (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills
+         (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills,
+         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active') AS cli_logins
   FROM users u`;
 
 export async function listUserSummaries(db: D1Database): Promise<UserSummary[]> {

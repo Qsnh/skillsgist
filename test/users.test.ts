@@ -5,8 +5,9 @@ import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/q
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import {
-  apiToken, env, FLASH_CLEARED, flashCookie, follow, get, GOOD_MD, installKey, joinProject, login,
-  membership, ORIGIN, postForm, publishMarkdown, putSkill, resetDb, seedAndLogin, seedProject, seedUser,
+  apiToken, bearer, env, fetchWith, FLASH_CLEARED, flashCookie, follow, get, GOOD_MD, installKey, joinProject,
+  login, membership, ORIGIN, postForm, publishMarkdown, putSkill, resetDb, seedAndLogin, seedProject, seedUser,
+  signInDevice,
 } from "./helpers";
 
 const anon = (path: string, data: Record<string, string>) => postForm(path, null, data);
@@ -131,7 +132,9 @@ describe("/me", () => {
     const shown = await follow(res, cookie);
     expect(shown.status).toBe(200);
     const html = await shown.text();
-    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Your password has been changed\.<\/span><\/p>/);
+    expect(html).toMatch(
+      /<p class="cf-done" role="status">[\s\S]*?Your password has been changed, and every computer signed in with the CLI was signed out\.<\/span><\/p>/,
+    );
     expect(html).not.toContain("cf-alert");
     expect(flashCookie(shown)).toMatch(FLASH_CLEARED);
     expect(await (await get("/me", cookie)).text()).not.toContain("cf-done");
@@ -180,6 +183,54 @@ describe("/me", () => {
     expect(short.status).toBe(400);
     expect(flashCookie(short)).toBeUndefined();
     expect(await short.text()).not.toContain("cf-done");
+  });
+});
+
+describe("CLI sign-ins on /me", () => {
+  beforeEach(resetDb);
+
+  it("lists each signed-in computer with its usable projects and revokes one behind a confirm step", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const { id, token } = await signInDevice(user.id, ["default"]);
+    const html = await (await get("/me", cookie)).text();
+    expect(html).toContain("CLI sign-ins");
+    expect(html).toContain("test-laptop");
+    expect(html).toContain("Default");
+    expect(html).toMatch(new RegExp(`<details class="cf-confirm" name="revoke-cli-login">[\\s\\S]*?action="/me/cli-logins/${id}/revoke"`));
+    const res = await postForm(`/me/cli-logins/${id}/revoke`, cookie);
+    expect(res.status).toBe(302);
+    expect(await (await follow(res, cookie)).text()).toContain("Signed test-laptop out.");
+    expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
+  });
+
+  it("marks a computer with no usable project, and one unused for 90 days", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    await signInDevice(user.id, []);
+    await signInDevice(user.id, ["default"], Date.now() - 91 * 24 * 60 * 60 * 1000);
+    const html = await (await get("/me", cookie)).text();
+    expect(html).toContain("No usable projects");
+    expect(html).toContain("Expired");
+  });
+
+  it("says how to sign in when no computer is signed in", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    expect(await (await get("/me", cookie)).text()).toContain("<code>npx skillsgist login http://localhost</code>");
+  });
+
+  it("404s revoking another user's sign-in", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const bob = await seedUser({ username: "bob" });
+    const { id, token } = await signInDevice(bob.user.id, ["default"]);
+    expect((await postForm(`/me/cli-logins/${id}/revoke`, cookie)).status).toBe(404);
+    expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(200);
+  });
+
+  it("signs every computer out when the password changes", async () => {
+    const { user, cookie, password } = await seedAndLogin({ username: "alice" });
+    const { token } = await signInDevice(user.id, ["default"]);
+    const res = await postForm("/me/password", cookie, { current: password, next: "another-long-password" });
+    expect(res.status).toBe(302);
+    expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
   });
 });
 
@@ -337,7 +388,7 @@ describe("/admin/users/:id", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const { user: dave } = await seedUser({ username: "dave", role: "member", project: null });
     const html = await (await get(`/admin/users/${dave.id}`, cookie)).text();
-    expect(html).toContain("dave is in no project, so they have no install keys.");
+    expect(html).toContain("dave is in no project and has no CLI sign-ins.");
     expect(html).not.toContain(`/admin/users/${dave.id}/install-key`);
     expect(html).toContain('<span class="cf-status-value">not generated</span>');
     expect(html).not.toContain(`/admin/users/${dave.id}/api-token/revoke`);
@@ -441,7 +492,9 @@ describe("/admin/users/:id/*", () => {
     expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     await login("carol", "carols-new-long-password");
     const html = await (await follow(res, cookie)).text();
-    expect(html).toMatch(/<p class="cf-done" role="status">[\s\S]*?Password reset for carol\.<\/span><\/p>/);
+    expect(html).toMatch(
+      /<p class="cf-done" role="status">[\s\S]*?Password reset for carol\. Their computers signed in with the CLI were signed out\.<\/span><\/p>/,
+    );
   });
 
   it("lets an admin revoke a member's api token", async () => {
@@ -494,7 +547,7 @@ describe("/admin/users/:id/*", () => {
     expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     const html = await (await follow(res, cookie)).text();
     expect(html).toMatch(
-      /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old keys no longer work\.<\/span><\/p>/,
+      /<p class="cf-done" role="status">[\s\S]*?Rotated dave&#39;s install keys and signed their computers out\.<\/span><\/p>/,
     );
 
     const newKeys = await keys();
@@ -503,6 +556,19 @@ describe("/admin/users/:id/*", () => {
       expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
       expect(oldKeys).not.toContain(key);
     }
+  });
+
+  it("signs a member's computers out when an admin resets their password or rotates their install keys", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const target = await seedUser({ username: "dave", role: "member" });
+    const first = await signInDevice(target.user.id, ["default"]);
+    await postForm(`/admin/users/${target.user.id}/password`, cookie, { password: "a-fresh-long-password" });
+    expect((await fetchWith("/api/whoami", bearer(first.token))).status).toBe(401);
+    const second = await signInDevice(target.user.id, ["default"]);
+    const page = await (await get(`/admin/users/${target.user.id}`, cookie)).text();
+    expect(page).toContain("dave has 1 install key, one per project, and 1 CLI sign-in.");
+    await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
+    expect((await fetchWith("/api/whoami", bearer(second.token))).status).toBe(401);
   });
 
   it.each(["member", "admin"] as const)(

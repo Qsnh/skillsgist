@@ -20,3 +20,8 @@ export function resetPasswordSql(username, passwordHash) {
   if (!/^pbkdf2\$\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/.test(passwordHash)) throw new Error("Invalid password hash.");
   return `UPDATE users SET password_hash = '${passwordHash}' WHERE username = '${username}' RETURNING username`;
 }
+
+export function revokeCliLoginsSql(username) {
+  if (!USERNAME.test(username)) throw new Error(`"${username}" is not a valid username.`);
+  return `DELETE FROM cli_logins WHERE user_id IN (SELECT id FROM users WHERE username = '${username}')`;
+}

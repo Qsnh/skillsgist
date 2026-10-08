@@ -6,6 +6,7 @@ import {
 import type { AppEnv, Ctx } from "../auth";
 import { newInstallKey } from "../credentials";
 import { page } from "../csrf";
+import { deleteUserLogin, deleteUserLogins, listUserLogins } from "../db/logins";
 import { flash } from "../flash";
 import { messages } from "../i18n";
 import {
@@ -13,7 +14,7 @@ import {
   getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
-import type { UserRow } from "../db/queries";
+import type { UserRow, Viewer } from "../db/queries";
 import { sha256Hex } from "../hash";
 import { safeNext, userSettingsPath } from "../paths";
 import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
@@ -30,6 +31,16 @@ async function issueApiToken(db: D1Database, userId: string): Promise<{ token: s
   const hash = await sha256Hex(token);
   await updateApiTokenHash(db, userId, hash);
   return { token, hash };
+}
+
+async function mePage(c: Ctx, user: Viewer, extra: { newToken?: string; error?: string } = {}): Promise<Response> {
+  const logins = await listUserLogins(c.env.DB, user.id);
+  return page(
+    c,
+    <MePage user={user} logins={logins} origin={new URL(c.req.url).origin} newToken={extra.newToken} error={extra.error} />,
+    extra.error ? 400 : undefined,
+    "/me",
+  );
 }
 
 const userSettings = async (
@@ -92,12 +103,12 @@ usersRoutes.post("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("user")} />));
+usersRoutes.get("/me", requireUser, (c) => mePage(c, c.get("user")));
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
   const { token, hash } = await issueApiToken(c.env.DB, user.id);
-  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />, undefined, "/me");
+  return mePage(c, { ...user, api_token_hash: hash }, { newToken: token });
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -110,14 +121,23 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
   const t = messages(c);
   const body = await c.req.parseBody();
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} error={t.auth.currentPasswordWrong} />, 400, "/me");
+    return mePage(c, user, { error: t.auth.currentPasswordWrong });
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} error={t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH)} />, 400, "/me");
+    return mePage(c, user, { error: t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
+  await deleteUserLogins(c.env.DB, user.id);
   await flash(c, t.auth.passwordChanged);
+  return c.redirect("/me", 302);
+});
+
+usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
+  const user = c.get("user");
+  const login = (await listUserLogins(c.env.DB, user.id)).find((l) => l.id === c.req.param("id"));
+  if (!login || !(await deleteUserLogin(c.env.DB, user.id, login.id))) return c.notFound();
+  await flash(c, messages(c).auth.cliLoginRevoked(login.device_name || messages(c).auth.unnamedComputer));
   return c.redirect("/me", 302);
 });
 
@@ -192,6 +212,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
     return userSettings(c, guard.target.id, { error: messages(c).auth.passwordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
+  await deleteUserLogins(c.env.DB, guard.target.id);
   await flash(c, messages(c).users.passwordReset(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
@@ -200,6 +221,7 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
+  await deleteUserLogins(c.env.DB, guard.target.id);
   await flash(c, messages(c).users.keysRotated(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });

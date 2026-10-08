@@ -1,6 +1,8 @@
+import { LOGIN_IDLE_MS } from "../credentials";
 import { Form } from "../csrf";
+import type { CliLoginSummary } from "../db/logins";
 import { useLocale, useT } from "../i18n";
-import { formatDate } from "../i18n/format";
+import { formatDate, formatList } from "../i18n/format";
 import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow, UserSummary, Viewer } from "../db/queries";
@@ -89,7 +91,9 @@ function TokenStatus(props: { active: boolean }) {
   );
 }
 
-export function MePage(props: { user: Viewer; newToken?: string; error?: string }) {
+export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin: string; newToken?: string; error?: string }) {
+  const locale = useLocale();
+  const now = Date.now();
   const t = useT();
   return (
     <Layout title={t.layout.account} user={props.user}>
@@ -118,6 +122,48 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
                 </ConfirmDelete>
               ) : null}
             </div>
+          </Panel>
+
+          <Panel title={t.auth.cliLoginsPanel} aside={<span class="cf-count">{props.logins.length}</span>} flush>
+            {props.logins.length === 0 ? (
+              <div class="cf-panel-body">
+                <p class="cf-hint">{t.auth.noCliLogins(<code>npx skillsgist login {props.origin}</code>)}</p>
+              </div>
+            ) : (
+              <ul class="cf-rows">
+                {props.logins.map((login) => {
+                  const name = login.device_name || t.auth.unnamedComputer;
+                  const expired = (login.last_used_at ?? 0) <= now - LOGIN_IDLE_MS;
+                  return (
+                    <li class="cf-row cf-member">
+                      <span class="cf-row-main cf-login">
+                        <span class="cf-user">
+                          <span class="cf-user-name">{name}</span>
+                          {login.projects.length === 0 ? <span class="cf-tag">{t.auth.noUsableProjects}</span> : null}
+                          {expired ? <span class="cf-tag">{t.auth.cliLoginExpired}</span> : null}
+                        </span>
+                        <span class="cf-login-meta">
+                          {t.auth.cliLoginMeta(
+                            login.projects.length ? formatList(locale, login.projects) : null,
+                            login.approved_at ? formatDate(locale, login.approved_at) : "—",
+                            login.last_used_at ? formatDate(locale, login.last_used_at) : "—",
+                          )}
+                        </span>
+                      </span>
+                      <ConfirmDelete
+                        action={`/me/cli-logins/${login.id}/revoke`}
+                        label={t.auth.signOutComputer}
+                        confirm={t.auth.signOutNamed(name)}
+                        size="sm"
+                        name="revoke-cli-login"
+                      >
+                        {t.auth.signOutWarning}
+                      </ConfirmDelete>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Panel>
 
           <Panel title={t.auth.changePassword}>
@@ -228,11 +274,11 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
           </Panel>
 
           <Panel title={t.users.installKeys}>
-            {target.projects === 0 ? (
+            {target.projects + target.cli_logins === 0 ? (
               <p class="cf-hint">{t.users.noInstallKeys(target.username)}</p>
             ) : (
               <>
-                <p class="cf-hint">{t.users.installKeysHint(target.username, target.projects)}</p>
+                <p class="cf-hint">{t.users.installKeysHint(target.username, target.projects, target.cli_logins)}</p>
                 <Form action={`${path}/install-key`} class="cf-actions">
                   <Button variant="outline">{t.users.rotateKeys}</Button>
                 </Form>

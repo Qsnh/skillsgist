@@ -62,9 +62,9 @@ describe("accounts, projects and memberships", () => {
     await q.insertVersion(env.DB, base);
     await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "other", name: "other" });
     await q.insertVersion(env.DB, { ...base, authorId: "u2" });
-    expect((await q.listUserSummaries(env.DB)).map((u) => [u.username, u.projects, u.skills])).toEqual([
-      ["alice", 2, 2],
-      ["bob", 0, 0],
+    expect((await q.listUserSummaries(env.DB)).map((u) => [u.username, u.projects, u.skills, u.cli_logins])).toEqual([
+      ["alice", 2, 2, 0],
+      ["bob", 0, 0, 0],
     ]);
     expect(await q.getUserSummary(env.DB, "u1")).not.toHaveProperty("password_hash");
   });

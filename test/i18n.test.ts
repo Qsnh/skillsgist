@@ -165,7 +165,7 @@ describe("sign-in, account and user administration", () => {
     expect(html).toContain(zhCN.users.settingsTitle("bob"));
     expect(html).toContain(`<span class="cf-vis cf-vis-private">${zhCN.common.roles.member}</span>`);
     expect(html).toContain(zhCN.users.promote);
-    expect(html).toContain(zhCN.users.installKeysHint("bob", 1));
+    expect(html).toContain(zhCN.users.installKeysHint("bob", 1, 0));
   });
 
   it("refuses a member at an admin page in Japanese", async () => {

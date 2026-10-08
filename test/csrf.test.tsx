@@ -45,6 +45,7 @@ const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => strin
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
+  "POST /me/cli-logins/:id/revoke": () => "/me/cli-logins/nope/revoke",
   "POST /admin/users/new": () => "/admin/users/new",
   "POST /admin/users/:id/role": ({ userId }) => `/admin/users/${userId}/role`,
   "POST /admin/users/:id/password": ({ userId }) => `/admin/users/${userId}/password`,

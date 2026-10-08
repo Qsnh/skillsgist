@@ -161,7 +161,7 @@ npm run reset-password -- alice          # names the account up front
 npm run reset-password -- alice --local  # the local development database
 ```
 
-The script writes the new password straight to the D1 database, so it needs the same Wrangler login as `npm run deploy`. If you deployed with the button, clone your copy and run `npm install` and `npx wrangler login` first. Sessions that are already signed in stay signed in; to sign everyone out, change `SESSION_SECRET`.
+The script writes the new password straight to the D1 database, so it needs the same Wrangler login as `npm run deploy`. If you deployed with the button, clone your copy and run `npm install` and `npx wrangler login` first. It also signs out every computer signed in to that account with `skillsgist login`. Sessions that are already signed in stay signed in; to sign everyone out, change `SESSION_SECRET`.
 
 ## How it works
 
