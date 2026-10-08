@@ -32,7 +32,7 @@ export const CLIENT_ID = "skillsgist-cli";
 export const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
 const NO_STORE = { "Cache-Control": "no-store" };
-const UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g;
+const UNPRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 const oauthError = (error: string, status: 400 | 401 = 400) => Response.json({ error }, { status, headers: NO_STORE });
 

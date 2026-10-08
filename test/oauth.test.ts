@@ -99,6 +99,12 @@ describe("POST /api/oauth/device", () => {
     expect([...name]).toHaveLength(64);
   });
 
+  it("strips U+061C, U+2028, and U+2066 from the device name", async () => {
+    const { user_code } = await start({ device_name: `test؜ ⁦name` });
+    const name = (await loginRow(user_code)).device_name;
+    expect(name).toBe("testname");
+  });
+
   it("forgets expired requests when a new one arrives", async () => {
     const { user_code } = await start();
     await env.DB.prepare("UPDATE cli_logins SET expires_at = 0").run();
