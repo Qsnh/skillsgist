@@ -183,7 +183,7 @@ describe("registry and skill pages", () => {
     const html = await htmlIn("/?q=%E7%84%A1", { "Accept-Language": "ja" });
     expect(html).toContain(ja.skills.hero);
     expect(html).toContain(ja.skills.noMatches("無", null));
-    expect(html).toContain("<code>npx skills</code>");
+    expect(html).toContain("<code>npx skillsgist</code>");
     expect(html).toContain(`<a href="/login">${ja.layout.signIn}</a>`);
   });
 

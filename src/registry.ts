@@ -20,7 +20,7 @@ export interface IndexSource {
 }
 
 /**
- * baseUrl is https://host or https://host/i/<key>; artifact addresses are
+ * baseUrl is https://host or https://host/p/<project>; artifact addresses are
  * appended to it directly. Entries that fail the CLI's validation rules are
  * dropped — better one entry short than handing the CLI half a broken index.
  */

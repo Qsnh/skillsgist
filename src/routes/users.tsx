@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, newInstallKey, randomHex, requireAdmin, requireUser, roleOf,
-  startSession, verifyPassword,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser, roleOf, startSession,
+  verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
+import { newInstallKey } from "../credentials";
 import { page } from "../csrf";
 import { flash } from "../flash";
 import { messages } from "../i18n";

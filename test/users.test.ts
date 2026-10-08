@@ -5,7 +5,7 @@ import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/q
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import {
-  apiToken, env, FLASH_CLEARED, flashCookie, follow, get, GOOD_MD, indexStatus, installKey, joinProject, login,
+  apiToken, env, FLASH_CLEARED, flashCookie, follow, get, GOOD_MD, installKey, joinProject, login,
   membership, ORIGIN, postForm, publishMarkdown, putSkill, resetDb, seedAndLogin, seedProject, seedUser,
 } from "./helpers";
 
@@ -36,7 +36,7 @@ describe("/setup", () => {
     expect(user?.role).toBe("admin");
     const joined = await membership(user!.id);
     expect(joined?.role).toBe("member");
-    expect(joined?.install_key).toMatch(/^[a-f0-9]{32}$/);
+    expect(joined?.install_key).toMatch(/^sgi_[a-f0-9]{64}$/);
     expect(joined?.can_publish).toBe(1);
 
     const second = await anon("/setup", { username: "intruder", password: "another-long-password" });
@@ -92,7 +92,7 @@ describe("/me", () => {
     expect(head).not.toContain("alice");
     expect(head).not.toContain("cf-vis");
     expect(html).not.toContain("Install keys");
-    expect(html).not.toContain("npx skills add");
+    expect(html).not.toContain("npx skillsgist add");
     expect(html).not.toContain(await installKey(user.id));
     expect(html).not.toContain("b".repeat(32));
     expect(html).not.toContain("install-key");
@@ -488,22 +488,20 @@ describe("/admin/users/:id/*", () => {
     await joinProject(target.user.id, "team-b", "b".repeat(32));
     const keys = () => Promise.all([installKey(target.user.id), installKey(target.user.id, "team-b")]);
     const oldKeys = await keys();
-    for (const key of oldKeys) expect(await indexStatus(key)).toBe(200);
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
     const html = await (await follow(res, cookie)).text();
     expect(html).toMatch(
-      /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old install commands no longer work\.<\/span><\/p>/,
+      /<p class="cf-done" role="status">[\s\S]*?Install keys rotated for dave\. The old keys no longer work\.<\/span><\/p>/,
     );
 
-    for (const key of oldKeys) expect(await indexStatus(key)).toBe(404);
     const newKeys = await keys();
     expect(newKeys[0]).not.toBe(newKeys[1]);
     for (const key of newKeys) {
+      expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
       expect(oldKeys).not.toContain(key);
-      expect(await indexStatus(key)).toBe(200);
     }
   });
 

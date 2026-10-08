@@ -2,7 +2,7 @@ import { canPublishIn, membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
-import { installBase, installKeyPath, projectPath, projectSettingsPath } from "../paths";
+import { installBase, projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
 import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import { NoMatches, NoSkillsYet, SearchForm, SkillRegistry } from "./skills";
@@ -90,12 +90,13 @@ export function NewProjectPage(props: { user: UserRow; name?: string; slug?: str
   );
 }
 
-function ProjectLede(props: { user: Viewer | null; project: ProjectRow; hasPublicSkills: boolean }) {
+function ProjectLede(props: { user: Viewer | null; project: ProjectRow; origin: string; hasPublicSkills: boolean }) {
   const t = useT();
   const { user, project } = props;
   const settings = <a href={projectSettingsPath(project.slug)}>{t.projects.settings}</a>;
   if (user && membershipIn(user, project.slug)) {
-    return <p class="cf-hero-lede">{t.projects.ledeMember(project.name, settings)}</p>;
+    const login = <code>npx skillsgist login {props.origin}</code>;
+    return <p class="cf-hero-lede">{t.projects.ledeMember(project.name, login, settings)}</p>;
   }
   if (user?.role === "admin") {
     return <p class="cf-hero-lede">{t.projects.ledeAdmin(project.name, props.hasPublicSkills, settings)}</p>;
@@ -125,14 +126,14 @@ export function ProjectPage(props: {
   const { user, project } = props;
   const path = projectPath(project.slug);
   const membership = user ? membershipIn(user, project.slug) : undefined;
-  const base = installBase(props.origin, project.slug, membership?.install_key, props.hasPublicSkills);
+  const base = installBase(props.origin, project.slug, membership !== undefined || props.hasPublicSkills);
   return (
     <Layout title={project.name} user={user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">
         <div class="cf-hero-inner cf-hero-center">
           <h1 id="hero-title" class="cf-hero-title cf-project-title">{project.name}</h1>
-          <ProjectLede user={user} project={project} hasPublicSkills={props.hasPublicSkills} />
-          {base ? <CodeBlock raised>npx skills add {base}</CodeBlock> : null}
+          <ProjectLede user={user} project={project} origin={props.origin} hasPublicSkills={props.hasPublicSkills} />
+          {base ? <CodeBlock raised>npx skillsgist add {base}</CodeBlock> : null}
           <SearchForm action={path} q={props.q} />
         </div>
       </section>
@@ -173,16 +174,24 @@ export function ProjectSettingsPage(props: {
           <Panel title={t.projects.installPanel}>
             {membership ? (
               <>
-                <CodeBlock>npx skills add {`${props.origin}${installKeyPath(membership.install_key)}`}</CodeBlock>
-                <p class="cf-hint">{t.projects.installHint(project.name)}</p>
-                <Form action={`${path}/install-key`} class="cf-actions">
-                  <Button variant="outline">{t.projects.resetKey}</Button>
-                </Form>
+                <CodeBlock>npx skillsgist add {`${props.origin}${path}`}</CodeBlock>
+                <p class="cf-hint">{t.projects.installHint(project.name, <code>npx skillsgist login {props.origin}</code>)}</p>
               </>
             ) : (
               <p class="cf-hint">{t.projects.notMemberHint(project.name)}</p>
             )}
           </Panel>
+
+          {membership ? (
+            <Panel title={t.projects.installKeyPanel}>
+              <CodeBlock prompt={false}>{membership.install_key}</CodeBlock>
+              <p class="cf-hint">{t.projects.installKeyHint(project.name)}</p>
+              <CodeBlock>SKILLSGIST_HOST={props.origin} npx skillsgist add {`${props.origin}${path}`}</CodeBlock>
+              <Form action={`${path}/install-key`} class="cf-actions">
+                <Button variant="outline">{t.projects.resetKey}</Button>
+              </Form>
+            </Panel>
+          ) : null}
 
           <Panel title={t.projects.members} aside={<span class="cf-count">{props.members.length}</span>} flush>
             {props.members.length === 0 ? (

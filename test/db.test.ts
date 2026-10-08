@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as q from "../src/db/queries";
-import { env, joinProject, resetDb } from "./helpers";
+import { env, joinProject, membership, resetDb } from "./helpers";
 
 const seedU1 = () => q.createUser(env.DB, { id: "u1", username: "alice", passwordHash: "h", role: "admin" });
 
@@ -44,10 +44,8 @@ describe("accounts, projects and memberships", () => {
     const first = { id: "u1", username: "root", passwordHash: "h", installKey: "k1" };
     expect(await q.createFirstAdmin(env.DB, first)).toBe(true);
     expect(await q.createFirstAdmin(env.DB, { ...first, id: "u2", username: "late", installKey: "k2" })).toBe(false);
-    expect(await q.getMembershipByInstallKey(env.DB, "k1")).toMatchObject({
-      project: "default", user_id: "u1", role: "member",
-    });
-    expect(await q.getMembershipByInstallKey(env.DB, "k2")).toBeNull();
+    expect(await membership("u1")).toMatchObject({ role: "member", install_key: "k1" });
+    expect(await membership("u2")).toBeNull();
   });
 
   it("rotates nothing for a user in no project", async () => {

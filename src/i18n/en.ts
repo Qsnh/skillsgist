@@ -71,7 +71,7 @@ export const en = {
     installKeys: "Install keys",
     noInstallKeys: (username: string) => `${username} is in no project, so they have no install keys.`,
     installKeysHint: (username: string, projects: number) =>
-      `${username} has one install key per project and is in ${projects} ${projects === 1 ? "project" : "projects"}. Rotating replaces all of them at once, and the old install commands stop working.`,
+      `${username} has one install key per project and is in ${projects} ${projects === 1 ? "project" : "projects"}. Rotating replaces all of them at once, and CI jobs that use the old keys stop installing private skills.`,
     rotateKeys: "Rotate install keys",
     apiToken: "API token",
     tokenReplacesOwn: "Generating a token replaces your current one at once. ",
@@ -97,7 +97,7 @@ export const en = {
     notOwnRole: "You cannot change your own role. Ask another admin.",
     lastAdminDemote: "You cannot demote the last admin",
     passwordReset: (username: string) => `Password reset for ${username}.`,
-    keysRotated: (username: string) => `Install keys rotated for ${username}. The old install commands no longer work.`,
+    keysRotated: (username: string) => `Install keys rotated for ${username}. The old keys no longer work.`,
     notOwnDelete: "You cannot delete your own account. Ask another admin.",
     lastAdminDelete: "You cannot delete the last admin",
     deleted: (username: string) => `Deleted ${username}.`,
@@ -107,14 +107,14 @@ export const en = {
     title: "Skills",
     hero: "Find a skill to install",
     heroAnon: (cli: Slot, signIn: Slot) => [
-      "This registry serves Agent Skills to the stock ",
+      "This registry serves Agent Skills to the ",
       cli,
-      " CLI. Every skill has its install command on its page, and public skills need no key. ",
+      " CLI. Every skill has its install command on its page, and public skills need no sign-in. ",
       signIn,
       " to see the private ones.",
     ],
     heroNoProject:
-      "You are not in a project yet, so you have no install key. Every public skill has its install command on its page.",
+      "You are not in a project yet, so you can install public skills only. Every skill has its install command on its page.",
     heroMember: (projects: Slot) => [
       "Each project you are in has your install command on its page, listed under ",
       projects,
@@ -140,7 +140,7 @@ export const en = {
     move: "Move",
     moveTo: "Move to project",
     moveHint: (project: string, slug: string) =>
-      `Install keys for ${project} stop reaching ${slug} at once, keys for the new project start to, and its page moves to the new project's address.`,
+      `${slug} moves to the new project's address. Sign-ins and install keys for ${project} stop reaching it at once, and those for the new project start to.`,
     moveSkill: (slug: string) => `Move ${slug}`,
     downloadZip: "Download zip",
     editSkillMd: "Edit SKILL.md",
@@ -166,15 +166,15 @@ export const en = {
     installPrompt: "Prompt",
     agentPrompt: (command: string) =>
       `Run \`${command}\`. Read the complete output of that command, redirecting it to a temporary file first if necessary, then open the SKILL.md in the directory that output reports and follow the instructions in it now. Resolve relative paths from that directory.`,
-    commandKeyNote: (name: string, settings: Slot) => [
-      `This command carries your install key for ${name}, and installing into a code repository also records the key in its skills-lock.json. Keep both out of shared chats and public repositories, and reset the key under `,
-      settings,
-      " if it leaks.",
+    commandLoginNote: (login: Slot) => [
+      "This skill is private. Sign this computer in once with ",
+      login,
+      " before you run the command.",
     ],
-    promptKeyNote: (name: string, settings: Slot) => [
-      `This prompt carries your install key for ${name}. Paste it only into an agent you trust, and reset the key under `,
-      settings,
-      " if it leaks.",
+    promptLoginNote: (login: Slot) => [
+      "This skill is private, so the agent's computer must be signed in with ",
+      login,
+      " or have SKILLSGIST_INSTALL_KEY set.",
     ],
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",
@@ -193,14 +193,16 @@ export const en = {
     addressHint:
       "Used in page, install and API addresses. Lowercase letters, digits and hyphens, 2-32 characters. It cannot be changed later.",
     settings: "Settings",
-    ledeMember: (name: string, settings: Slot) => [
-      `This command carries your install key for ${name}, so it installs every skill in it, private ones included. Reset the key and see who is in the project under `,
+    ledeMember: (name: string, login: Slot, settings: Slot) => [
+      `This command installs ${name}'s skills, private ones included once this computer is signed in with `,
+      login,
+      ". Your install key for CI and the member list are under ",
       settings,
       ".",
     ],
     ledeAdmin: (name: string, hasPublicSkills: boolean, settings: Slot) => [
-      `You are not a member of ${name}, so you have no install key for it.`,
-      hasPublicSkills ? " The address below installs its public skills." : "",
+      `You are not a member of ${name}, so you cannot install its private skills.`,
+      hasPublicSkills ? " The command below installs its public ones." : "",
       " Add yourself under ",
       settings,
       ".",
@@ -211,11 +213,17 @@ export const en = {
     settingsLede: (page: Slot) => ["The skills in this project are listed on ", page, "."],
     itsPage: "its page",
     installPanel: "Install this project's skills",
-    installHint: (name: string) =>
-      `This key installs only ${name}'s skills and can do nothing else: it cannot sign in, publish or delete. Reset it if you think it has leaked; the old command stops working at once.`,
+    installHint: (name: string, login: Slot) => [
+      `This command installs ${name}'s skills. To include the private ones, sign this computer in once with `,
+      login,
+      " and choose the projects it may install from.",
+    ],
     resetKey: "Reset install key",
     notMemberHint: (name: string) =>
-      `You are not a member of ${name}, so you have no install key for it. Add yourself below to get one.`,
+      `You are not a member of ${name}, so you cannot install its private skills and have no install key for it. Add yourself below to get one.`,
+    installKeyPanel: "Install key for CI",
+    installKeyHint: (name: string) =>
+      `For CI, containers and cloud agents. Save the key as a masked secret named SKILLSGIST_INSTALL_KEY and run the command below. It installs only ${name}'s skills and can do nothing else, and the CLI sends it only to the address in SKILLSGIST_HOST. Reset it if you think it has leaked; the old key stops working at once.`,
     members: "Members",
     noMembers: "No members yet.",
     makeMember: "Make member",

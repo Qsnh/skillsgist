@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import {
-  canAccessProject, canManageProject, currentUser, membershipIn, newInstallKey, requireAdmin, requireUser, roleOf,
-  skillScope,
+  canAccessProject, canManageProject, currentUser, membershipIn, requireAdmin, requireUser, roleOf, skillScope,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
+import { newInstallKey } from "../credentials";
 import { page } from "../csrf";
 import {
   addMembership, createProject, deleteMembership, deleteProject, getMember, getProject, getUserById, listMembers,

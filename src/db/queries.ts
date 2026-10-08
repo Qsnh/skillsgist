@@ -189,10 +189,6 @@ export async function deleteUserReassigning(
   ]);
 }
 
-export function getMembershipByInstallKey(db: D1Database, key: string): Promise<MembershipRow | null> {
-  return db.prepare("SELECT * FROM memberships WHERE install_key = ?").bind(key).first<MembershipRow>();
-}
-
 async function viewerWhere(
   db: D1Database,
   column: "id" | "api_token_hash",
@@ -508,21 +504,6 @@ export function getArtifactByDigest(
   return db
     .prepare(`${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.digest = ?`)
     .bind(project, slug, digest)
-    .first<ArtifactRef>();
-}
-
-export function getArtifactByInstallKey(
-  db: D1Database,
-  key: string,
-  slug: string,
-  digest: string,
-): Promise<ArtifactRef | null> {
-  return db
-    .prepare(
-      `${ARTIFACT_SQL} JOIN memberships m ON m.project = s.project
-       WHERE m.install_key = ? AND s.slug = ? AND v.digest = ?`,
-    )
-    .bind(key, slug, digest)
     .first<ArtifactRef>();
 }
 

@@ -2,7 +2,7 @@ export const DIGEST_PREFIX = "sha256:";
 
 const ARTIFACT_FILE_RE = /^([a-f0-9]{64})\.zip$/;
 
-/** `<baseUrl>/d/<slug>/<hex>.zip` — `baseUrl` is an origin, optionally `/i/<key>`. */
+/** `<baseUrl>/d/<slug>/<hex>.zip` — `baseUrl` is an origin, optionally `/p/<project>`. */
 export function artifactUrl(baseUrl: string, slug: string, digest: string): string {
   return `${baseUrl}/d/${slug}/${digest.slice(DIGEST_PREFIX.length)}.zip`;
 }

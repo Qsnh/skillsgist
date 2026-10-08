@@ -10,18 +10,8 @@ export function projectSettingsPath(project: string): string {
   return `${projectPath(project)}/settings`;
 }
 
-export function installKeyPath(key: string): string {
-  return `/i/${key}`;
-}
-
-export function installBase(
-  origin: string,
-  project: string,
-  installKey: string | undefined,
-  publicReachable: boolean,
-): string | null {
-  if (installKey) return `${origin}${installKeyPath(installKey)}`;
-  return publicReachable ? `${origin}${projectPath(project)}` : null;
+export function installBase(origin: string, project: string, reachable: boolean): string | null {
+  return reachable ? `${origin}${projectPath(project)}` : null;
 }
 
 export function userSettingsPath(id: string): string {

@@ -1,5 +1,6 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
+import { newInstallKey } from "../src/credentials";
 import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
@@ -79,7 +80,7 @@ export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow;
   const id = randomHex(8);
   await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
   const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
-  if (project !== null) await joinProject(id, project, randomHex(16), opts.projectRole);
+  if (project !== null) await joinProject(id, project, newInstallKey(), opts.projectRole);
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
@@ -227,7 +228,7 @@ export async function twoProjects(aliceRole: "admin" | "member" = "admin") {
 export const joinProject = (
   userId: string,
   project: string,
-  key: string = randomHex(16),
+  key: string = newInstallKey(),
   role: "admin" | "member" = "member",
   canPublish: boolean = true,
 ) => addMembership(env.DB, { project, userId, role, installKey: key, canPublish });
@@ -245,9 +246,6 @@ export async function installKey(userId: string, project: string = DEFAULT_PROJE
   if (!row) throw new Error(`${userId} is not a member of ${project}`);
   return row.install_key;
 }
-
-export const indexStatus = async (key: string) =>
-  (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
 
 export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {
   const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);

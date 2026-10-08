@@ -1,11 +1,9 @@
 import { Hono } from "hono";
 import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
-import {
-  getArtifactByDigest, getArtifactByInstallKey, getMembershipByInstallKey, getPublicArtifact, listPublishedForIndex,
-} from "../db/queries";
+import { getArtifactByDigest, getPublicArtifact, listPublishedForIndex } from "../db/queries";
 import type { ArtifactRef, IndexFilter } from "../db/queries";
-import { installKeyPath, projectPath } from "../paths";
+import { projectPath } from "../paths";
 import { buildIndex } from "../registry";
 import { serveDownload } from "./download";
 
@@ -44,7 +42,7 @@ const INDEX_PREFIXES = INDEX_SUFFIXES.map((suffix) => suffix.slice(0, -"/index.j
 
 const SKILL_IN_PATH = /\/\.well-known\/(?:agent-skills|skills)\/([^/]+)$/;
 
-type IndexScope = { kind: "root" } | { kind: "project"; project: string } | { kind: "key"; key: string };
+type IndexScope = { kind: "root" } | { kind: "project"; project: string };
 
 interface IndexRequest {
   scope: IndexScope;
@@ -55,29 +53,22 @@ function indexRequest(path: string): IndexRequest | null {
   const suffix = INDEX_SUFFIXES.find((s) => path.endsWith(s));
   if (!suffix) return null;
   const base = path.slice(0, path.length - suffix.length);
-  const key = /^\/i\/([^/]+)/.exec(base)?.[1];
   const project = /^\/p\/([^/]+)/.exec(base)?.[1];
   return {
-    scope: key ? { kind: "key", key } : project ? { kind: "project", project } : { kind: "root" },
+    scope: project ? { kind: "project", project } : { kind: "root" },
     only: SKILL_IN_PATH.exec(base)?.[1] ?? null,
   };
 }
 
 async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   const origin = new URL(c.req.url).origin;
-  let base = origin;
-  let filter: IndexFilter = { kind: "root" };
-  if (req.scope.kind === "key") {
-    const membership = await getMembershipByInstallKey(c.env.DB, req.scope.key);
-    if (!membership) return notFound();
-    base = `${origin}${installKeyPath(req.scope.key)}`;
-    filter = { kind: "project", project: membership.project, publicOnly: false };
+  if (req.scope.kind === "root") {
+    return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, { kind: "root" }, req.only), origin));
   }
-  if (req.scope.kind === "project") {
-    base = `${origin}${projectPath(req.scope.project)}`;
-    filter = { kind: "project", project: req.scope.project, publicOnly: true };
-  }
-  return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, filter, req.only), base));
+  const filter: IndexFilter = { kind: "project", project: req.scope.project, publicOnly: true };
+  return indexResponse(
+    buildIndex(await listPublishedForIndex(c.env.DB, filter, req.only), `${origin}${projectPath(req.scope.project)}`),
+  );
 }
 
 const indexRoute = (c: Ctx) => {
@@ -106,18 +97,7 @@ registryRoutes.get("/p/:project/d/:slug/:file", (c) =>
   ),
 );
 
-registryRoutes.get("/i/:key/d/:slug/:file", (c) =>
-  sendArtifact(
-    c,
-    c.req.param("file"),
-    (digest) => getArtifactByInstallKey(c.env.DB, c.req.param("key"), c.req.param("slug"), digest),
-    false,
-  ),
-);
-
 for (const prefix of INDEX_PREFIXES) {
   registryRoutes.get(`${prefix}/*`, indexRoute);
   registryRoutes.get(`/p/:project${prefix}/*`, indexRoute);
 }
-
-registryRoutes.get("/i/:key/*", indexRoute);

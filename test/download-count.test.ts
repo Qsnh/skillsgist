@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSkill, getVersion } from "../src/db/queries";
 import app from "../src/index";
-import { env, GOOD_MD, installKey, ORIGIN, OTHER_MD, resetDb, seedWithSkills } from "./helpers";
+import { env, GOOD_MD, ORIGIN, OTHER_MD, resetDb, seedWithSkills } from "./helpers";
 
 async function settle(path: string, init: RequestInit = {}): Promise<Response> {
   const ctx = createExecutionContext();
@@ -32,16 +32,6 @@ describe("download counting", () => {
     expect(await downloads("other-skill")).toBe(0);
   });
 
-  it("counts a keyed CLI download of a private skill, served uncacheable", async () => {
-    const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
-    const path = await artifactPath(`/i/${await installKey(user.id)}/.well-known/agent-skills/index.json`, "other-skill");
-
-    const res = await settle(path);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await downloads("other-skill")).toBe(1);
-  });
-
   it("counts browser downloads of the latest version and of a numbered version", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
@@ -51,24 +41,23 @@ describe("download counting", () => {
   });
 
   it("does not count index fetches or page views", async () => {
-    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
     await settle("/.well-known/agent-skills/index.json");
-    await settle(`/i/${await installKey(user.id)}/.well-known/agent-skills/index.json`);
+    await settle("/p/default/.well-known/agent-skills/index.json");
     await settle(`/.well-known/agent-skills/demo-skill/.well-known/agent-skills/index.json`);
     await settle("/");
     await settle("/p/default/s/demo-skill");
     expect(await downloads("demo-skill")).toBe(0);
   });
 
-  it("refuses a private artifact on every keyless, wrong-key and wrong-digest address, and does not count refused requests", async () => {
-    const { user, cookie } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
-    const key = await installKey(user.id);
-    const keyed = await artifactPath(`/i/${key}/.well-known/agent-skills/index.json`, "other-skill");
+  it("refuses a private artifact on every keyless and wrong-digest address, and does not count refused requests", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
+    const digest = (await getVersion(env.DB, "default", "other-skill", 1))!.digest;
+    const hex = digest.slice("sha256:".length);
 
-    expect((await settle(keyed.replace(`/i/${key}`, ""))).status).toBe(404);
-    expect((await settle(keyed.replace(`/i/${key}`, "/p/default"))).status).toBe(404);
-    expect((await settle(keyed.replace(key, "0".repeat(32)))).status).toBe(404);
+    expect((await settle(`/d/other-skill/${hex}.zip`)).status).toBe(404);
+    expect((await settle(`/p/default/d/other-skill/${hex}.zip`)).status).toBe(404);
     expect((await settle(`/d/other-skill/${"0".repeat(64)}.zip`)).status).toBe(404);
     expect((await settle("/p/default/s/other-skill/download")).status).toBe(404);
     expect((await settle("/p/default/s/other-skill/v/9/download", { headers: { Cookie: cookie } })).status).toBe(404);

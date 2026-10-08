@@ -76,8 +76,6 @@ export function randomHex(byteLength: number): string {
   return toHex(crypto.getRandomValues(new Uint8Array(byteLength)));
 }
 
-export const newInstallKey = () => randomHex(16);
-
 /**
  * The signed-cookie session payload. `csrf` is the per-session CSRF token:
  * binding it to the session (rather than to a second, independent cookie) is
