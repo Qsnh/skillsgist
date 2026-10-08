@@ -282,7 +282,6 @@ export const ja: Messages = {
       "たった今あなた自身が skillsgist login を実行した場合にだけ承認してください。承認すると、このコンピューターはチェックしたプロジェクトのプライベートなスキルをインストールできるようになります。",
     request: "リクエスト",
     computer: "コンピューター",
-    unnamed: "名前のないコンピューター",
     requestedAt: "リクエスト日時",
     from: "接続元",
     unknownPlace: "不明",

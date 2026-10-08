@@ -263,7 +263,6 @@ export const zhCN: Messages = {
     warning: "只有你刚刚亲自运行了 skillsgist login 才批准。批准后，这台电脑可以安装你勾选的项目中的私有技能。",
     request: "请求",
     computer: "电脑",
-    unnamed: "未命名的电脑",
     requestedAt: "发起时间",
     from: "来自",
     unknownPlace: "未知",

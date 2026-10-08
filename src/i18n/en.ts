@@ -292,7 +292,6 @@ export const en = {
       "Approve only if you ran skillsgist login yourself just now. The computer will be able to install the private skills of the projects you tick.",
     request: "Request",
     computer: "Computer",
-    unnamed: "Unnamed computer",
     requestedAt: "Requested",
     from: "From",
     unknownPlace: "Unknown",

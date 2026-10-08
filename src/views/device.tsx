@@ -61,7 +61,7 @@ export function DeviceConfirmPage(props: {
             <dl class="cf-rows">
               <div class="cf-row">
                 <dt class="cf-row-label">{t.device.computer}</dt>
-                <dd class="cf-row-value">{login.device_name || t.device.unnamed}</dd>
+                <dd class="cf-row-value">{login.device_name || t.auth.unnamedComputer}</dd>
               </div>
               <div class="cf-row">
                 <dt class="cf-row-label">{t.device.requestedAt}</dt>

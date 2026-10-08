@@ -263,7 +263,6 @@ export const zhTW: Messages = {
     warning: "只有在你剛剛親自執行了 skillsgist login 時才核准。核准後，這台電腦可以安裝你勾選的專案中的私人技能。",
     request: "請求",
     computer: "電腦",
-    unnamed: "未命名的電腦",
     requestedAt: "發起時間",
     from: "來自",
     unknownPlace: "不明",

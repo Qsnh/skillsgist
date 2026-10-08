@@ -115,9 +115,11 @@ describe("dates, counts and script labels", () => {
     expect(formatDate("zh-TW", at)).toBe("2026年9月27日");
     expect(formatDate("ja", at)).toBe("2026年9月27日");
     expect(formatStamp("en", at)).toBe("Sep 27, 2026, 14:05 UTC");
-    expect(formatStamp("zh-CN", at)).toMatch(/14:05 UTC$/);
-    expect(formatStamp("zh-TW", at)).toMatch(/14:05 UTC$/);
-    expect(formatStamp("ja", at)).toMatch(/^2026年9月27日.*14:05 UTC$/);
+    for (const locale of ["zh-CN", "zh-TW", "ja"] as const) {
+      expect(formatStamp(locale, at)).toMatch(/^2026年9月27日 /);
+      expect(formatStamp(locale, at)).toContain("14:05");
+      expect(formatStamp(locale, at)).toContain("UTC");
+    }
     expect(formatCount("ja", 12345)).toBe("12,345");
   });
 

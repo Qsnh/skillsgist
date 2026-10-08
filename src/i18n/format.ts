@@ -3,7 +3,7 @@ import type { Locale } from "./locales";
 
 const DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
 
-const STAMP: Intl.DateTimeFormatOptions = { ...DATE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+const STAMP: Intl.DateTimeFormatOptions = { ...DATE, hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" };
 
 const dates = new Map<Locale, Intl.DateTimeFormat>();
 const stamps = new Map<Locale, Intl.DateTimeFormat>();
@@ -24,7 +24,7 @@ export const formatDate = (locale: Locale, ms: number): string =>
   cached(dates, locale, (tag) => new Intl.DateTimeFormat(tag, DATE)).format(ms);
 
 export const formatStamp = (locale: Locale, ms: number): string =>
-  `${cached(stamps, locale, (tag) => new Intl.DateTimeFormat(tag, STAMP)).format(ms)} UTC`;
+  cached(stamps, locale, (tag) => new Intl.DateTimeFormat(tag, STAMP)).format(ms);
 
 export const formatCount = (locale: Locale, n: number): string =>
   cached(counts, locale, (tag) => new Intl.NumberFormat(tag)).format(n);
