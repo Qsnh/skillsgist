@@ -17,8 +17,21 @@ const PASSWORD = "verify-cli-password";
 // injects it for just this process without requiring any file on disk.
 const SESSION_SECRET = randomBytes(32).toString("hex");
 
+const seenSecrets = new Set();
+
+function remember(secret) {
+  if (secret) seenSecrets.add(secret);
+  return secret;
+}
+
+function redact(text) {
+  let result = text;
+  for (const secret of seenSecrets) result = result.split(secret).join(`${secret.slice(0, 8)}…`);
+  return result.replace(/sg[dit]_[a-f0-9]+/g, (match) => (match.length > 8 ? `${match.slice(0, 8)}…` : match));
+}
+
 function log(msg) {
-  process.stdout.write(`[verify-cli] ${msg}\n`);
+  process.stdout.write(`[verify-cli] ${redact(msg)}\n`);
 }
 
 async function waitForServer(timeoutMs = 60_000) {
@@ -91,10 +104,21 @@ const CLI = (process.env.SKILLSGIST_CLI ?? "npx --yes skillsgist@latest")
   .split(" ")
   .map((part) => (part.includes("/") ? resolve(part) : part));
 
+const DEFAULT_CLI_TIMEOUT_MS = 180_000;
+
+const children = new Set();
+
 function cli(args, env, opts = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(CLI[0], [...CLI.slice(1), ...args], { env, cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    children.add(child);
     let out = "";
+    let timedOut = false;
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
     for (const stream of [child.stdout, child.stderr]) {
       stream.setEncoding("utf8");
       stream.on("data", (chunk) => {
@@ -102,8 +126,16 @@ function cli(args, env, opts = {}) {
         opts.onOutput?.(out);
       });
     }
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, out }));
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      children.delete(child);
+      reject(err);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      children.delete(child);
+      resolve({ code, out: timedOut ? `${out}\ntimed out after ${timeoutMs}ms and was killed` : out });
+    });
   });
 }
 
@@ -196,6 +228,19 @@ async function stopServer(server) {
   }
 }
 
+async function killChildren() {
+  await Promise.all(
+    [...children].map(
+      (child) =>
+        new Promise((resolve) => {
+          if (child.exitCode !== null || child.signalCode !== null) return resolve();
+          child.once("close", resolve);
+          child.kill("SIGKILL");
+        }),
+    ),
+  );
+}
+
 if (!terminalArgs) {
   process.stderr.write(
     "[verify-cli] failed: running the agent prompt in a terminal needs `script` from util-linux (Linux) or BSD (macOS, FreeBSD), and this system has neither\n",
@@ -257,18 +302,18 @@ try {
     });
 
   const tokenHtml = await (await postPage("/me/api-token", {})).text();
-  const token = /sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0];
+  const token = remember(/sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0]);
   if (!token) throw new Error("could not generate an api token");
 
   const projectKey = async (project) => {
     const html = await (await fetch(`${ORIGIN}/p/${project}/settings`, { headers: { Cookie: cookie } })).text();
-    const key = /sgi_[a-f0-9]{64}/.exec(html)?.[0];
+    const key = remember(/sgi_[a-f0-9]{64}/.exec(html)?.[0]);
     if (!key) throw new Error(`could not read the install key for project ${project}`);
     return key;
   };
 
   const installKey = await projectKey("default");
-  log(`install key: ${installKey.slice(0, 8)}…`);
+  log(`install key: ${installKey}`);
 
   const downloadCounts = async () => {
     const html = await (await fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
@@ -440,16 +485,25 @@ try {
   log("project-scoped install keys passed");
 
   const deviceHome = tempDir();
+  let codeFound = false;
   let resolveUserCode;
   const userCodeFound = new Promise((resolve) => {
     resolveUserCode = resolve;
   });
   const onLoginOutput = (out) => {
     const match = /\b([BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4})\b/.exec(out);
-    if (match) resolveUserCode(match[1]);
+    if (match) {
+      codeFound = true;
+      resolveUserCode(match[1]);
+    }
   };
   const loginPromise = cli(["login", `${ORIGIN}/p/default`, "--no-browser"], isolatedEnv(deviceHome), { onOutput: onLoginOutput });
-  const userCode = await userCodeFound;
+  const userCode = await Promise.race([
+    userCodeFound,
+    loginPromise.then(({ code, out }) => {
+      if (!codeFound) throw new Error(`skillsgist login exited with ${code} before printing a device code:\n${out}`);
+    }),
+  ]);
   log(`device code: ${userCode}`);
 
   const confirmPage = await postPage("/device", { code: userCode });
@@ -472,7 +526,7 @@ try {
   log("device sign-in installed the private skill without SKILLSGIST_INSTALL_KEY");
 
   const savedCredentials = JSON.parse(readFileSync(credentialsPath, "utf8"));
-  const deviceToken = savedCredentials.hosts?.[ORIGIN]?.token;
+  const deviceToken = remember(savedCredentials.hosts?.[ORIGIN]?.token);
   if (!deviceToken) throw new Error("could not read the device token from credentials.json");
   const { code: logoutCode, out: logoutOut } = await cli(["logout"], isolatedEnv(deviceHome));
   if (logoutCode !== 0) throw new Error(`skillsgist logout exited with ${logoutCode}:\n${logoutOut}`);
@@ -533,8 +587,9 @@ try {
   log("all contract checks passed");
   exitCode = 0;
 } catch (err) {
-  process.stderr.write(`[verify-cli] failed: ${err.message}\n`);
+  process.stderr.write(`[verify-cli] failed: ${redact(err.message)}\n`);
 } finally {
+  await killChildren();
   await stopServer(server);
   for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 }
