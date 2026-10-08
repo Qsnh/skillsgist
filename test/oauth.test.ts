@@ -55,6 +55,7 @@ describe("discovery", () => {
       device_authorization_endpoint: `${ORIGIN}/api/oauth/device`,
       token_endpoint: `${ORIGIN}/api/oauth/token`,
       revocation_endpoint: `${ORIGIN}/api/oauth/revoke`,
+      response_types_supported: [],
       grant_types_supported: [GRANT],
       token_endpoint_auth_methods_supported: ["none"],
     });

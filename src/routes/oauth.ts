@@ -67,6 +67,7 @@ oauthRoutes.get("/.well-known/oauth-authorization-server", (c) => {
     device_authorization_endpoint: `${origin}/api/oauth/device`,
     token_endpoint: `${origin}/api/oauth/token`,
     revocation_endpoint: `${origin}/api/oauth/revoke`,
+    response_types_supported: [],
     grant_types_supported: [DEVICE_GRANT],
     token_endpoint_auth_methods_supported: ["none"],
   });
