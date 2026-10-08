@@ -273,13 +273,14 @@ export async function signInDevice(
 ): Promise<{ id: string; token: string }> {
   const id = randomHex(16);
   const now = Date.now();
-  await createPendingLogin(env.DB, {
+  const created = await createPendingLogin(env.DB, {
     id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName,
     country: null, requestedScope: null, now,
   });
-  await approveLogin(env.DB, id, userId, projects, now);
+  if (!created) throw new Error("signInDevice: createPendingLogin failed");
+  if (!(await approveLogin(env.DB, id, userId, projects, now))) throw new Error("signInDevice: approveLogin failed");
   const token = newDeviceToken();
-  await activateLogin(env.DB, id, await sha256Hex(token), lastUsedAt);
+  if (!(await activateLogin(env.DB, id, await sha256Hex(token), lastUsedAt))) throw new Error("signInDevice: activateLogin failed");
   return { id, token };
 }
 

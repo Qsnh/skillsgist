@@ -551,9 +551,14 @@ describe("/admin/users/:id/*", () => {
     await seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "dave", role: "member" });
-    await joinProject(target.user.id, "team-b", "b".repeat(32));
+    await joinProject(target.user.id, "team-b");
     const keys = () => Promise.all([installKey(target.user.id), installKey(target.user.id, "team-b")]);
+    const whoami = async (key: string) => {
+      const res = await fetchWith("/api/whoami", bearer(key));
+      return res.status === 200 ? (await res.json<{ projects: string[] }>()).projects : res.status;
+    };
     const oldKeys = await keys();
+    expect(await Promise.all(oldKeys.map(whoami))).toEqual([["default"], ["team-b"]]);
 
     const res = await postForm(`/admin/users/${target.user.id}/install-key`, cookie);
     expect(res.status).toBe(302);
@@ -569,6 +574,8 @@ describe("/admin/users/:id/*", () => {
       expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
       expect(oldKeys).not.toContain(key);
     }
+    expect(await Promise.all(oldKeys.map(whoami))).toEqual([401, 401]);
+    expect(await Promise.all(newKeys.map(whoami))).toEqual([["default"], ["team-b"]]);
   });
 
   it("signs a member's computers out when an admin resets their password or rotates their install keys", async () => {
