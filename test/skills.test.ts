@@ -177,13 +177,6 @@ describe("GET /p/:project/s/:slug", () => {
     return { command: match[0], url: match[1], skill: match[2], html };
   };
 
-  // Walk the displayed address the way the CLI actually does: append a
-  // .well-known layer, fetch the index, then fetch entry.url. The index must
-  // hold *only* this skill — `skillsgist add` installs every entry it finds, so one
-  // extra entry is one extra skill installed.
-  //
-  // Publishes two skills: with only one, an un-narrowed index would also hold
-  // exactly one entry and the assertion would pass anyway.
   it("shows an anonymous install command that resolves to just this skill", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "public"]);
 

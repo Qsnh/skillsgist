@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Verify the registry against the skillsgist CLI (and the stock `npx skills` for public skills).
-// Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -102,8 +100,9 @@ function inTerminal(command, opts = {}) {
 }
 
 const CLI = (process.env.SKILLSGIST_CLI ?? "npx --yes skillsgist@latest")
-  .split(" ")
-  .map((part) => (part.includes("/") ? resolve(part) : part));
+  .trim()
+  .split(/\s+/)
+  .map((part) => (/^\.\.?\//.test(part) ? resolve(part) : part));
 
 const DEFAULT_CLI_TIMEOUT_MS = 180_000;
 

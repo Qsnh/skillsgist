@@ -19,11 +19,6 @@ export interface IndexSource {
   digest: string;
 }
 
-/**
- * baseUrl is https://host or https://host/p/<project>; artifact addresses are
- * appended to it directly. Entries that fail the CLI's validation rules are
- * dropped — better one entry short than handing the CLI half a broken index.
- */
 export function buildIndex(
   rows: IndexSource[],
   baseUrl: string,

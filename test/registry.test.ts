@@ -104,9 +104,6 @@ describe("registry index", () => {
     expect(await indexNames("/.well-known/agent-skills/no-such-skill")).toEqual([]);
   });
 
-  // The wildcard routes only take paths ending in an index. Bare addresses stay
-  // 404, and the CLI never requests a bare address, it only ever appends
-  // another layer.
   it("still 404s a .well-known path that is not an index", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
