@@ -93,14 +93,14 @@ describe("POST /api/oauth/device", () => {
   });
 
   it("strips control and bidi characters from the device name and cuts it to 64 characters", async () => {
-    const { user_code } = await start({ device_name: `  evil‮\u0007<b>${"x".repeat(100)}  ` });
+    const { user_code } = await start({ device_name: `  evil${String.fromCodePoint(0x202e)}\u0007<b>${"x".repeat(100)}  ` });
     const name = (await loginRow(user_code)).device_name;
     expect(name.startsWith("evil<b>")).toBe(true);
     expect([...name]).toHaveLength(64);
   });
 
   it("strips U+061C, U+2028, and U+2066 from the device name", async () => {
-    const { user_code } = await start({ device_name: `test؜ ⁦name` });
+    const { user_code } = await start({ device_name: `test${String.fromCodePoint(0x061c)}${String.fromCodePoint(0x2028)}${String.fromCodePoint(0x2066)}name` });
     const name = (await loginRow(user_code)).device_name;
     expect(name).toBe("testname");
   });
