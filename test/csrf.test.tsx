@@ -31,6 +31,9 @@ const EXEMPT = new Set([
   // Covered by the Origin / Sec-Fetch-Site layer only — see TOKENLESS_PATHS.
   "POST /setup",
   "POST /login",
+  "POST /api/oauth/device",
+  "POST /api/oauth/token",
+  "POST /api/oauth/revoke",
 ]);
 
 // Every other state-changing route, mapped to a concrete path so the sweep
@@ -101,6 +104,7 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/s/:slug/download",
   "GET /p/:project/s/:slug/v/:version/download",
   "GET /api/whoami",
+  "GET /.well-known/oauth-authorization-server",
 ]);
 
 // `app.routes` is flattened across every sub-app mounted with `.route()`;
@@ -201,6 +205,15 @@ describe("/api/* exemption", () => {
       body: GOOD_MD,
     });
     expect(res.status).toBe(404);
+  });
+
+  it("still refuses a cross-origin form post to the publish API", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: GOOD_MD,
+    });
+    expect(res.status).toBe(403);
   });
 
   it("does not let a session cookie stand in for a Bearer credential on /api/whoami", async () => {

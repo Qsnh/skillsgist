@@ -69,6 +69,8 @@ export const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export const API_PREFIX = "/api/";
 
+export const OAUTH_PREFIX = "/api/oauth/";
+
 const TOKENLESS_PATHS = new Set(["/setup", "/login"]);
 
 export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {

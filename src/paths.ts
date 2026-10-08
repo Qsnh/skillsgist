@@ -1,3 +1,5 @@
+export const PROJECT_SLUG = /^[a-z0-9-]{2,32}$/;
+
 export function projectPath(project: string): string {
   return `/p/${project}`;
 }
