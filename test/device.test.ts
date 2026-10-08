@@ -196,26 +196,45 @@ describe("approving", () => {
     expect(await status()).toBe("pending");
   });
 
-  it("does not claim success when the code was already approved elsewhere", async () => {
+  it("shows the result to the person who already decided, without counting a wrong code", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
-    const confirm = await postForm("/device", cookie, { code: user_code });
-    expect(confirm.status).toBe(200);
-    const login = await env.DB.prepare("SELECT id FROM cli_logins WHERE user_code = ?").bind(user_code).first<{ id: string }>();
-    expect(await approveLogin(env.DB, login!.id, user.id, ["default"], Date.now())).toBe(true);
-    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
-    expect(res.status).toBe(400);
-    expect(await res.text()).not.toContain("Request denied");
+    expect((await postForm("/device", cookie, { code: user_code })).status).toBe(200);
+    const id = await loginId();
+    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
+    const approve: Array<[string, string]> = [["code", user_code], ["decision", "approve"], ["project", "default"]];
+    for (const fields of [approve, [["code", user_code], ["decision", "deny"]], [["code", user_code]]] as Array<Array<[string, string]>>) {
+      const res = await postFields("/device", cookie, fields);
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe(`/device/${id}`);
+      const done = await (await follow(res, cookie)).text();
+      expect(done).toContain("Computer approved");
+      expect(done).not.toContain("Request denied");
+    }
     expect(await status()).toBe("approved");
+    expect(await failures()).toBe(0);
   });
 
-  it("refuses a used code", async () => {
+  it("refuses a code someone else already used, and counts it as wrong", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob" });
     const { user_code } = await startDevice();
     await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
-    const again = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
+    const again = await postFields("/device", bob.cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
     expect(again.status).toBe(400);
     expect(await again.text()).toContain("That code is wrong or has expired");
+    expect(await failures()).toBe(1);
+  });
+
+  it("says a request expired when its confirmation page outlived it, without counting a wrong code", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    await env.DB.prepare("UPDATE cli_logins SET expires_at = ?").bind(Date.now() - 1).run();
+    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("This request expired before you answered it.");
+    expect(await failures()).toBe(0);
+    expect(await status()).toBe("pending");
   });
 });
 

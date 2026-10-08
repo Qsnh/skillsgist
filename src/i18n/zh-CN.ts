@@ -258,6 +258,7 @@ export const zhCN: Messages = {
     continue: "继续",
     badCode: "验证码不对或已过期。请核对终端里的验证码，或重新运行 skillsgist login。",
     locked: "输错的次数太多。请 10 分钟后再试。",
+    expired: "这个请求在你处理之前就过期了。请在电脑上重新运行 skillsgist login。",
     confirmTitle: "批准这台电脑？",
     warning: "只有你刚刚亲自运行了 skillsgist login 才批准。批准后，这台电脑可以安装你勾选的项目中的私有技能。",
     request: "请求",

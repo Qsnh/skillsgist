@@ -70,11 +70,8 @@ export async function deleteStaleLogins(db: D1Database, now: number): Promise<vo
   ]);
 }
 
-export function getPendingLoginByUserCode(db: D1Database, userCode: string, now: number): Promise<CliLoginRow | null> {
-  return db
-    .prepare("SELECT * FROM cli_logins WHERE user_code = ? AND status = 'pending' AND expires_at > ?")
-    .bind(userCode, now)
-    .first<CliLoginRow>();
+export function getLoginByUserCode(db: D1Database, userCode: string): Promise<CliLoginRow | null> {
+  return db.prepare("SELECT * FROM cli_logins WHERE user_code = ?").bind(userCode).first<CliLoginRow>();
 }
 
 export function getLoginByDeviceCodeHash(db: D1Database, hash: string): Promise<CliLoginRow | null> {
@@ -102,7 +99,7 @@ export async function approveLogin(
     ...grants,
     db
       .prepare(
-        `UPDATE cli_logins SET status = 'approved', user_id = ?2, user_code = NULL, requested_scope = NULL, approved_at = ?3
+        `UPDATE cli_logins SET status = 'approved', user_id = ?2, requested_scope = NULL, approved_at = ?3
          WHERE id = ?1 AND status = 'pending' AND expires_at > ?3`,
       )
       .bind(id, userId, now),
@@ -113,7 +110,7 @@ export async function approveLogin(
 export async function denyLogin(db: D1Database, id: string, userId: string, now: number): Promise<boolean> {
   const result = await db
     .prepare(
-      `UPDATE cli_logins SET status = 'denied', user_id = ?2, user_code = NULL, requested_scope = NULL
+      `UPDATE cli_logins SET status = 'denied', user_id = ?2, requested_scope = NULL
        WHERE id = ?1 AND status = 'pending' AND expires_at > ?3`,
     )
     .bind(id, userId, now)

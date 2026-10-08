@@ -4,7 +4,7 @@ import type { AppEnv } from "../auth";
 import { normalizeUserCode } from "../credentials";
 import { page } from "../csrf";
 import {
-  approveLogin, codeEntryLocked, denyLogin, getDecidedLogin, getPendingLoginByUserCode, recordCodeFailure,
+  approveLogin, codeEntryLocked, denyLogin, getDecidedLogin, getLoginByUserCode, recordCodeFailure,
 } from "../db/logins";
 import type { Viewer } from "../db/queries";
 import { localeOf, messages } from "../i18n";
@@ -48,16 +48,22 @@ deviceRoutes.post("/device", requireUser, async (c) => {
     return page(c, <DeviceCodePage user={user} code={raw} error={t.device.locked} />, 429);
   }
   const code = normalizeUserCode(raw);
-  const login = code ? await getPendingLoginByUserCode(c.env.DB, code, now) : null;
-  if (!code || !login) {
+  const login = code ? await getLoginByUserCode(c.env.DB, code) : null;
+  if (login && login.user_id === user.id) return c.redirect(`/device/${login.id}`, 302);
+  if (login?.status === "pending" && login.expires_at <= now) {
+    return page(c, <DeviceCodePage user={user} code="" error={t.device.expired} />, 400);
+  }
+  if (!code || !login || login.status !== "pending") {
     await recordCodeFailure(c.env.DB, user.id, now);
     return page(c, <DeviceCodePage user={user} code={raw} error={t.device.badCode} />, 400);
   }
+  const lost = async () =>
+    (await getLoginByUserCode(c.env.DB, code))?.user_id === user.id
+      ? c.redirect(`/device/${login.id}`, 302)
+      : page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
   const decision = values(body.decision)[0];
   if (decision === "deny") {
-    if (!(await denyLogin(c.env.DB, login.id, user.id, now))) {
-      return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
-    }
+    if (!(await denyLogin(c.env.DB, login.id, user.id, now))) return lost();
     return c.redirect(`/device/${login.id}`, 302);
   }
   if (decision === "approve") {
@@ -65,9 +71,7 @@ deviceRoutes.post("/device", requireUser, async (c) => {
     if (chosen.length === 0) {
       return page(c, <DeviceConfirmPage user={user} login={login} code={code} checked={[]} error={t.device.chooseProject} />, 400);
     }
-    if (!(await approveLogin(c.env.DB, login.id, user.id, chosen, now))) {
-      return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
-    }
+    if (!(await approveLogin(c.env.DB, login.id, user.id, chosen, now))) return lost();
     return c.redirect(`/device/${login.id}`, 302);
   }
   return page(c, <DeviceConfirmPage user={user} login={login} code={code} checked={preselected(user, login.requested_scope)} />);

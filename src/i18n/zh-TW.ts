@@ -258,6 +258,7 @@ export const zhTW: Messages = {
     continue: "繼續",
     badCode: "驗證碼錯誤或已過期。請核對終端機中的驗證碼，或重新執行 skillsgist login。",
     locked: "輸入錯誤的次數過多。請 10 分鐘後再試。",
+    expired: "這個請求在你處理之前就已過期。請在電腦上重新執行 skillsgist login。",
     confirmTitle: "核准這台電腦？",
     warning: "只有在你剛剛親自執行了 skillsgist login 時才核准。核准後，這台電腦可以安裝你勾選的專案中的私人技能。",
     request: "請求",

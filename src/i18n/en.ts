@@ -286,6 +286,7 @@ export const en = {
     continue: "Continue",
     badCode: "That code is wrong or has expired. Check the code in your terminal, or run skillsgist login again.",
     locked: "Too many wrong codes. Wait 10 minutes and try again.",
+    expired: "This request expired before you answered it. Run skillsgist login again on your computer.",
     confirmTitle: "Approve this computer?",
     warning:
       "Approve only if you ran skillsgist login yourself just now. The computer will be able to install the private skills of the projects you tick.",

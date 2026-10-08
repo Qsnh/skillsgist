@@ -45,10 +45,10 @@ describe("codes and tokens", () => {
 describe("pending logins", () => {
   beforeEach(resetDb);
 
-  it("finds a pending login by user code until it expires, and refuses a second one with the same code", async () => {
+  it("finds a login by user code, and refuses a second one with the same code", async () => {
     await pending();
-    expect((await logins.getPendingLoginByUserCode(env.DB, "BCDF-GHJK", NOW + 599_999))?.id).toBe("l1");
-    expect(await logins.getPendingLoginByUserCode(env.DB, "BCDF-GHJK", NOW + 600_000)).toBeNull();
+    expect(await logins.getLoginByUserCode(env.DB, "BCDF-GHJK")).toMatchObject({ id: "l1", status: "pending", expires_at: NOW + 600_000 });
+    expect(await logins.getLoginByUserCode(env.DB, "CDFG-HJKL")).toBeNull();
     expect(
       await logins.createPendingLogin(env.DB, {
         id: "l2", userCode: "BCDF-GHJK", deviceCodeHash: "x", deviceName: "", country: null, requestedScope: null, now: NOW,
@@ -80,13 +80,13 @@ describe("approving and claiming", () => {
     await seedProject("team-c", "Team C");
   });
 
-  it("grants only the approver's own projects, once, and clears the user code and scope", async () => {
+  it("grants only the approver's own projects, once, and keeps the user code but clears the scope", async () => {
     const { user } = await seedUser({ username: "alice" });
     await joinProject(user.id, "team-b");
     await pending({ requestedScope: "default team-c" });
     expect(await logins.approveLogin(env.DB, "l1", user.id, ["default", "team-b", "team-c", "team-b"], NOW)).toBe(true);
     expect(await grants("l1")).toEqual(["default", "team-b"]);
-    expect(await row("l1")).toMatchObject({ status: "approved", user_id: user.id, user_code: null, requested_scope: null, approved_at: NOW });
+    expect(await row("l1")).toMatchObject({ status: "approved", user_id: user.id, user_code: "BCDF-GHJK", requested_scope: null, approved_at: NOW });
     expect(await logins.approveLogin(env.DB, "l1", user.id, ["team-c"], NOW)).toBe(false);
     expect(await grants("l1")).toEqual(["default", "team-b"]);
   });
