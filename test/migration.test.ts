@@ -14,7 +14,9 @@ const beforePrefix = migrations.filter((m) => m.name < "0005");
 const fromPrefix = migrations.filter((m) => m.name >= "0005");
 
 async function wipe(): Promise<void> {
-  for (const table of ["memberships", "versions", "skills", "users", "projects", "d1_migrations"]) {
+  for (const table of [
+    "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+  ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
 }
@@ -197,5 +199,33 @@ describe("migration 0005 on an instance that already has members", () => {
     const keys = memberships.map((m) => m.install_key as string);
     for (const key of keys) expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
     expect(new Set(keys).size).toBe(2);
+  });
+});
+
+describe("migration 0006", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l1', 'active', 'u1', 'x', 5, 0, 0)",
+      ),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'default')"),
+    ]);
+  });
+
+  it("refuses an unknown status, user or project", async () => {
+    const insert = (status: string, user: string) =>
+      db.prepare("INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l2', ?, ?, 'x', 5, 0, 0)").bind(status, user).run();
+    await expect(insert("lost", "u1")).rejects.toThrow(/CHECK/);
+    await expect(insert("active", "nobody")).rejects.toThrow(/FOREIGN KEY/);
+    await expect(db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'nope')").run()).rejects.toThrow(/FOREIGN KEY/);
+  });
+
+  it("cascades from a deleted user to their sign-ins and grants", async () => {
+    await db.prepare("DELETE FROM users WHERE id = 'u1'").run();
+    expect(await rows("SELECT * FROM cli_logins")).toEqual([]);
+    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([]);
   });
 });

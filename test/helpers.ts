@@ -56,6 +56,9 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM cli_login_projects"),
+    env.DB.prepare("DELETE FROM cli_logins"),
+    env.DB.prepare("DELETE FROM device_code_attempts"),
     env.DB.prepare("DELETE FROM memberships"),
     env.DB.prepare("DELETE FROM versions"),
     env.DB.prepare("DELETE FROM skills"),
