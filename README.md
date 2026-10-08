@@ -71,6 +71,17 @@ Then open `https://<your-worker>/setup` to create the first admin. The page swit
 
 To serve the instance on your own domain, open the Worker in the Cloudflare dashboard and add a Custom Domain under Settings → Domains & Routes.
 
+### Rate-limit sign-in requests
+
+`POST /api/oauth/device`, where `skillsgist login` starts, needs no credentials, and every call writes a row to D1. The Worker deletes expired requests as new ones arrive but does not limit how fast they come, so once the instance has a custom domain, add a rate limiting rule to it: in the Cloudflare dashboard, open the domain, go to Security → Security rules, and choose Create rule → Rate limiting rules.
+
+- **If incoming requests match:** URI Path equals `/api/oauth/device`
+- **With the same characteristics:** IP
+- **When rate exceeds:** 5 requests per 10 seconds
+- **Then take action:** Block, for 10 seconds
+
+The Free plan allows one rule like this; Pro and above can count over a longer period and block for longer. `skillsgist login` calls the address once per sign-in, so a person signing in stays far below the limit. The rule covers only the custom domain, not the Worker's `workers.dev` address.
+
 ## Install skills
 
 ```bash
