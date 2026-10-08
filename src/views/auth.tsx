@@ -39,12 +39,13 @@ export function SetupPage(props: { error?: string }) {
   );
 }
 
-export function LoginPage(props: { error?: string }) {
+export function LoginPage(props: { error?: string; next?: string }) {
   const t = useT();
   return (
     <Layout title={t.layout.signIn} user={null} hideSignIn>
       <AuthCard title={t.layout.signIn} error={props.error}>
         <form method="post" action="/login" class="cf-stack">
+          {props.next && props.next !== "/" ? <input type="hidden" name="next" value={props.next} /> : null}
           <Field label={t.common.username} name="username" autocomplete="username" />
           <Field label={t.common.password} name="password" type="password" autocomplete="current-password" />
           <Button wide>{t.layout.signIn}</Button>

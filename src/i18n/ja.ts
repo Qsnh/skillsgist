@@ -258,6 +258,36 @@ export const ja: Messages = {
     stillHasSkills: (name) => `${name} にはまだスキルがあります。先に移動または削除してください。`,
     deletedProject: (name) => `プロジェクト ${name} を削除しました。`,
   },
+  device: {
+    title: "コンピューターをサインイン",
+    codeLede: "skillsgist login がターミナルに表示したコードを入力してください。",
+    code: "コード",
+    codeHint: "BCDF-GHJK のような 8 文字",
+    continue: "続ける",
+    badCode: "コードが違うか、有効期限が切れています。ターミナルのコードを確認するか、skillsgist login をもう一度実行してください。",
+    locked: "間違ったコードが多すぎます。10 分待ってからもう一度お試しください。",
+    confirmTitle: "このコンピューターを承認しますか？",
+    warning:
+      "たった今あなた自身が skillsgist login を実行した場合にだけ承認してください。承認すると、このコンピューターはチェックしたプロジェクトのプライベートなスキルをインストールできるようになります。",
+    request: "リクエスト",
+    computer: "コンピューター",
+    unnamed: "名前のないコンピューター",
+    requestedAt: "リクエスト日時",
+    from: "接続元",
+    unknownPlace: "不明",
+    projects: "インストールを許可するプロジェクト",
+    projectsHint: "1 つ以上チェックしてください。このコンピューターはアカウントページからいつでも失効できます。",
+    noProjects:
+      "どのプロジェクトにも所属していないため、承認できるものがありません。このリクエストを拒否し、管理者にプロジェクトへの追加を依頼してください。",
+    chooseProject: "プロジェクトを 1 つ以上選んでください",
+    approve: "承認",
+    deny: "拒否",
+    approvedTitle: "コンピューターを承認しました",
+    approvedBody: (projects: string) =>
+      `${projects} のプライベートなスキルをインストールできるようになりました。ターミナルに戻ってください。サインインはそこで完了します。`,
+    deniedTitle: "リクエストを拒否しました",
+    deniedBody: "このコンピューターはサインインしていません。skillsgist login を実行していなければ、ほかにすることはありません。",
+  },
   publish: {
     title: "スキルを公開",
     noProjectBody:

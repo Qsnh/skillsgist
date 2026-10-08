@@ -150,6 +150,17 @@ export async function postForm(
   });
 }
 
+export async function postFields(path: string, cookie: string, fields: Array<[string, string]>): Promise<Response> {
+  const body = new URLSearchParams(fields);
+  body.set("_csrf", await csrfFor(cookie));
+  return SELF.fetch(`${ORIGIN}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...SAME_ORIGIN, Cookie: cookie },
+    body,
+    redirect: "manual",
+  });
+}
+
 /** POST a multipart form (the upload routes). `fields` may carry File values. */
 export async function postMultipart(
   path: string,

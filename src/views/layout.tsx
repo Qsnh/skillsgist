@@ -276,12 +276,14 @@ export function Button(props: {
   variant?: "primary" | "outline" | "danger" | "ghost";
   size?: "sm";
   wide?: boolean;
+  name?: string;
+  value?: string;
   children?: unknown;
 }) {
   const variant = props.variant ?? "primary";
   const classes = ["cf-btn", `cf-btn-${variant}`, props.size ? "cf-btn-sm" : "", props.wide ? "cf-btn-wide" : ""];
   return (
-    <button type="submit" class={classes.filter(Boolean).join(" ")}>
+    <button type="submit" class={classes.filter(Boolean).join(" ")} name={props.name} value={props.value}>
       {props.children}
     </button>
   );

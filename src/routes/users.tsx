@@ -15,7 +15,7 @@ import {
 } from "../db/queries";
 import type { UserRow } from "../db/queries";
 import { sha256Hex } from "../hash";
-import { userSettingsPath } from "../paths";
+import { safeNext, userSettingsPath } from "../paths";
 import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
 
 export const USERNAME = /^[a-z0-9-]{2,32}$/;
@@ -73,17 +73,18 @@ usersRoutes.post("/setup", async (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/login", async (c) => page(c, <LoginPage />));
+usersRoutes.get("/login", async (c) => page(c, <LoginPage next={safeNext(c.req.query("next"))} />));
 
 usersRoutes.post("/login", async (c) => {
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
+  const next = safeNext(body.next);
   const user = await getUserByUsername(c.env.DB, username);
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} />, 401);
+  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} next={next} />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
-  return c.redirect("/", 302);
+  return c.redirect(next, 302);
 });
 
 usersRoutes.post("/logout", (c) => {

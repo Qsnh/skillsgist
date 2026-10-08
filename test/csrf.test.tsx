@@ -41,6 +41,7 @@ const EXEMPT = new Set([
 const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => string> = {
   "POST /logout": () => "/logout",
   "POST /lang": () => "/lang",
+  "POST /device": () => "/device",
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
@@ -88,6 +89,7 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/d/:slug/:file",
   "GET /setup",
   "GET /login",
+  "GET /device",
   "GET /me",
   "GET /admin/users",
   "GET /admin/users/new",

@@ -263,6 +263,36 @@ export const en = {
     stillHasSkills: (name: string) => `${name} still has skills. Move or delete them first.`,
     deletedProject: (name: string) => `Deleted project ${name}.`,
   },
+  device: {
+    title: "Sign in a computer",
+    codeLede: "Enter the code that skillsgist login shows in your terminal.",
+    code: "Code",
+    codeHint: "Eight letters, such as BCDF-GHJK",
+    continue: "Continue",
+    badCode: "That code is wrong or has expired. Check the code in your terminal, or run skillsgist login again.",
+    locked: "Too many wrong codes. Wait 10 minutes and try again.",
+    confirmTitle: "Approve this computer?",
+    warning:
+      "Approve only if you ran skillsgist login yourself just now. The computer will be able to install the private skills of the projects you tick.",
+    request: "Request",
+    computer: "Computer",
+    unnamed: "Unnamed computer",
+    requestedAt: "Requested",
+    from: "From",
+    unknownPlace: "Unknown",
+    projects: "Projects it may install from",
+    projectsHint: "Tick at least one. You can revoke this computer on your account page at any time.",
+    noProjects:
+      "You are not in any project, so there is nothing to approve. Deny this request and ask an admin to add you to a project.",
+    chooseProject: "Choose at least one project",
+    approve: "Approve",
+    deny: "Deny",
+    approvedTitle: "Computer approved",
+    approvedBody: (projects: string) =>
+      `It can now install the private skills of ${projects}. Return to your terminal, where the sign-in finishes.`,
+    deniedTitle: "Request denied",
+    deniedBody: "The computer was not signed in. If you did not run skillsgist login, there is nothing else to do.",
+  },
   publish: {
     title: "Publish a skill",
     noProjectBody:
