@@ -85,6 +85,36 @@ describe("device sign-ins", () => {
     expect((await fetchWith(await privateArtifact(), bearer(outsider.token))).status).toBe(404);
   });
 
+  it("download a private artifact of a granted project, uncacheable", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
+    const { token } = await signInDevice(user.id, ["default"]);
+    const index = await (await fetchWith(INDEX, bearer(token))).json<{ skills: Array<{ name: string; url: string; digest: string }> }>();
+    const entry = index.skills.find((s) => s.name === "other-skill")!;
+    const res = await fetchWith(await privateArtifact(), bearer(token));
+    expect(res.status).toBe(200);
+    expectPrivate(res);
+    const digest = await crypto.subtle.digest("SHA-256", await res.arrayBuffer());
+    expect(`sha256:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`).toBe(entry.digest);
+    expect(new URL(entry.url).pathname).toBe(await privateArtifact());
+  });
+
+  it("give an instance admin only the public skills of a project they are not a member of", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
+    const root = await seedAndLogin({ username: "root", role: "admin", project: "team-b" });
+    const { token } = await signInDevice(root.user.id, ["team-b"]);
+    const res = await fetchWith(INDEX, bearer(token));
+    expect(res.status).toBe(200);
+    expectPrivate(res);
+    expect(await names(res)).toEqual(["demo-skill"]);
+    expect((await fetchWith(await privateArtifact(), bearer(token))).status).toBe(404);
+    expect(await (await fetchWith("/api/whoami", bearer(token))).json()).toEqual({ user: "root", kind: "login", projects: ["team-b"] });
+
+    const key = await installKey(root.user.id, "team-b");
+    const refused = await fetchWith(INDEX, bearer(key));
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "wrong_project", project: "team-b" });
+  });
+
   it("lose a project when the member leaves it, and do not get it back when they rejoin", async () => {
     const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const admin = await seedAndLogin({ username: "root", role: "admin", project: null });

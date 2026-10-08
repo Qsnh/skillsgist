@@ -269,11 +269,12 @@ export async function signInDevice(
   userId: string,
   projects: string[],
   lastUsedAt: number = Date.now(),
+  deviceName: string = "test-laptop",
 ): Promise<{ id: string; token: string }> {
   const id = randomHex(16);
   const now = Date.now();
   await createPendingLogin(env.DB, {
-    id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName: "test-laptop",
+    id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName,
     country: null, requestedScope: null, now,
   });
   await approveLogin(env.DB, id, userId, projects, now);

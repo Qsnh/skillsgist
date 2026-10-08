@@ -158,10 +158,14 @@ describe("POST /api/oauth/token", () => {
     expect(await (await poll(device_code)).json()).toEqual({ error: "invalid_grant" });
   });
 
-  it("tells the CLI a code expired", async () => {
+  it("tells the CLI a code expired, once, and forgets it", async () => {
     const { device_code } = await start();
     await env.DB.prepare("UPDATE cli_logins SET expires_at = 0").run();
     expect(await (await poll(device_code)).json()).toEqual({ error: "expired_token" });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM cli_logins").first<{ n: number }>())?.n).toBe(0);
+    const again = await poll(device_code);
+    expect(again.status).toBe(400);
+    expect(await again.json()).toEqual({ error: "invalid_grant" });
   });
 
   it.each([

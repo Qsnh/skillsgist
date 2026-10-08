@@ -203,13 +203,22 @@ describe("CLI sign-ins on /me", () => {
     expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
   });
 
-  it("marks a computer with no usable project, and one unused for 90 days", async () => {
+  it("marks a computer with no usable project, and one unused for 90 days, each on its own row", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await signInDevice(user.id, []);
-    await signInDevice(user.id, ["default"], Date.now() - 91 * 24 * 60 * 60 * 1000);
+    await signInDevice(user.id, [], Date.now(), "no-projects");
+    await signInDevice(user.id, ["default"], Date.now() - 91 * 24 * 60 * 60 * 1000, "stale");
+    await signInDevice(user.id, ["default"], Date.now(), "healthy");
     const html = await (await get("/me", cookie)).text();
-    expect(html).toContain("No usable projects");
-    expect(html).toContain("Expired");
+    const rows = html.split('<li class="cf-row cf-member">').slice(1);
+    expect(rows).toHaveLength(3);
+    const tags = (name: string) => {
+      const row = rows.filter((r) => r.includes(`<span class="cf-user-name">${name}</span>`));
+      expect(row, name).toHaveLength(1);
+      return [...row[0].matchAll(/<span class="cf-tag">([^<]*)<\/span>/g)].map((m) => m[1]);
+    };
+    expect(tags("no-projects")).toEqual(["No usable projects"]);
+    expect(tags("stale")).toEqual(["Expired"]);
+    expect(tags("healthy")).toEqual([]);
   });
 
   it("says how to sign in when no computer is signed in", async () => {
