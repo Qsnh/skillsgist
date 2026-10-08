@@ -100,6 +100,7 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/s/:slug",
   "GET /p/:project/s/:slug/download",
   "GET /p/:project/s/:slug/v/:version/download",
+  "GET /api/whoami",
 ]);
 
 // `app.routes` is flattened across every sub-app mounted with `.route()`;
@@ -200,6 +201,11 @@ describe("/api/* exemption", () => {
       body: GOOD_MD,
     });
     expect(res.status).toBe(404);
+  });
+
+  it("does not let a session cookie stand in for a Bearer credential on /api/whoami", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    expect((await SELF.fetch(`${ORIGIN}/api/whoami`, { headers: { Cookie: cookie } })).status).toBe(401);
   });
 });
 

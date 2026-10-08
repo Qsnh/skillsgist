@@ -1,9 +1,11 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
-import { newInstallKey } from "../src/credentials";
+import { newDeviceCode, newDeviceToken, newInstallKey, newUserCode } from "../src/credentials";
+import { activateLogin, approveLogin, createPendingLogin } from "../src/db/logins";
 import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import { sha256Hex } from "../src/hash";
 import type { IndexEntry } from "../src/registry";
 
 /**
@@ -248,6 +250,25 @@ export async function installKey(userId: string, project: string = DEFAULT_PROJE
   const row = await membership(userId, project);
   if (!row) throw new Error(`${userId} is not a member of ${project}`);
   return row.install_key;
+}
+
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+export async function signInDevice(
+  userId: string,
+  projects: string[],
+  lastUsedAt: number = Date.now(),
+): Promise<{ id: string; token: string }> {
+  const id = randomHex(16);
+  const now = Date.now();
+  await createPendingLogin(env.DB, {
+    id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName: "test-laptop",
+    country: null, requestedScope: null, now,
+  });
+  await approveLogin(env.DB, id, userId, projects, now);
+  const token = newDeviceToken();
+  await activateLogin(env.DB, id, await sha256Hex(token), lastUsedAt);
+  return { id, token };
 }
 
 export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {

@@ -6,7 +6,7 @@ import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
-  cellMeta, denyPublish, env, get, indexAt, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
+  bearer, cellMeta, denyPublish, env, fetchWith, get, indexAt, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
   publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedWithSkills, twoProjects,
 } from "./helpers";
 
@@ -571,6 +571,14 @@ describe("moving a skill", () => {
     expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
     expect(await getSkill(env.DB, "team-b", "demo-skill")).toMatchObject({ latest_version: 2, download_count: 1 });
     expect((await get("/p/team-b/s/demo-skill/v/1/download", alice.cookie)).status).toBe(200);
+
+    const defaultKey = await installKey(alice.user.id);
+    const teamBKey = await installKey(alice.user.id, "team-b");
+    const names = async (key: string, project: string) =>
+      (await (await fetchWith(`/p/${project}/.well-known/agent-skills/index.json`, bearer(key))).json<{ skills: Array<{ name: string }> }>())
+        .skills.map((s) => s.name);
+    expect(await names(defaultKey, "default")).not.toContain("demo-skill");
+    expect(await names(teamBKey, "team-b")).toContain("demo-skill");
   });
 
   it("offers the other projects without a skill of that name in a Move control", async () => {
