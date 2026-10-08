@@ -232,6 +232,8 @@ npm run typecheck
 npm run verify:cli
 ```
 
+`npm run verify:cli` uses the published CLI; set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build.
+
 ## Contributing
 
 Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md) record the product decisions and the design system.

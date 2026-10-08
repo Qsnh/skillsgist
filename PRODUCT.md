@@ -74,7 +74,7 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
 ## Evidence on Hand
 
 - `README.md` — real install, publish, deploy, and user-management instructions.
-- `npm run verify:cli` (`scripts/verify-cli.mjs`) — a contract test run against the real `npx skills` binary, the concrete proof behind the discovery protocol claim for public skills.
+- `npm run verify:cli` (`scripts/verify-cli.mjs`) — a contract test run against the real skillsgist CLI: install-key headers, `skillsgist login` device sign-in and `logout`, rejection of a wrong-project key and of retired `/i/` addresses, and the stock `npx skills` binary installing a public skill, the concrete proof behind the discovery protocol claim.
 - `test/` — the unit and integration suite, run under `@cloudflare/vitest-pool-workers`.
 - `docs/superpowers/plans/` — implementation plans for shipped work.
 
