@@ -285,8 +285,9 @@ export const ja: Messages = {
     requestedAt: "リクエスト日時",
     from: "接続元",
     unknownPlace: "不明",
+    tor: "Tor ネットワーク",
     projects: "インストールを許可するプロジェクト",
-    projectsHint: "1 つ以上チェックしてください。このコンピューターはアカウントページからいつでも失効できます。",
+    projectsHint: "1 つ以上チェックしてください。このコンピューターはアカウントページからいつでも失効させられます。",
     noProjects:
       "どのプロジェクトにも所属していないため、承認できるものがありません。このリクエストを拒否し、管理者にプロジェクトへの追加を依頼してください。",
     chooseProject: "プロジェクトを 1 つ以上選んでください",
@@ -296,7 +297,7 @@ export const ja: Messages = {
     approvedBody: (projects: string) =>
       `${projects} のプライベートなスキルをインストールできるようになりました。ターミナルに戻ってください。サインインはそこで完了します。`,
     deniedTitle: "リクエストを拒否しました",
-    deniedBody: "このコンピューターはサインインしていません。skillsgist login を実行していなければ、ほかにすることはありません。",
+    deniedBody: "このコンピューターはサインインしていません。skillsgist login を実行していなければ、ほかに必要な操作はありません。",
   },
   publish: {
     title: "スキルを公開",

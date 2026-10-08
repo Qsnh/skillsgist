@@ -295,6 +295,7 @@ export const en = {
     requestedAt: "Requested",
     from: "From",
     unknownPlace: "Unknown",
+    tor: "Tor network",
     projects: "Projects it may install from",
     projectsHint: "Tick at least one. You can revoke this computer on your account page at any time.",
     noProjects:

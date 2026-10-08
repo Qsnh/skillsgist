@@ -824,7 +824,7 @@ The hero of the system: an orange field that hands over one line of shell, or on
 - **Skill names:** a skill is named `<project name>/<slug>` wherever it is titled: its cell, on the index and on a project's page alike, its skill panel and its browser tab, because two projects may each have a skill of the same slug. A cell's meta row leaves the project's name out, since the title already carries it.
 
 ### Device
-- **Device approval:** `/device`, a narrow working page: the code form (one field, Continue); the confirmation (the warning notice, a flush Request panel with Computer, Requested, From and Code rows, a Projects panel of checkbox choice cards in the `.cf-choices` grid with Approve and an outline Deny); and a result page that is only a page head.
+- **Device approval:** `/device`, a narrow working page: the code form (one field, Continue); the confirmation (the warning notice, a flush Request panel with Computer, Requested (labelled UTC), From (the country's localized name) and Code rows, a Projects panel of checkbox choice cards in the `.cf-choices` grid inside a fieldset with a screen-reader legend, with Approve and an outline Deny); and a result page at `/device/<id>`, reached by a redirect so a reload never posts again, that is only a page head.
 
 ### Sign-in Frame
 - **Stage:** a centered frame on a field of Hairline Strong dots (0.9px on a 10px pitch). The field extends past the page body's padding toward the nav and the footer, and a radial mask fades it out from 30% of the way to its edges.

@@ -107,15 +107,37 @@ export async function approveLogin(
   return results[results.length - 1].meta.changes === 1;
 }
 
-export async function denyLogin(db: D1Database, id: string, now: number): Promise<boolean> {
+export async function denyLogin(db: D1Database, id: string, userId: string, now: number): Promise<boolean> {
   const result = await db
     .prepare(
-      `UPDATE cli_logins SET status = 'denied', user_code = NULL, requested_scope = NULL
-       WHERE id = ? AND status = 'pending' AND expires_at > ?`,
+      `UPDATE cli_logins SET status = 'denied', user_id = ?2, user_code = NULL, requested_scope = NULL
+       WHERE id = ?1 AND status = 'pending' AND expires_at > ?3`,
     )
-    .bind(id, now)
+    .bind(id, userId, now)
     .run();
   return result.meta.changes === 1;
+}
+
+export async function getDecidedLogin(
+  db: D1Database,
+  id: string,
+  userId: string,
+): Promise<{ status: LoginStatus; projects: string[] } | null> {
+  const [login, grants] = await db.batch([
+    db.prepare("SELECT status FROM cli_logins WHERE id = ? AND user_id = ?").bind(id, userId),
+    db
+      .prepare(
+        `SELECT p.name FROM cli_login_projects clp
+         JOIN projects p ON p.slug = clp.project
+         JOIN memberships m ON m.project = clp.project AND m.user_id = ?2
+         WHERE clp.login_id = ?1
+         ORDER BY p.name`,
+      )
+      .bind(id, userId),
+  ]);
+  const row = login.results[0] as { status: LoginStatus } | undefined;
+  if (!row) return null;
+  return { status: row.status, projects: (grants.results as Array<{ name: string }>).map((g) => g.name) };
 }
 
 export async function recordPoll(db: D1Database, id: string, at: number, interval: number): Promise<void> {

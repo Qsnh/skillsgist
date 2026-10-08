@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { approveLogin } from "../src/db/logins";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
-import { env, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject } from "./helpers";
+import { env, follow, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject } from "./helpers";
 
 async function startDevice(fields: Record<string, string> = {}) {
   const res = await SELF.fetch(`${ORIGIN}/api/oauth/device`, {
@@ -18,6 +18,11 @@ const grants = async () =>
   (await env.DB.prepare("SELECT project FROM cli_login_projects ORDER BY project").all<{ project: string }>()).results.map((r) => r.project);
 
 const status = async () => (await env.DB.prepare("SELECT status FROM cli_logins").first<{ status: string }>())?.status;
+
+const loginId = async () => (await env.DB.prepare("SELECT id FROM cli_logins").first<{ id: string }>())!.id;
+
+const failures = async () =>
+  (await env.DB.prepare("SELECT COUNT(*) AS n FROM device_code_attempts").first<{ n: number }>())?.n;
 
 beforeEach(async () => {
   await resetDb();
@@ -75,6 +80,31 @@ describe("approving", () => {
     expect(html).toContain('name="decision" value="deny"');
   });
 
+  it("groups the project checkboxes under a legend", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const html = await (await postForm("/device", cookie, { code: user_code })).text();
+    expect(html).toMatch(
+      /<fieldset class="cf-fieldset"><legend class="sr-only">Projects it may install from<\/legend><div class="cf-choices">[\s\S]*?value="default"[\s\S]*?<\/fieldset>/,
+    );
+  });
+
+  it("labels the request time as UTC and names the country it came from", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const at = Date.UTC(2026, 8, 27, 14, 5);
+    const show = async (country: string | null, extra = "") => {
+      await env.DB.prepare("UPDATE cli_logins SET request_country = ?, created_at = ?").bind(country, at).run();
+      return (await postForm("/device", `${cookie}${extra}`, { code: user_code })).text();
+    };
+    const html = await show("JP");
+    expect(html).toContain(`<time datetime="${new Date(at).toISOString()}">Sep 27, 2026, 14:05 UTC</time>`);
+    expect(html).toContain('<dd class="cf-row-value">Japan</dd>');
+    expect(await show("JP", `; ${LOCALE_COOKIE}=ja`)).toContain('<dd class="cf-row-value">日本</dd>');
+    expect(await show("T1")).toContain('<dd class="cf-row-value">Tor network</dd>');
+    for (const unknown of ["XX", null]) expect(await show(unknown)).toContain('<dd class="cf-row-value">Unknown</dd>');
+  });
+
   it("grants only the ticked projects the user is in, then says to return to the terminal", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     await joinProject(user.id, "team-b");
@@ -82,8 +112,11 @@ describe("approving", () => {
     const res = await postFields("/device", cookie, [
       ["code", user_code], ["decision", "approve"], ["project", "team-b"], ["project", "team-c"], ["project", "default"],
     ]);
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain("Return to your terminal");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/device/${await loginId()}`);
+    const done = await (await follow(res, cookie)).text();
+    expect(done).toContain("It can now install the private skills of Default and Team B.");
+    expect(done).toContain("Return to your terminal");
     expect(await grants()).toEqual(["default", "team-b"]);
     expect(await status()).toBe("approved");
   });
@@ -112,9 +145,55 @@ describe("approving", () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
     const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain("Request denied");
+    expect(res.status).toBe(302);
+    expect(await (await follow(res, cookie)).text()).toContain("Request denied");
     expect(await status()).toBe("denied");
+  });
+
+  it("shows the result again on reload without counting a wrong code, and only to the person who decided", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const bob = await seedAndLogin({ username: "bob" });
+    const { user_code } = await startDevice();
+    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
+    const result = res.headers.get("Location")!;
+    for (let i = 0; i < 6; i++) {
+      const again = await get(result, cookie);
+      expect(again.status).toBe(200);
+      expect(await again.text()).toContain("Computer approved");
+    }
+    await env.DB.prepare("UPDATE cli_logins SET status = 'active'").run();
+    expect(await (await get(result, cookie)).text()).toContain("Computer approved");
+    expect(await failures()).toBe(0);
+    expect((await postForm("/device", cookie, { code: "BBBB-BBBB" })).status).toBe(400);
+    expect(await failures()).toBe(1);
+
+    for (const [path, who] of [[result, bob.cookie], ["/device/nope", cookie]] as const) {
+      const elsewhere = await get(path, who);
+      expect(elsewhere.status).toBe(302);
+      expect(elsewhere.headers.get("Location")).toBe("/device");
+    }
+    expect((await get(result)).headers.get("Location")).toBe("/login");
+  });
+
+  it("sends a reload back to code entry once a denied request is gone", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
+    const result = res.headers.get("Location")!;
+    expect(await (await get(result, cookie)).text()).toContain("Request denied");
+    await env.DB.prepare("DELETE FROM cli_logins").run();
+    expect((await get(result, cookie)).headers.get("Location")).toBe("/device");
+  });
+
+  it("does not let an admin grant a project they are not a member of", async () => {
+    const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
+    const { user_code } = await startDevice({ scope: "project:team-b" });
+    const confirm = await (await postForm("/device", cookie, { code: user_code })).text();
+    expect(confirm).not.toContain('value="team-b"');
+    const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "team-b"]]);
+    expect(res.status).toBe(400);
+    expect(await grants()).toEqual([]);
+    expect(await status()).toBe("pending");
   });
 
   it("does not claim success when the code was already approved elsewhere", async () => {

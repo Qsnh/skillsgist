@@ -3,7 +3,9 @@ import { currentUser, requireUser } from "../auth";
 import type { AppEnv } from "../auth";
 import { normalizeUserCode } from "../credentials";
 import { page } from "../csrf";
-import { approveLogin, codeEntryLocked, denyLogin, getPendingLoginByUserCode, recordCodeFailure } from "../db/logins";
+import {
+  approveLogin, codeEntryLocked, denyLogin, getDecidedLogin, getPendingLoginByUserCode, recordCodeFailure,
+} from "../db/logins";
 import type { Viewer } from "../db/queries";
 import { localeOf, messages } from "../i18n";
 import { formatList } from "../i18n/format";
@@ -53,10 +55,10 @@ deviceRoutes.post("/device", requireUser, async (c) => {
   }
   const decision = values(body.decision)[0];
   if (decision === "deny") {
-    if (!(await denyLogin(c.env.DB, login.id, now))) {
+    if (!(await denyLogin(c.env.DB, login.id, user.id, now))) {
       return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
     }
-    return page(c, <DeviceDonePage user={user} projects={null} />);
+    return c.redirect(`/device/${login.id}`, 302);
   }
   if (decision === "approve") {
     const chosen = ownProjects(user, values(body.project));
@@ -66,8 +68,15 @@ deviceRoutes.post("/device", requireUser, async (c) => {
     if (!(await approveLogin(c.env.DB, login.id, user.id, chosen, now))) {
       return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
     }
-    const names = user.memberships.filter((m) => chosen.includes(m.project)).map((m) => m.project_name);
-    return page(c, <DeviceDonePage user={user} projects={formatList(localeOf(c), names)} />);
+    return c.redirect(`/device/${login.id}`, 302);
   }
   return page(c, <DeviceConfirmPage user={user} login={login} code={code} checked={preselected(user, login.requested_scope)} />);
+});
+
+deviceRoutes.get("/device/:id", requireUser, async (c) => {
+  const user = c.get("user");
+  const login = await getDecidedLogin(c.env.DB, c.req.param("id"), user.id);
+  if (login?.status === "denied") return page(c, <DeviceDonePage user={user} projects={null} />);
+  if (!login || login.projects.length === 0) return c.redirect("/device", 302);
+  return page(c, <DeviceDonePage user={user} projects={formatList(localeOf(c), login.projects)} />);
 });

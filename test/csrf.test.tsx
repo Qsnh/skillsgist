@@ -91,6 +91,7 @@ const READ_ONLY_GETS = new Set([
   "GET /setup",
   "GET /login",
   "GET /device",
+  "GET /device/:id",
   "GET /me",
   "GET /admin/users",
   "GET /admin/users/new",

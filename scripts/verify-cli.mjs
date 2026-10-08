@@ -509,7 +509,14 @@ try {
   const confirmPage = await postPage("/device", { code: userCode });
   if (confirmPage.status !== 200) throw new Error(`POST /device with the code answered ${confirmPage.status}`);
   const approvePage = await postPage("/device", { code: userCode, decision: "approve", project: "default" });
-  if (approvePage.status !== 200) throw new Error(`POST /device approve answered ${approvePage.status}`);
+  const approvedAt = approvePage.headers.get("location") ?? "";
+  if (approvePage.status !== 302 || !approvedAt.startsWith("/device/")) {
+    throw new Error(`POST /device approve answered ${approvePage.status} ${approvedAt}`);
+  }
+  for (let reload = 0; reload < 2; reload++) {
+    const approvedHtml = await (await fetch(`${ORIGIN}${approvedAt}`, { headers: { Cookie: cookie } })).text();
+    if (!approvedHtml.includes("Computer approved")) throw new Error(`${approvedAt} does not say the computer was approved`);
+  }
 
   const { code: loginExit, out: loginOut } = await loginPromise;
   if (loginExit !== 0 || !loginOut.includes("projects: default")) {

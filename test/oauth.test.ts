@@ -151,8 +151,9 @@ describe("POST /api/oauth/token", () => {
   });
 
   it("tells the CLI a request was denied, once", async () => {
+    const { user } = await seedUser({ username: "alice" });
     const { device_code, user_code } = await start();
-    await denyLogin(env.DB, (await loginRow(user_code)).id, Date.now());
+    await denyLogin(env.DB, (await loginRow(user_code)).id, user.id, Date.now());
     expect(await (await poll(device_code)).json()).toEqual({ error: "access_denied" });
     expect(await (await poll(device_code)).json()).toEqual({ error: "invalid_grant" });
   });

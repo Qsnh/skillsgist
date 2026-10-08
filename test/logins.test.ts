@@ -91,9 +91,9 @@ describe("approving and claiming", () => {
     await pending();
     expect(await logins.approveLogin(env.DB, "l1", user.id, ["default"], NOW + 600_000)).toBe(false);
     await pending({ id: "l2", userCode: "CDFG-HJKL" });
-    expect(await logins.denyLogin(env.DB, "l2", NOW)).toBe(true);
+    expect(await logins.denyLogin(env.DB, "l2", user.id, NOW)).toBe(true);
     expect(await logins.approveLogin(env.DB, "l2", user.id, ["default"], NOW)).toBe(false);
-    expect((await row("l2"))?.status).toBe("denied");
+    expect(await row("l2")).toMatchObject({ status: "denied", user_id: user.id });
     expect(await grants("l2")).toEqual([]);
   });
 

@@ -1,6 +1,8 @@
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
-import { formatStamp } from "../i18n/format";
+import type { Messages } from "../i18n/en";
+import { formatRegion, formatStamp } from "../i18n/format";
+import type { Locale } from "../i18n/locales";
 import type { CliLoginRow } from "../db/logins";
 import type { Viewer } from "../db/queries";
 import { projectPath } from "../paths";
@@ -27,6 +29,12 @@ export function DeviceCodePage(props: { user: Viewer; code: string; error?: stri
       </div>
     </Layout>
   );
+}
+
+function requestPlace(t: Messages, locale: Locale, country: string | null): string {
+  if (country === "T1") return t.device.tor;
+  if (!country || country === "XX") return t.device.unknownPlace;
+  return formatRegion(locale, country) ?? country;
 }
 
 export function DeviceConfirmPage(props: {
@@ -57,11 +65,13 @@ export function DeviceConfirmPage(props: {
               </div>
               <div class="cf-row">
                 <dt class="cf-row-label">{t.device.requestedAt}</dt>
-                <dd class="cf-row-value">{formatStamp(locale, login.created_at)}</dd>
+                <dd class="cf-row-value">
+                  <time datetime={new Date(login.created_at).toISOString()}>{formatStamp(locale, login.created_at)}</time>
+                </dd>
               </div>
               <div class="cf-row">
                 <dt class="cf-row-label">{t.device.from}</dt>
-                <dd class="cf-row-value">{login.request_country ?? t.device.unknownPlace}</dd>
+                <dd class="cf-row-value">{requestPlace(t, locale, login.request_country)}</dd>
               </div>
               <div class="cf-row">
                 <dt class="cf-row-label">{t.device.code}</dt>
@@ -73,7 +83,8 @@ export function DeviceConfirmPage(props: {
             {user.memberships.length === 0 ? (
               <p class="cf-hint">{t.device.noProjects}</p>
             ) : (
-              <>
+              <fieldset class="cf-fieldset">
+                <legend class="sr-only">{t.device.projects}</legend>
                 <div class="cf-choices">
                   {user.memberships.map((m) => (
                     <label class="cf-choice">
@@ -90,7 +101,7 @@ export function DeviceConfirmPage(props: {
                   ))}
                 </div>
                 <p class="cf-hint">{t.device.projectsHint}</p>
-              </>
+              </fieldset>
             )}
             <div class="cf-actions">
               {user.memberships.length > 0 ? (

@@ -266,6 +266,7 @@ export const zhTW: Messages = {
     requestedAt: "發起時間",
     from: "來自",
     unknownPlace: "不明",
+    tor: "Tor 網路",
     projects: "允許安裝的專案",
     projectsHint: "至少勾選一個。之後隨時可以在帳號頁撤銷這台電腦。",
     noProjects: "你尚未加入任何專案，沒有可以核准的內容。請拒絕這次請求，並請管理員將你加入專案。",

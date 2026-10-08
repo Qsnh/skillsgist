@@ -266,6 +266,7 @@ export const zhCN: Messages = {
     requestedAt: "发起时间",
     from: "来自",
     unknownPlace: "未知",
+    tor: "Tor 网络",
     projects: "允许安装的项目",
     projectsHint: "至少勾选一个。之后随时可以在账号页吊销这台电脑。",
     noProjects: "你还不在任何项目里，没有可以批准的内容。请拒绝这次请求，并请管理员把你加入项目。",
