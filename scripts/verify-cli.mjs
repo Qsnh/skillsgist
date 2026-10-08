@@ -470,17 +470,17 @@ try {
   await publishMarkdown("demo-skill", "The verify-other copy of demo-skill.", "private", "verify-other");
   log("published a second demo-skill (private) into project verify-other");
 
+  const otherKeyEnv = { SKILLSGIST_HOST: ORIGIN, SKILLSGIST_INSTALL_KEY: otherKey };
   const { code: wrongCode, out: wrongOut } = await cli(
-    ["add", `${ORIGIN}/p/default`, "-g", "-y", "--copy"],
-    isolatedEnv(tempDir(), { SKILLSGIST_HOST: ORIGIN, SKILLSGIST_INSTALL_KEY: otherKey }),
+    ["add", `${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`, "-g", "-y", "--copy"],
+    isolatedEnv(tempDir(), otherKeyEnv),
   );
   if (wrongCode === 0 || !wrongOut.includes("is for project verify-other")) {
-    throw new Error(`installing /p/default with verify-other's key should fail naming its project, got code ${wrongCode}:\n${wrongOut}`);
+    throw new Error(`installing default's private demo-skill with verify-other's key should fail naming its project, got code ${wrongCode}:\n${wrongOut}`);
   }
-  const wrongProjectHome = await installTo(`${ORIGIN}/p/verify-other`, [], {
-    SKILLSGIST_HOST: ORIGIN,
-    SKILLSGIST_INSTALL_KEY: otherKey,
-  });
+  const publicWithOtherKey = await installTo(`${ORIGIN}/p/default`, [], otherKeyEnv);
+  expectInstalled(publicWithOtherKey, ["other-skill"], "default's public skills with verify-other's install key");
+  const wrongProjectHome = await installTo(`${ORIGIN}/p/verify-other`, [], otherKeyEnv);
   expectInstalled(wrongProjectHome, ["demo-skill"], "verify-other's install key");
   const wrongProjectInstalled = findFile(wrongProjectHome, join("demo-skill", "SKILL.md"));
   if (!wrongProjectInstalled || !readFileSync(wrongProjectInstalled, "utf8").includes("The verify-other copy of demo-skill.")) {

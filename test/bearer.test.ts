@@ -8,6 +8,7 @@ import {
 } from "./helpers";
 
 const INDEX = "/p/default/.well-known/agent-skills/index.json";
+const SKILL_INDEX = (slug: string) => `/p/default/.well-known/agent-skills/${slug}/.well-known/agent-skills/index.json`;
 const DAY = 24 * 60 * 60 * 1000;
 
 const names = async (res: Response) => (await res.json<{ skills: Array<{ name: string }> }>()).skills.map((s) => s.name);
@@ -40,16 +41,32 @@ describe("install keys", () => {
     expectPrivate(artifact);
   });
 
-  it("answer another project with 403 wrong_project naming their own", async () => {
-    const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
+  it("open another project's public skills, and answer its private ones with 403 wrong_project naming their own", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     await joinProject(user.id, "team-b");
     const key = await installKey(user.id, "team-b");
-    for (const path of [INDEX, await privateArtifact()]) {
+    const index = await fetchWith(INDEX, bearer(key));
+    expect(index.status).toBe(200);
+    expectPrivate(index);
+    expect(await names(index)).toEqual(["demo-skill"]);
+    expect(await names(await fetchWith(SKILL_INDEX("demo-skill"), bearer(key)))).toEqual(["demo-skill"]);
+    const open = await fetchWith(await privateArtifact("demo-skill"), bearer(key));
+    expect(open.status).toBe(200);
+    expect(open.headers.get("Cache-Control")).toBe("public, max-age=300");
+    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
       const res = await fetchWith(path, bearer(key));
       expect(res.status, path).toBe(403);
       expectPrivate(res);
       expect(await res.json()).toEqual({ error: "wrong_project", project: "team-b" });
     }
+  });
+
+  it("answer another project with no public skills with 403 wrong_project", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
+    await joinProject(user.id, "team-b");
+    const res = await fetchWith(INDEX, bearer(await installKey(user.id, "team-b")));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "wrong_project", project: "team-b" });
   });
 
   it("stop at once when reset or when the membership is gone", async () => {
@@ -66,17 +83,19 @@ describe("install keys", () => {
 });
 
 describe("device sign-ins", () => {
-  it("open the granted projects, refuse a member's other projects with project_not_granted, and show others only public skills", async () => {
+  it("open the granted projects, show public skills elsewhere, and refuse a member's other private skills with project_not_granted", async () => {
     const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-b" });
     await publish(bob.cookie, OTHER_MD, "private", "team-b");
     await joinProject(user.id, "team-b");
     const { token } = await signInDevice(user.id, ["team-b"]);
     expect(await names(await fetchWith("/p/team-b/.well-known/agent-skills/index.json", bearer(token)))).toEqual(["other-skill"]);
-    const refused = await fetchWith(INDEX, bearer(token));
-    expect(refused.status).toBe(403);
-    expect(await refused.json()).toEqual({ error: "project_not_granted", project: "default" });
-    expect((await fetchWith(await privateArtifact(), bearer(token))).status).toBe(403);
+    expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
+    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
+      const refused = await fetchWith(path, bearer(token));
+      expect(refused.status, path).toBe(403);
+      expect(await refused.json()).toEqual({ error: "project_not_granted", project: "default" });
+    }
 
     const outsider = await signInDevice(bob.user.id, ["team-b"]);
     const open = await fetchWith(INDEX, bearer(outsider.token));
@@ -110,7 +129,8 @@ describe("device sign-ins", () => {
     expect(await (await fetchWith("/api/whoami", bearer(token))).json()).toEqual({ user: "root", kind: "login", projects: ["team-b"] });
 
     const key = await installKey(root.user.id, "team-b");
-    const refused = await fetchWith(INDEX, bearer(key));
+    expect(await names(await fetchWith(INDEX, bearer(key)))).toEqual(["demo-skill"]);
+    const refused = await fetchWith(await privateArtifact(), bearer(key));
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: "wrong_project", project: "team-b" });
   });
@@ -122,7 +142,8 @@ describe("device sign-ins", () => {
     await postForm(`/p/default/members/${user.id}/remove`, admin.cookie);
     expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
     await joinProject(user.id, "default");
-    expect((await fetchWith(INDEX, bearer(token))).status).toBe(403);
+    expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
+    expect((await fetchWith(await privateArtifact(), bearer(token))).status).toBe(403);
   });
 
   it("stop working after 90 days unused, and record use at most once an hour", async () => {
@@ -156,12 +177,27 @@ describe("credentials the registry refuses or ignores", () => {
     ["Bearer with no token", "Bearer"],
     ["two tokens", "Bearer a b"],
   ])("answers %s with 401 and a Bearer challenge, uncacheable", async (_label, header) => {
-    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
     const res = await fetchWith(INDEX, { Authorization: header });
     expect(res.status).toBe(401);
     expect(res.headers.get("WWW-Authenticate")).toBe('Bearer error="invalid_token"');
     expectPrivate(res);
     expect(await res.json()).toEqual({ error: "invalid_token" });
+  });
+
+  it("serves public skills to a bad credential and answers private ones with 401", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
+    const junk = bearer(`sgd_${"0".repeat(64)}`);
+    const index = await fetchWith(INDEX, junk);
+    expect(index.status).toBe(200);
+    expectPrivate(index);
+    expect(await names(index)).toEqual(["demo-skill"]);
+    expect((await fetchWith(await privateArtifact("demo-skill"), junk)).status).toBe(200);
+    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
+      const res = await fetchWith(path, junk);
+      expect(res.status, path).toBe(401);
+      expect(res.headers.get("WWW-Authenticate")).toBe('Bearer error="invalid_token"');
+    }
   });
 
   it("treats another Authorization scheme as anonymous", async () => {

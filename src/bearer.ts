@@ -10,7 +10,7 @@ export type BearerAccess =
   | { kind: "login"; loginId: string; username: string; projects: string[]; memberOf: string[] }
   | { kind: "install_key"; username: string; project: string };
 
-export type ProjectGate = { kind: "all" } | { kind: "public" } | { kind: "refuse"; response: Response };
+export type ProjectGate = { kind: "all" } | { kind: "public"; refusal: Response | null };
 
 export const PRIVATE_HEADERS = { "Cache-Control": "private, no-store", Vary: "Authorization" };
 
@@ -57,17 +57,18 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
 export function projectGate(access: BearerAccess, project: string): ProjectGate {
   switch (access.kind) {
     case "anonymous":
-      return { kind: "public" };
+      return { kind: "public", refusal: null };
     case "invalid":
-      return { kind: "refuse", response: invalidToken() };
+      return { kind: "public", refusal: invalidToken() };
     case "install_key":
       return access.project === project
         ? { kind: "all" }
-        : { kind: "refuse", response: forbidden("wrong_project", access.project) };
+        : { kind: "public", refusal: forbidden("wrong_project", access.project) };
     case "login":
       if (access.projects.includes(project)) return { kind: "all" };
-      return access.memberOf.includes(project)
-        ? { kind: "refuse", response: forbidden("project_not_granted", project) }
-        : { kind: "public" };
+      return { kind: "public", refusal: access.memberOf.includes(project) ? forbidden("project_not_granted", project) : null };
   }
 }
+
+export const unavailable = (gate: ProjectGate): Response =>
+  (gate.kind === "public" && gate.refusal) || privateNotFound();
