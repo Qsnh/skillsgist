@@ -126,9 +126,9 @@ export async function activateLogin(db: D1Database, id: string, tokenHash: strin
   const result = await db
     .prepare(
       `UPDATE cli_logins SET status = 'active', token_hash = ?, device_code_hash = NULL, last_used_at = ?
-       WHERE id = ? AND status = 'approved'`,
+       WHERE id = ? AND status = 'approved' AND expires_at > ?`,
     )
-    .bind(tokenHash, now, id)
+    .bind(tokenHash, now, id, now)
     .run();
   return result.meta.changes === 1;
 }

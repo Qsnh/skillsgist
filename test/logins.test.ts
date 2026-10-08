@@ -108,6 +108,14 @@ describe("approving and claiming", () => {
     expect(await row("l1")).toMatchObject({ status: "active", token_hash: "token-hash", device_code_hash: null, last_used_at: NOW + 5 });
     expect(await logins.loginProjects(env.DB, "l1")).toEqual(["default"]);
   });
+
+  it("refuses to activate an expired device sign-in", async () => {
+    const { user } = await seedUser({ username: "alice" });
+    await pending();
+    await logins.approveLogin(env.DB, "l1", user.id, ["default"], NOW);
+    expect(await logins.activateLogin(env.DB, "l1", "token-hash", NOW + 600_000)).toBe(false);
+    expect((await row("l1"))?.status).toBe("approved");
+  });
 });
 
 describe("access and cleanup", () => {
