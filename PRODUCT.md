@@ -76,7 +76,6 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
 - `README.md` — who skillsgist is for, what it does, and the one-click deploy. `docs/usage.md` and `docs/deploy.md` — real install, publish, deploy, and user-management instructions.
 - `npm run verify:cli` (`scripts/verify-cli.mjs`) — a contract test run against the real skillsgist CLI: install-key headers, `skillsgist login` device sign-in and `logout`, rejection of a wrong-project key for private skills while it still installs public ones, rejection of retired `/i/` addresses, and the stock `npx skills` binary installing a public skill, the concrete proof behind the discovery protocol claim.
 - `test/` — the unit and integration suite, run under `@cloudflare/vitest-pool-workers`.
-- `docs/superpowers/plans/` — implementation plans for shipped work.
 
 **Absent, and must not be fabricated:** no customers, users, testimonials, case studies, press, benchmarks, uptime figures, install counts, pricing, or hosted-service offering. There is no logo or brand asset. Nothing states that a public instance is deployed or that anyone outside the author's team uses it.
 
