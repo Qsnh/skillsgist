@@ -21,7 +21,6 @@ const SKILLS = [
 ];
 const SHOTS = [
   { path: "/", width: 1280, height: 900, out: "docs/images/home.png" },
-  { path: "/p/default/s/release-notes", width: 1440, height: 940, out: "docs/images/skill.png" },
 ];
 
 const work = mkdtempSync(join(tmpdir(), "skillsgist-screenshots-"));
