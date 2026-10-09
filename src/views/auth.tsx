@@ -95,6 +95,7 @@ export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin:
   const locale = useLocale();
   const now = Date.now();
   const t = useT();
+  const live = props.logins.filter((login) => !loginExpired(login.last_used_at, now)).length;
   return (
     <Layout title={t.layout.account} user={props.user}>
       <div class="cf-narrow">
@@ -124,7 +125,7 @@ export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin:
             </div>
           </Panel>
 
-          <Panel title={t.auth.cliLoginsPanel} aside={<span class="cf-count">{props.logins.length}</span>} flush>
+          <Panel title={t.auth.cliLoginsPanel} aside={<span class="cf-count">{live}</span>} flush>
             {props.logins.length === 0 ? (
               <div class="cf-panel-body">
                 <p class="cf-hint">{t.auth.noCliLogins(<code>npx skillsgist login {props.origin}</code>)}</p>

@@ -203,12 +203,16 @@ describe("CLI sign-ins on /me", () => {
     expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
   });
 
-  it("marks a computer with no usable project, and one unused for 90 days, each on its own row", async () => {
+  it("marks a computer with no usable project, and one unused for 90 days, each on its own row, and counts only live ones", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await signInDevice(user.id, [], Date.now(), "no-projects");
+    const orphan = await signInDevice(user.id, ["default"], Date.now(), "no-projects");
+    await env.DB.prepare("DELETE FROM cli_login_projects WHERE login_id = ?").bind(orphan.id).run();
     await signInDevice(user.id, ["default"], Date.now() - 91 * 24 * 60 * 60 * 1000, "stale");
     await signInDevice(user.id, ["default"], Date.now(), "healthy");
     const html = await (await get("/me", cookie)).text();
+    expect(html).toContain('<h2 class="cf-panel-title">CLI sign-ins</h2><span class="cf-count">2</span>');
+    const admin = await seedAndLogin({ username: "root", role: "admin" });
+    expect(await (await get(`/admin/users/${user.id}`, admin.cookie)).text()).toContain("and 2 CLI sign-ins.");
     const rows = html.split('<li class="cf-row cf-member">').slice(1);
     expect(rows).toHaveLength(3);
     const tags = (name: string) => {
