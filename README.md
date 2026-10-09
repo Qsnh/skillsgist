@@ -245,7 +245,7 @@ npm run typecheck
 npm run verify:cli
 ```
 
-`npm run verify:cli` uses the published CLI; set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build.
+`npm run verify:cli` uses the published CLI; set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build, and quote a path that has spaces, as in `SKILLSGIST_CLI='node "../my cli/dist/cli.js"'`.
 
 ## Contributing
 

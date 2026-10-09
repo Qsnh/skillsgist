@@ -99,10 +99,27 @@ function inTerminal(command, opts = {}) {
   });
 }
 
-const CLI = (process.env.SKILLSGIST_CLI ?? "npx --yes skillsgist@latest")
-  .trim()
-  .split(/\s+/)
-  .map((part) => (/^\.\.?\//.test(part) ? resolve(part) : part));
+function commandWords(line) {
+  const words = [];
+  let word;
+  for (const [, space, double, single, bare, stray] of line.matchAll(/(\s+)|"((?:[^"\\]|\\.)*)"|'([^']*)'|((?:[^\s"'\\]|\\.)+)|(.)/gs)) {
+    if (stray !== undefined) throw new Error(`SKILLSGIST_CLI has an unmatched ${stray}: ${line}`);
+    if (space !== undefined) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else {
+      word = (word ?? "") + (single ?? (double ?? bare).replace(/\\(.)/gs, "$1"));
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+const shellWord = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`);
+
+const CLI = commandWords(process.env.SKILLSGIST_CLI?.trim() || "npx --yes skillsgist@latest").map((part) =>
+  /^\.\.?\//.test(part) ? resolve(part) : part,
+);
 
 const DEFAULT_CLI_TIMEOUT_MS = 180_000;
 
@@ -569,7 +586,7 @@ try {
   if (!shown) throw new Error("the skill page shows no agent prompt");
   const expectedPrompt = `npx -y skillsgist add ${ORIGIN}/p/default/.well-known/agent-skills/demo-skill --skill demo-skill -g -y`;
   if (shown !== expectedPrompt) throw new Error(`the agent prompt should be "${expectedPrompt}", got "${shown}"`);
-  const command = shown.replace("npx -y skillsgist", CLI.join(" "));
+  const command = shown.replace("npx -y skillsgist", () => CLI.map(shellWord).join(" "));
   for (const [where, agentEnv, agentDir] of [
     ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
     ["inside an agent the CLI does not know", {}, null],
