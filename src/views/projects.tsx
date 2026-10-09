@@ -2,7 +2,7 @@ import { canPublishIn, membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
-import { installBase, projectPath, projectSettingsPath } from "../paths";
+import { projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
 import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import { NoMatches, NoSkillsYet, SearchForm, SkillRegistry } from "./skills";
@@ -126,7 +126,7 @@ export function ProjectPage(props: {
   const { user, project } = props;
   const path = projectPath(project.slug);
   const membership = user ? membershipIn(user, project.slug) : undefined;
-  const base = installBase(props.origin, project.slug, membership !== undefined || props.hasPublicSkills);
+  const base = membership !== undefined || props.hasPublicSkills ? `${props.origin}${path}` : null;
   return (
     <Layout title={project.name} user={user} bare>
       <section class="cf-hero" aria-labelledby="hero-title">

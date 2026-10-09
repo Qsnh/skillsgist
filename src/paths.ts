@@ -12,10 +12,6 @@ export function projectSettingsPath(project: string): string {
   return `${projectPath(project)}/settings`;
 }
 
-export function installBase(origin: string, project: string, reachable: boolean): string | null {
-  return reachable ? `${origin}${projectPath(project)}` : null;
-}
-
 export function userSettingsPath(id: string): string {
   return `/admin/users/${id}`;
 }

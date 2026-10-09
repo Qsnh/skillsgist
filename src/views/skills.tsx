@@ -2,7 +2,7 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
-import { installBase, projectPath, skillPath } from "../paths";
+import { projectPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -285,19 +285,19 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
-function skillsgistAdd(url: string) {
+function addCommand(url: string) {
   return `skillsgist add ${url}`;
 }
 
-function KeyNote(props: { note: unknown }) {
+function LoginNote(props: { note: unknown }) {
   return props.note ? <p class="cf-install-note">{props.note}</p> : null;
 }
 
 function Command(props: { url: string; note: unknown }) {
   return (
     <>
-      <CodeBlock raised>npx {skillsgistAdd(props.url)}</CodeBlock>
-      <KeyNote note={props.note} />
+      <CodeBlock raised>npx {addCommand(props.url)}</CodeBlock>
+      <LoginNote note={props.note} />
     </>
   );
 }
@@ -322,9 +322,9 @@ function Install(props: { url: string; slug: string; commandNote: unknown; promp
       </div>
       <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
         <CodeBlock raised prompt={false}>
-          {t.skills.agentPrompt(`npx -y ${skillsgistAdd(props.url)} --skill ${props.slug} -g -y`)}
+          {t.skills.agentPrompt(`npx -y ${addCommand(props.url)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
-        <KeyNote note={props.promptNote} />
+        <LoginNote note={props.promptNote} />
       </div>
     </div>
   );
@@ -347,7 +347,7 @@ export function SkillPage(props: {
   const path = skillPath(skill);
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
   const isPublic = skill.visibility === "public";
-  const base = installBase(props.origin, skill.project, isPublic || membership !== undefined);
+  const base = isPublic || membership !== undefined ? `${props.origin}${projectPath(skill.project)}` : null;
   const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
   const login = <code>npx skillsgist login {props.origin}</code>;
   const commandNote = isPublic ? null : t.skills.commandLoginNote(login);
