@@ -26,7 +26,7 @@ src/
   render/         SKILL.md to HTML
 migrations/       D1 schema
 public/           static assets and fonts
-scripts/          verify-cli, reset-password and test fixture tools
+scripts/          verify-cli, reset-password, logo export and test fixture tools
 test/             unit and integration tests
 ```
 
@@ -48,6 +48,10 @@ npm run verify:cli
 ```
 
 `npm run verify:cli` uses the published CLI; set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build, and quote a path that has spaces, as in `SKILLSGIST_CLI='node "../my cli/dist/cli.js"'`.
+
+## Logo and images
+
+`scripts/logo.html` draws the mark on a canvas and previews it at every size. `npm run logo` renders that page in headless Chrome and writes `public/logo.png` (144px, so the 48px mark in the sign-in frame is sharp at 3x; shown at 24px in the nav, 18px in the footer and 48px in the sign-in frame), `public/favicon.png` (64px), `public/favicon.ico` (16, 32 and 48px, for requests that never read a page), `public/apple-touch-icon.png` (180px, square, with the cuts and keyhole filled Paper (#fdfdfc) because iOS turns transparency black) and `docs/images/logo.png` (256px, for the README), and captures `scripts/social-preview.html` twice: as `docs/images/social-preview.png` (1280×640, for GitHub) and, without its command box, as `public/og.png` (1200×630, the `og:image` of every page). Change the drawing, then rerun it; never edit the images by hand.
 
 ## Pull requests
 
