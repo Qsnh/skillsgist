@@ -72,12 +72,6 @@ git merge upstream/main
 git push
 ```
 
-### Upgrading to the release with sign-ins
-
-The migrations in this release replace every install key with a new `sgi_` key and delete the `/i/` install addresses. Old `npx skills add https://…/i/<key>` commands and agent prompts stop working at once. Run `npx skillsgist login <origin>` to sign a computer in, or copy the new key for CI from the project's settings page. The stock `npx skills` keeps installing public skills; it cannot install private ones. Until you upgrade an instance, keep using `npx skillsgist@0.4.1` against it.
-
-`npm run deploy` applies the migrations before it deploys the new Worker, so if the deploy fails partway through, finish it before anyone uses the site, or reset the install keys afterward — between the two steps, the old Worker is still running and shows the new keys inside the install commands under the now-removed `/i/` routes. A repository whose `skills-lock.json` still records an old `/i/` address needs those skills reinstalled from the `/p/<project>` address, because `npx skills update` can no longer reach the old one.
-
 ## Reset a forgotten password
 
 An admin can set a new password for any account on that account's settings page. If no admin can sign in, reset the password from a terminal instead:
