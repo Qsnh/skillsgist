@@ -1,8 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { approveLogin } from "../src/db/logins";
+import { activateLogin, approveLogin } from "../src/db/logins";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
+import { en } from "../src/i18n/en";
 import { env, follow, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject } from "./helpers";
 
 async function startDevice(fields: Record<string, string> = {}) {
@@ -22,7 +23,9 @@ const status = async () => (await env.DB.prepare("SELECT status FROM cli_logins"
 const loginId = async () => (await env.DB.prepare("SELECT id FROM cli_logins").first<{ id: string }>())!.id;
 
 const failures = async () =>
-  (await env.DB.prepare("SELECT COUNT(*) AS n FROM device_code_attempts").first<{ n: number }>())?.n;
+  (await env.DB.prepare("SELECT COALESCE(SUM(failures), 0) AS n FROM device_code_attempts").first<{ n: number }>())?.n;
+
+const switcher = (html: string) => /<form method="post" action="\/lang"[\s\S]*?<\/form>/.exec(html)?.[0] ?? "";
 
 beforeEach(async () => {
   await resetDb();
@@ -51,6 +54,13 @@ describe("reaching the page", () => {
       });
     expect((await signIn("/device?code=BCDF-GHJK")).headers.get("Location")).toBe("/device?code=BCDF-GHJK");
     expect((await signIn("//evil.example/")).headers.get("Location")).toBe("/");
+  });
+
+  it("sends a code typed after the session ended through sign-in and back to the code", async () => {
+    const res = await postForm("/device", null, { code: "bcdf-ghjk", decision: "approve", project: "default" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/login?next=${encodeURIComponent("/device?code=bcdf-ghjk")}`);
+    expect((await postForm("/device", null, {})).headers.get("Location")).toBe(`/login?next=${encodeURIComponent("/device")}`);
   });
 
   it("only prefills the code from the address", async () => {
@@ -172,7 +182,7 @@ describe("approving", () => {
       expect(elsewhere.status).toBe(302);
       expect(elsewhere.headers.get("Location")).toBe("/device");
     }
-    expect((await get(result)).headers.get("Location")).toBe("/login");
+    expect((await get(result)).headers.get("Location")).toBe(`/login?next=${encodeURIComponent(result)}`);
   });
 
   it("sends a reload back to code entry once a denied request is gone", async () => {
@@ -226,6 +236,42 @@ describe("approving", () => {
     expect(await failures()).toBe(1);
   });
 
+  it("asks again when the ticked projects are gone by the time the approval is written", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    await env.DB.prepare(
+      `CREATE TRIGGER leave_mid_approval BEFORE INSERT ON cli_login_projects BEGIN
+         DELETE FROM memberships WHERE project = NEW.project AND user_id = NEW.user_id;
+         SELECT RAISE(IGNORE);
+       END`,
+    ).run();
+    try {
+      const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
+      expect(res.status).toBe(400);
+      const html = await res.text();
+      expect(html).toContain(en.device.projectsGone);
+      expect(html).toContain("You are not in any project");
+      expect(html).not.toContain('value="approve"');
+    } finally {
+      await env.DB.prepare("DROP TRIGGER leave_mid_approval").run();
+    }
+    expect(await status()).toBe("pending");
+    expect(await grants()).toEqual([]);
+    expect((await env.DB.prepare("SELECT user_id FROM cli_logins").first<{ user_id: string | null }>())?.user_id).toBeNull();
+  });
+
+  it("treats the code of a finished sign-in as unknown", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const id = await loginId();
+    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
+    expect(await activateLogin(env.DB, id, "token-hash", Date.now())).toBe(true);
+    const res = await postForm("/device", cookie, { code: user_code });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("That code is wrong or has expired");
+    expect(await (await get(`/device/${id}`, cookie)).text()).toContain("Computer approved");
+  });
+
   it("says a request expired when its confirmation page outlived it, without counting a wrong code", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
@@ -247,6 +293,26 @@ describe("wrong codes", () => {
     expect(locked.status).toBe(429);
     expect(await locked.text()).toContain("Too many wrong codes");
   });
+
+  it("answers only five of many wrong codes sent at once", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const statuses = await Promise.all(Array.from({ length: 12 }, () => postForm("/device", cookie, { code: "BBBB-BBBB" }).then((r) => r.status)));
+    expect(statuses.filter((s) => s === 400)).toHaveLength(5);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(7);
+  });
+
+  it("still sends a locked-out user to the result of a request they already answered", async () => {
+    const { user, cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const id = await loginId();
+    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
+    for (let i = 0; i < 5; i++) await postForm("/device", cookie, { code: "BBBB-BBBB" });
+    expect((await postForm("/device", cookie, { code: "BBBB-BBBB" })).status).toBe(429);
+    const res = await postForm("/device", cookie, { code: user_code });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe(`/device/${id}`);
+    expect(await (await follow(res, cookie)).text()).toContain("Computer approved");
+  });
 });
 
 describe("languages", () => {
@@ -255,5 +321,12 @@ describe("languages", () => {
     const { user_code } = await startDevice();
     const res = await postForm("/device", `${cookie}; ${LOCALE_COOKIE}=zh-CN`, { code: user_code });
     expect(await res.text()).toContain(zhCN.device.confirmTitle);
+  });
+
+  it("switches the language of the confirmation back to the code", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice();
+    const html = await (await postForm("/device", cookie, { code: user_code })).text();
+    expect(switcher(html)).toContain(`name="next" value="/device?code=${user_code}"`);
   });
 });

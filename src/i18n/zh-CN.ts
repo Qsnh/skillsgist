@@ -271,6 +271,7 @@ export const zhCN: Messages = {
     projectsHint: "至少勾选一个。之后随时可以在账号页吊销这台电脑。",
     noProjects: "你还不在任何项目里，没有可以批准的内容。请拒绝这次请求，并请管理员把你加入项目。",
     chooseProject: "至少选择一个项目",
+    projectsGone: "你已不在所勾选的项目中。请重新勾选你仍在的项目。",
     approve: "批准",
     deny: "拒绝",
     approvedTitle: "已批准这台电脑",

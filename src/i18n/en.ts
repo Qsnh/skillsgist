@@ -301,6 +301,7 @@ export const en = {
     noProjects:
       "You are not in any project, so there is nothing to approve. Deny this request and ask an admin to add you to a project.",
     chooseProject: "Choose at least one project",
+    projectsGone: "You are no longer in the projects you ticked. Tick the ones you are still in.",
     approve: "Approve",
     deny: "Deny",
     approvedTitle: "Computer approved",

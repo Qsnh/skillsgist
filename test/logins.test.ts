@@ -102,7 +102,16 @@ describe("approving and claiming", () => {
     expect(await grants("l2")).toEqual([]);
   });
 
-  it("hands the token out once and forgets the device code", async () => {
+  it("approves nothing when the approver is in none of the chosen projects", async () => {
+    const { user } = await seedUser({ username: "alice" });
+    await pending();
+    expect(await logins.approveLogin(env.DB, "l1", user.id, ["team-b", "team-c"], NOW)).toBe(false);
+    expect(await logins.approveLogin(env.DB, "l1", user.id, [], NOW)).toBe(false);
+    expect(await row("l1")).toMatchObject({ status: "pending", user_id: null, approved_at: null });
+    expect(await grants("l1")).toEqual([]);
+  });
+
+  it("hands the token out once and forgets the device code and the user code", async () => {
     const { user } = await seedUser({ username: "alice" });
     const { deviceCodeHash } = await pending();
     await logins.approveLogin(env.DB, "l1", user.id, ["default"], NOW);
@@ -110,7 +119,8 @@ describe("approving and claiming", () => {
     expect(await logins.activateLogin(env.DB, "l1", "token-hash", NOW + 5)).toBe(true);
     expect(await logins.activateLogin(env.DB, "l1", "other-hash", NOW + 6)).toBe(false);
     expect(await logins.getLoginByDeviceCodeHash(env.DB, deviceCodeHash)).toBeNull();
-    expect(await row("l1")).toMatchObject({ status: "active", token_hash: "token-hash", device_code_hash: null, last_used_at: NOW + 5 });
+    expect(await row("l1")).toMatchObject({ status: "active", token_hash: "token-hash", user_code: null, device_code_hash: null, last_used_at: NOW + 5 });
+    expect(await logins.getLoginByUserCode(env.DB, "BCDF-GHJK")).toBeNull();
     expect(await logins.loginProjects(env.DB, "l1")).toEqual(["default"]);
   });
 
@@ -162,7 +172,7 @@ describe("access and cleanup", () => {
     await deleteMembership(env.DB, "team-b", user.id);
     expect(await deleteProject(env.DB, "team-b")).toBe(true);
     expect(await grants("l1")).toEqual(["default"]);
-    await logins.recordCodeFailure(env.DB, user.id, NOW);
+    await logins.claimCodeAttempt(env.DB, user.id, NOW);
     await deleteUserReassigning(env.DB, user.id, root.id);
     expect(await row("l1")).toBeNull();
     expect(await grants("l1")).toEqual([]);
@@ -197,14 +207,29 @@ describe("access and cleanup", () => {
 describe("wrong-code lockout", () => {
   beforeEach(resetDb);
 
-  it("locks code entry after five failures within ten minutes, and unlocks when the window ends", async () => {
+  it("allows five attempts within ten minutes, and allows more when the window ends", async () => {
     const { user } = await seedUser({ username: "alice" });
-    for (let i = 0; i < 4; i++) await logins.recordCodeFailure(env.DB, user.id, NOW + i);
-    expect(await logins.codeEntryLocked(env.DB, user.id, NOW + 10)).toBe(false);
-    await logins.recordCodeFailure(env.DB, user.id, NOW + 10);
-    expect(await logins.codeEntryLocked(env.DB, user.id, NOW + 11)).toBe(true);
-    expect(await logins.codeEntryLocked(env.DB, user.id, NOW + 600_000)).toBe(false);
-    await logins.recordCodeFailure(env.DB, user.id, NOW + 600_001);
-    expect(await logins.codeEntryLocked(env.DB, user.id, NOW + 600_002)).toBe(false);
+    for (let i = 0; i < 5; i++) expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + i)).toBe(true);
+    expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 10)).toBe(false);
+    expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 599_999)).toBe(false);
+    expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 600_000)).toBe(true);
+    for (let i = 1; i < 5; i++) expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 600_000 + i)).toBe(true);
+    expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 600_010)).toBe(false);
+  });
+
+  it("gives an attempt back, so right codes never use one up", async () => {
+    const { user } = await seedUser({ username: "alice" });
+    for (let i = 0; i < 20; i++) {
+      expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + i)).toBe(true);
+      await logins.refundCodeAttempt(env.DB, user.id);
+    }
+    for (let i = 0; i < 5; i++) expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 100 + i)).toBe(true);
+    expect(await logins.claimCodeAttempt(env.DB, user.id, NOW + 200)).toBe(false);
+  });
+
+  it("lets only five of many simultaneous attempts through", async () => {
+    const { user } = await seedUser({ username: "alice" });
+    const claims = await Promise.all(Array.from({ length: 30 }, () => logins.claimCodeAttempt(env.DB, user.id, NOW)));
+    expect(claims.filter(Boolean)).toHaveLength(5);
   });
 });

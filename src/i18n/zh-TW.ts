@@ -271,6 +271,7 @@ export const zhTW: Messages = {
     projectsHint: "至少勾選一個。之後隨時可以在帳號頁撤銷這台電腦。",
     noProjects: "你尚未加入任何專案，沒有可以核准的內容。請拒絕這次請求，並請管理員將你加入專案。",
     chooseProject: "至少選擇一個專案",
+    projectsGone: "你已不在所勾選的專案中。請重新勾選你仍在的專案。",
     approve: "核准",
     deny: "拒絕",
     approvedTitle: "已核准這台電腦",
