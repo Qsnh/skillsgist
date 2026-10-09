@@ -1,5 +1,6 @@
+import { useContext } from "hono/jsx";
 import { LOGIN_IDLE_DAYS, loginExpired } from "../credentials";
-import { Form } from "../csrf";
+import { Form, OriginContext } from "../csrf";
 import type { CliLoginSummary } from "../db/logins";
 import { useLocale, useT } from "../i18n";
 import { formatAgo, formatDate, formatStamp } from "../i18n/format";
@@ -154,9 +155,10 @@ function CliLoginItem(props: { login: CliLoginSummary; now: number }) {
   );
 }
 
-export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin: string; newToken?: string; error?: string }) {
+export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; newToken?: string; error?: string }) {
   const now = Date.now();
   const t = useT();
+  const origin = useContext(OriginContext);
   const live = props.logins.filter((login) => !loginExpired(login.last_used_at, now)).length;
   return (
     <Layout title={t.layout.account} user={props.user}>
@@ -196,7 +198,7 @@ export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin:
             {props.logins.length === 0 ? (
               <div class="cf-panel-body">
                 <p class="cf-hint">{t.auth.noCliLogins}</p>
-                <CodeBlock>npx skillsgist login {props.origin}</CodeBlock>
+                <CodeBlock>npx skillsgist login {origin}</CodeBlock>
               </div>
             ) : (
               <ul class="cf-rows">

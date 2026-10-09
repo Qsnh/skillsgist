@@ -1,8 +1,7 @@
 import { Hono } from "hono";
-import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
-import { API_PREFIX, csrfToken, OAUTH_PREFIX } from "./csrf";
+import { API_PREFIX, csrfOrigin, csrfToken } from "./csrf";
 import { detectLocale, localeOf, messages } from "./i18n";
 import { deviceRoutes } from "./routes/device";
 import { languageRoutes } from "./routes/language";
@@ -28,8 +27,7 @@ app.use("*", async (c, next) => {
 });
 
 app.use("*", detectLocale);
-const originCheck = csrf();
-app.use("*", (c, next) => (c.req.path.startsWith(OAUTH_PREFIX) ? next() : originCheck(c, next)));
+app.use("*", csrfOrigin);
 app.use("*", csrfToken);
 
 app.get("/healthz", (c) => c.text("ok"));

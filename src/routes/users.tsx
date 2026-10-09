@@ -37,7 +37,7 @@ async function mePage(c: Ctx, user: Viewer, extra: { newToken?: string; error?: 
   const logins = await listUserLogins(c.env.DB, user.id);
   return page(
     c,
-    <MePage user={user} logins={logins} origin={new URL(c.req.url).origin} newToken={extra.newToken} error={extra.error} />,
+    <MePage user={user} logins={logins} newToken={extra.newToken} error={extra.error} />,
     extra.error ? 400 : undefined,
     "/me",
   );

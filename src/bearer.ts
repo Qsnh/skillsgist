@@ -8,7 +8,7 @@ import { sha256Hex } from "./hash";
 export type BearerAccess =
   | { kind: "anonymous" }
   | { kind: "invalid" }
-  | { kind: "login"; loginId: string; userId: string; username: string; projects: string[] }
+  | { kind: "login"; userId: string; username: string; projects: string[] }
   | { kind: "install_key"; username: string; project: string };
 
 export type ProjectGate = { kind: "all" } | { kind: "public"; refusal: Response | null };
@@ -50,7 +50,7 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
       markLoginUsed(c.env.DB, login.id, now).catch((err) => console.error("cli login use write failed", err)),
     );
   }
-  return { kind: "login", loginId: login.id, userId: login.user_id, username: login.username, projects: login.granted };
+  return { kind: "login", userId: login.user_id, username: login.username, projects: login.granted };
 }
 
 export async function projectGate(c: Ctx, project: string): Promise<ProjectGate> {
