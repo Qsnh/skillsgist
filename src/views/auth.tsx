@@ -1,8 +1,8 @@
-import { loginExpired } from "../credentials";
+import { LOGIN_IDLE_DAYS, loginExpired } from "../credentials";
 import { Form } from "../csrf";
 import type { CliLoginSummary } from "../db/logins";
 import { useLocale, useT } from "../i18n";
-import { formatDate, formatList } from "../i18n/format";
+import { formatAgo, formatDate, formatStamp } from "../i18n/format";
 import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow, UserSummary, Viewer } from "../db/queries";
@@ -91,8 +91,70 @@ function TokenStatus(props: { active: boolean }) {
   );
 }
 
-export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin: string; newToken?: string; error?: string }) {
+function CliLoginItem(props: { login: CliLoginSummary; now: number }) {
   const locale = useLocale();
+  const t = useT();
+  const { login } = props;
+  const name = login.device_name || t.auth.unnamedComputer;
+  const expired = loginExpired(login.last_used_at, props.now);
+  return (
+    <li class={expired ? "cf-row cf-login cf-login-expired" : "cf-row cf-login"}>
+      <div class="cf-row-main">
+        <p class="cf-login-head">
+          <span class={login.device_name ? "cf-login-name" : "cf-login-name cf-login-unnamed"}>{name}</span>
+          {expired ? <span class="cf-tag">{t.auth.cliLoginExpired}</span> : null}
+        </p>
+        <dl class="cf-login-facts">
+          <dt>{t.auth.cliLoginProjects}</dt>
+          <dd>
+            {login.projects.length ? (
+              <ul class="cf-chips">
+                {login.projects.map((project) => (
+                  <li class="cf-chip">{project}</li>
+                ))}
+              </ul>
+            ) : (
+              <span class="cf-login-none">{t.auth.noUsableProjects}</span>
+            )}
+          </dd>
+          <dt>{t.auth.cliLoginSignedIn}</dt>
+          <dd>
+            {login.approved_at ? (
+              <time datetime={new Date(login.approved_at).toISOString()}>{formatDate(locale, login.approved_at)}</time>
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>{t.auth.cliLoginLastUsed}</dt>
+          <dd>
+            {login.last_used_at ? (
+              <time
+                class="cf-login-ago"
+                datetime={new Date(login.last_used_at).toISOString()}
+                title={formatStamp(locale, login.last_used_at)}
+              >
+                {formatAgo(locale, login.last_used_at, props.now) ?? t.auth.cliLoginWithinHour}
+              </time>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </dl>
+      </div>
+      <ConfirmDelete
+        action={`/me/cli-logins/${login.id}/revoke`}
+        label={expired ? t.auth.removeComputer : t.auth.signOutComputer}
+        confirm={expired ? t.auth.removeNamed(name) : t.auth.signOutNamed(name)}
+        size="sm"
+        name="revoke-cli-login"
+      >
+        {expired ? t.auth.removeExpiredWarning(LOGIN_IDLE_DAYS) : t.auth.signOutWarning}
+      </ConfirmDelete>
+    </li>
+  );
+}
+
+export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin: string; newToken?: string; error?: string }) {
   const now = Date.now();
   const t = useT();
   const live = props.logins.filter((login) => !loginExpired(login.last_used_at, now)).length;
@@ -125,44 +187,22 @@ export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; origin:
             </div>
           </Panel>
 
-          <Panel title={t.auth.cliLoginsPanel} aside={<span class="cf-count">{live}</span>} flush>
+          <Panel
+            title={t.auth.cliLoginsPanel}
+            aside={<span class="cf-count">{live}</span>}
+            foot={props.logins.length ? <p class="cf-panel-note">{t.auth.cliLoginsIdle(LOGIN_IDLE_DAYS)}</p> : null}
+            flush
+          >
             {props.logins.length === 0 ? (
               <div class="cf-panel-body">
-                <p class="cf-hint">{t.auth.noCliLogins(<code>npx skillsgist login {props.origin}</code>)}</p>
+                <p class="cf-hint">{t.auth.noCliLogins}</p>
+                <CodeBlock>npx skillsgist login {props.origin}</CodeBlock>
               </div>
             ) : (
               <ul class="cf-rows">
-                {props.logins.map((login) => {
-                  const name = login.device_name || t.auth.unnamedComputer;
-                  const expired = loginExpired(login.last_used_at, now);
-                  return (
-                    <li class="cf-row cf-member">
-                      <span class="cf-row-main cf-login">
-                        <span class="cf-user">
-                          <span class="cf-user-name">{name}</span>
-                          {login.projects.length === 0 ? <span class="cf-tag">{t.auth.noUsableProjects}</span> : null}
-                          {expired ? <span class="cf-tag">{t.auth.cliLoginExpired}</span> : null}
-                        </span>
-                        <span class="cf-login-meta">
-                          {t.auth.cliLoginMeta(
-                            login.projects.length ? formatList(locale, login.projects) : null,
-                            login.approved_at ? formatDate(locale, login.approved_at) : "—",
-                            login.last_used_at ? formatDate(locale, login.last_used_at) : "—",
-                          )}
-                        </span>
-                      </span>
-                      <ConfirmDelete
-                        action={`/me/cli-logins/${login.id}/revoke`}
-                        label={t.auth.signOutComputer}
-                        confirm={t.auth.signOutNamed(name)}
-                        size="sm"
-                        name="revoke-cli-login"
-                      >
-                        {t.auth.signOutWarning}
-                      </ConfirmDelete>
-                    </li>
-                  );
-                })}
+                {props.logins.map((login) => (
+                  <CliLoginItem login={login} now={now} />
+                ))}
               </ul>
             )}
           </Panel>

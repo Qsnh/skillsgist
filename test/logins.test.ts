@@ -198,7 +198,7 @@ describe("access and cleanup", () => {
     const { user: bob } = await seedUser({ username: "bob" });
     await active(user.id, ["default"]);
     expect(await logins.deleteUserLogin(env.DB, bob.id, "l1")).toBeNull();
-    expect(await logins.deleteUserLogin(env.DB, user.id, "l1")).toBe("laptop");
+    expect(await logins.deleteUserLogin(env.DB, user.id, "l1")).toEqual({ device_name: "laptop", last_used_at: NOW });
     expect(await row("l1")).toBeNull();
     expect(await grants("l1")).toEqual([]);
   });

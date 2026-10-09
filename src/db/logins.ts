@@ -168,12 +168,15 @@ export async function deleteLoginByTokenHash(db: D1Database, hash: string): Prom
   await db.prepare("DELETE FROM cli_logins WHERE token_hash = ?").bind(hash).run();
 }
 
-export async function deleteUserLogin(db: D1Database, userId: string, id: string): Promise<string | null> {
-  const row = await db
-    .prepare("DELETE FROM cli_logins WHERE id = ? AND user_id = ? AND status = 'active' RETURNING device_name")
+export async function deleteUserLogin(
+  db: D1Database,
+  userId: string,
+  id: string,
+): Promise<{ device_name: string; last_used_at: number | null } | null> {
+  return db
+    .prepare("DELETE FROM cli_logins WHERE id = ? AND user_id = ? AND status = 'active' RETURNING device_name, last_used_at")
     .bind(id, userId)
-    .first<{ device_name: string }>();
-  return row ? row.device_name : null;
+    .first<{ device_name: string; last_used_at: number | null }>();
 }
 
 export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {

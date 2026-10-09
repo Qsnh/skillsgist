@@ -4,7 +4,7 @@ import {
   verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
-import { loginIdleCutoff, newInstallKey } from "../credentials";
+import { loginExpired, loginIdleCutoff, newInstallKey } from "../credentials";
 import { page } from "../csrf";
 import { deleteUserLogin, listUserLogins } from "../db/logins";
 import { flash } from "../flash";
@@ -133,10 +133,11 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
 });
 
 usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
-  const name = await deleteUserLogin(c.env.DB, c.get("user").id, c.req.param("id"));
-  if (name === null) return c.notFound();
+  const login = await deleteUserLogin(c.env.DB, c.get("user").id, c.req.param("id"));
+  if (!login) return c.notFound();
   const t = messages(c);
-  await flash(c, t.auth.cliLoginRevoked(name || t.auth.unnamedComputer));
+  const name = login.device_name || t.auth.unnamedComputer;
+  await flash(c, loginExpired(login.last_used_at, Date.now()) ? t.auth.cliLoginRemoved(name) : t.auth.cliLoginRevoked(name));
   return c.redirect("/me", 302);
 });
 

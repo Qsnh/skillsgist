@@ -102,8 +102,8 @@ describe("/me", () => {
   it("issues an api token once, with its own copy button, and stores only its hash", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const html = await (await postForm("/me/api-token", cookie)).text();
-    expect(html.match(/class="cf-command-copy"/g)).toHaveLength(1);
-    const token = /<code class="cf-command-text">(sgt_[a-f0-9]{32})<\/code>/.exec(html)?.[1];
+    const token = /<code class="cf-command-text">(sgt_[a-f0-9]{32})<\/code><button type="button" class="cf-command-copy"/.exec(html)?.[1];
+    expect(token).toBeDefined();
     expect((await getUserByUsername(env.DB, "alice"))?.api_token_hash).toBe(await sha256Hex(token!));
   });
 
@@ -213,21 +213,35 @@ describe("CLI sign-ins on /me", () => {
     expect(html).toContain('<h2 class="cf-panel-title">CLI sign-ins</h2><span class="cf-count">2</span>');
     const admin = await seedAndLogin({ username: "root", role: "admin" });
     expect(await (await get(`/admin/users/${user.id}`, admin.cookie)).text()).toContain("and 2 CLI sign-ins.");
-    const rows = html.split('<li class="cf-row cf-member">').slice(1);
+    const rows = html.split('<li class="cf-row cf-login').slice(1);
     expect(rows).toHaveLength(3);
-    const tags = (name: string) => {
-      const row = rows.filter((r) => r.includes(`<span class="cf-user-name">${name}</span>`));
-      expect(row, name).toHaveLength(1);
-      return [...row[0].matchAll(/<span class="cf-tag">([^<]*)<\/span>/g)].map((m) => m[1]);
+    const row = (name: string) => {
+      const found = rows.filter((r) => r.includes(`<span class="cf-login-name">${name}</span>`));
+      expect(found, name).toHaveLength(1);
+      return found[0];
     };
-    expect(tags("no-projects")).toEqual(["No usable projects"]);
+    const tags = (name: string) => [...row(name).matchAll(/<span class="cf-tag">([^<]*)<\/span>/g)].map((m) => m[1]);
+    expect(tags("no-projects")).toEqual([]);
+    expect(row("no-projects")).toContain('<span class="cf-login-none">No usable projects</span>');
     expect(tags("stale")).toEqual(["Expired"]);
+    expect(row("stale")).toMatch(/^ cf-login-expired"/);
+    expect(row("stale")).toContain("3 months ago");
+    expect(row("stale")).toContain("Remove stale</button>");
+    expect(row("healthy")).toContain("Sign healthy out</button>");
     expect(tags("healthy")).toEqual([]);
+    expect(row("healthy")).toContain('<ul class="cf-chips"><li class="cf-chip">Default</li></ul>');
+    expect(row("healthy")).toContain("Within the last hour");
+    expect(html).toContain('<p class="cf-panel-note">A computer unused for 90 days is signed out on its own and marked Expired.</p>');
+    const staleId = /action="\/me\/cli-logins\/([a-f0-9]+)\/revoke"/.exec(row("stale"))?.[1];
+    const removed = await postForm(`/me/cli-logins/${staleId}/revoke`, cookie);
+    expect(await (await follow(removed, cookie)).text()).toContain("Removed stale.");
   });
 
   it("says how to sign in when no computer is signed in", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    expect(await (await get("/me", cookie)).text()).toContain("<code>npx skillsgist login http://localhost</code>");
+    const html = await (await get("/me", cookie)).text();
+    expect(html).toContain('<code class="cf-command-text">npx skillsgist login http://localhost</code>');
+    expect(html).not.toContain("cf-panel-note");
   });
 
   it("404s revoking another user's sign-in, or one already revoked", async () => {

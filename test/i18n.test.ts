@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Ctx } from "../src/auth";
 import { localeOf } from "../src/i18n";
 import { en } from "../src/i18n/en";
-import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
+import { formatAgo, formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
@@ -121,6 +121,17 @@ describe("dates, counts and script labels", () => {
       expect(formatStamp(locale, at)).toContain("UTC");
     }
     expect(formatCount("ja", 12345)).toBe("12,345");
+  });
+
+  it("says how long ago a time was, from the hour up", () => {
+    const now = Date.UTC(2026, 9, 8, 12);
+    const hour = 60 * 60 * 1000;
+    expect(formatAgo("en", now - 59 * 60 * 1000, now)).toBeNull();
+    expect(formatAgo("en", now - hour, now)).toBe("1 hour ago");
+    expect(formatAgo("en", now - 30 * hour, now)).toBe("1 day ago");
+    expect(formatAgo("en", now - 91 * 24 * hour, now)).toBe("3 months ago");
+    expect(formatAgo("zh-CN", now - 5 * hour, now)).toBe("5小时前");
+    expect(formatAgo("ja", now - 3 * 24 * hour, now)).toBe("3 日前");
   });
 
   it("hands the copy and fold scripts their labels", async () => {
