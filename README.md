@@ -46,8 +46,6 @@ It is not a good fit if:
 - **In four languages.** English, Simplified Chinese, Traditional Chinese and Japanese.
 - **Cheap to run.** One Cloudflare Worker, one D1 database and one R2 bucket, sized for the Workers Free plan.
 
-![A skill page: the install command for one skill, actions, the rendered SKILL.md, its details and its files](docs/images/skill.png)
-
 ## Get started
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Qsnh/skillsgist)
