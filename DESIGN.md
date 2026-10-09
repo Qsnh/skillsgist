@@ -611,7 +611,6 @@ Every page lives in this world. The project page and the skill page keep their o
 - Schibsted Grotesk at weight 500 for headings, and Red Hat Mono for commands and data.
 - Ember-tinted shadows, used in exactly three places: the raised command box, the open menus (account and language) and the confirmation a danger button opens.
 - Danger is a line and a text color, never a fill.
-- Client JavaScript only as enhancement: native `<details>` menus and confirmations and forms, plus three scripts: one copies a command on click and falls back to select-all, one folds a long SKILL.md, Files list or Versions list and falls back to showing all of it, and one closes an open menu or confirmation on Escape or a press outside it and falls back to closing on its own summary.
 
 ## Colors
 
