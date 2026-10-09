@@ -163,6 +163,18 @@ typography:
     fontSize: "14px"
     fontWeight: 400
     lineHeight: "22px"
+  mono-code:
+    fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "30px"
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: "0.06em"
+  mono-code-field:
+    fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "20px"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "0.06em"
   mono-editor:
     fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "13.5px"
@@ -447,6 +459,17 @@ components:
     padding: "0 12px"
     height: "32px"
     width: "min(100%, 300px)"
+  input-code:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.cf-ink}"
+    typography: "{typography.mono-code-field}"
+    rounded: "{rounded.sm}"
+    padding: "0 12px"
+    height: "48px"
+    width: "min(100%, 16ch)"
+  device-code:
+    textColor: "{colors.cf-ink}"
+    typography: "{typography.mono-code}"
   textarea:
     backgroundColor: "{colors.white}"
     textColor: "{colors.cf-ink}"
@@ -660,7 +683,7 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 - **Wordmark** (600, 20px, -0.035em): the lowercase `skillsgist` in the nav, 8px to the right of the 24px mark. The footer uses the same form at 15px, 6px to the right of an 18px mark.
 - **Panel Title** (500, 17px, -0.02em): the title in a header strip, such as Files, Versions or API token.
 - **Lede** (400, 18px, 1.5; 16px below 640px): the supporting line on the panel. It is set in Ember and uses `text-wrap: pretty`. It is capped at 54ch on the index and 64ch on the skill page.
-- **Page Lede** (400, 16px, 1.6): the explanation under a page title, in Body Gray, capped at 68ch, with inline Orange Ink links.
+- **Page Lede** (400, 16px, 1.6): the explanation under a page title, in Body Gray, capped at 68ch, with inline Orange Ink links at the lede's own size.
 - **SKILL.md type** (500 headings at 1.25 and -0.02em in Ink, balanced): H1 30px at -0.03em, H2 23px, H3 18px, H4 16px. The body is 400 at 15.5px and 1.7 in Body Gray. Paragraphs, lists, quotes and headings keep a 72ch measure; tables and code blocks take the full frame width. Code blocks are Red Hat Mono at 13px and 1.6, and inline code is 0.86em.
 - **Body** (400, 15px, 1.5): the base size on the page, empty-state copy (52ch) and text in a field. Choice titles use it at weight 500.
 - **Body Small** (400, 14.5px, 1.55): cell descriptions, capped at 60ch and clamped to three lines.
@@ -668,6 +691,9 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 - **Caption** (400, 13px): footer text, field hints, panel meta, choice details and the sort note.
 - **Mono Command** (400, 16px/26px; 14px/22px below 640px): the install command and its prompt on the orange panel.
 - **Mono Command Small** (400, 14px/22px): the flat code block at every width.
+- **Mono Code** (500, 30px, 1.2, 0.06em; 26px below 640px): the `skillsgist login` code on the device confirmation, the one value a reader compares character by character with their terminal.
+- **Mono Code Field** (500, 20px, 0.06em, uppercase): the text in the code field on `/device`.
+- **Inline command:** a command named inside a Page Lede, a Notice or an Alert, such as `skillsgist login`, is Red Hat Mono at 0.92em and never breaks across lines.
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
 - **Mono Meta Large** (400, 13px, tabular numerals): the values in the skill page's Details panel and the version links in the Versions list.
 - **Mono Path** (400, 12.5px): file paths in the Files list and dates and counts in the users table.
@@ -693,7 +719,7 @@ The working pages share one body: padded 56px above and 112px below (36px and 72
 The spacing rhythm is set by the scale in the frontmatter. Groups are tight (6–12px), and the space between a group and what follows it is generous (24–36px). The block step (32px) separates stacked blocks on the working pages: page head to content, panel to panel, toolbar to grid. Space between sections is large (56–112px). Some components use 10, 14, 18, 20 and 22px as optical half-steps. Those are fine inside a component but do not become section spacing.
 
 ### Named Rules
-**The Dashed Gutter Rule.** The edges of the content column are drawn as 1px dashed rules (5px on, 5px off, Hairline Strong). They line up with the frames' outer edges. On every page the guided section grows to fill the main column, so the gutters run from under the nav or panel down to the footer. Only square frames sit on a gutter. Wherever a column meets the gutters (always on Users, below 808px for the 760px column and below 1008px for the 960px column), everything above its first frame, the page head and any Alert or Done line, is inset 20px on both sides (18px below 640px), the compact head's inset, so the title, the message and the text inside the frames share one edge.
+**The Dashed Gutter Rule.** The edges of the content column are drawn as 1px dashed rules (5px on, 5px off, Hairline Strong). They line up with the frames' outer edges. On every page the guided section grows to fill the main column, so the gutters run from under the nav or panel down to the footer. Only square frames sit on a gutter. Wherever a column meets the gutters (always on Users, below 808px for the 760px column and below 1008px for the 960px column), everything above its first frame, the page head and any Alert, Notice or Done line, is inset 20px on both sides (18px below 640px), the compact head's inset, so the title, the message and the text inside the frames share one edge.
 
 **The Complete Row Rule.** A framed grid never ends on a ragged row. Dot-filled cells span the leftover columns at each breakpoint: `(3 − n mod 3) mod 3` columns at the three-column width, and `n mod 2` at the two-column width.
 
@@ -755,7 +781,7 @@ There are no cards. Every container is a square hairline frame.
 - **Panel:** a frame with an optional header strip and a body padded 20px with a 14px gap. The strip is Paper Shade, at least 52px tall, padded 12px 20px, with a Hairline bottom border. It holds a Panel Title on the left and a count pill or other aside on the right. When the body holds a row list it drops its padding so the rows run edge to edge.
 - **Row list:** rows padded 10px 20px with 12px gaps and Hairline dividers, in 13.5px text. In Details, each row shows a 13.5px Warm Muted label (Project, Author, Visibility, and Downloads for a signed-in viewer) on the left and its value on the right in Mono Meta Large Ink: the project's name as a link with a Hairline Strong underline that turns Orange Ink on hover, the author, the Visibility label, and the grouped download count. In Files, each row shows the path in Mono Path Ink and the size in Mono Meta Warm Muted. In Versions, each row shows the version as a Mono Meta Large Ink link with a Hairline Strong underline, a UTC timestamp and a download icon. The version link turns Orange Ink on hover. The current version's row is tinted Peach Tint, and its link is Orange Ink at weight 500 with `aria-current`. The download icon is Graphite on a 6px-radius plate padded 4px (pulled back by a -4px margin so it does not shift the row), and on hover the plate fills with Paper Shade and the icon turns Orange Ink. A long Files or Versions list folds like the SKILL.md body (see Fold below), clipped to 400px, about ten rows, and fading out over its last 80px. Versions stays whole when the fold would hide the current version's row.
 - **Toolbar:** the skill page's actions sit in one full-width square frame with registration marks and a White inside, so the toolbar lines up with the frames below it. From 1024px up it is a single 54px row split into groups by 1px Hairline dividers that run its full height, and each group pads its ghost buttons 8px with 2px gaps: Download zip; Edit SKILL.md and Upload an archive; Make public or Make private, and Move; then Delete, pushed to the far end. Each button leads with a 16px icon: a down arrow, a pencil, an up arrow, a globe for Make public, a padlock for Make private, an arrow into a bar for Move and a trash can. Move opens the same floating panel as Delete, with a Move to project select, a Caption hint and a small primary Move pill; while open, its pill fills with Paper Shade instead of turning red. From 1024px up the panel is anchored under its own button; below that it opens at the toolbar frame's left edge instead. The first icon lines up with the SKILL.md chip below. Below 1024px the dividers drop, the buttons wrap inside the frame's 8px padding, and Delete moves under a dashed Hairline Strong rule that spans the frame. Below 640px the buttons settle into two left-aligned columns, and below 360px into one. A visitor who cannot manage the skill sees the same frame holding Download zip alone.
-- **Form frame:** the form itself is the frame. It is split into sections padded 24px with Hairline dividers, and it closes with a Paper Shade footer bar padded 16px 24px, holding the primary button and an outline Cancel 10px apart. The edit form opens with a header strip holding the SKILL.md chip, followed by the full-width editor.
+- **Form frame:** the form itself is the frame. It is split into sections padded 24px with Hairline dividers, and it closes with a Paper Shade footer bar padded 16px 24px, holding the primary button and an outline Cancel 10px apart. The edit form opens with a header strip holding the SKILL.md chip, followed by the full-width editor. A row list can stand between sections, its rows padded 12px 24px (12px 18px on mobile) so their labels line up with the sections' text.
 
 ### Page Head
 The top of every working page.
@@ -766,19 +792,20 @@ The top of every working page.
 ### Inputs / Fields
 - **Field:** a 14px weight-500 Ink label, the control 6px below it, and an optional Caption hint in Warm Muted 6px below that.
 - **Text field:** 40px tall with 12px horizontal padding, a white fill, a 1px Hairline Strong border and 8px corners. Text is 15px Ink and the placeholder is Warm Muted. On hover the border turns Hairline Hover (#c9b8ae), over 200ms.
+- **Code field:** the text field for the `skillsgist login` code on `/device`: 48px tall, at most 16ch wide, in Mono Code Field, shown uppercase, with `autocapitalize="characters"` and spellcheck off. Its hint sets the example code in mono.
 - **Focus:** the border turns Ink and the global 2px Signal Orange ring sits 1px outside it. Inside the orange panel, every focus ring is white instead of orange. The copy button inside the white command box is the exception: its ring stays Signal Orange so it shows against the white.
 - **Textarea:** the text-field frame grown to at least 280px, padded 12px, in Red Hat Mono at 13.5px and 1.6, resizable vertically. It is used to paste SKILL.md on Publish.
 - **Editor:** a borderless mono textarea (13.5px, 1.65) that fills the edit frame, at least 480px tall, padded 20px 24px (16px 18px on mobile), with a Hairline bottom border. Its focus ring is drawn inside the frame.
 - **Select:** a native select with `appearance: none`, styled as a text field with 36px of right padding, and a 16px Warm Muted chevron drawn 12px from the right edge.
 - **File picker:** a full-width box with a 1px dashed Hairline Strong border, 8px corners, a Paper fill and 10px padding, in 14px Body Gray. Its `::file-selector-button` is a 32px white pill with a Hairline Strong border and a weight-500 Ink label. On hover the dashed border turns Warm Muted and the pill's border turns Ink.
-- **Choice cards:** radio cards in a two-column grid with 12px gaps (one column below 640px). Each card is a white box with a 1px Hairline Strong border and 8px corners, padded 14px 16px 14px 44px. The 16px native radio sits 16px from the left, and a weight-500 title sits over a Caption detail in Warm Muted. On hover the border turns Warm Muted. When checked, the border turns Orange Ink and the card fills with Peach Tint.
+- **Choice cards:** radio cards in a two-column grid with 12px gaps (one column below 640px). Each card is a white box with a 1px Hairline Strong border and 8px corners, padded 14px 16px 14px 44px. The 16px native radio sits 16px from the left, and a weight-500 title sits over a Caption detail in Warm Muted. On hover the border turns Warm Muted. When checked, the border turns Orange Ink and the card fills with Peach Tint. A lone card spans both columns, and a hint under the grid sits 10px below it, with `text-wrap: balance` so a short Chinese or Japanese hint never ends on a stranded word.
 - **Search field:** a 52px pill on the orange panel (48px below 640px). The fill is Ember at 30%, with a 1px border of white at 28% opacity. It holds a 16px magnifier, a transparent 16px input with white text, white placeholder text and a white caret, and a white pill Search button inside, 6px from the edges. White placeholder text on the composited fill measures 4.99:1. On `:focus-within` the border turns solid white and the fill deepens to Ember at 38%.
 - **Errors:** validation happens on the server. The page re-renders with an Alert above the form or inside the sign-in frame. Every text input and textarea carries a Signal Orange caret and accent color.
 - **Confirmations:** an action whose result the page cannot show (a password change, a password reset, an install key rotation, signing a computer out, a project rename, adding or removing a project member, deleting a project) sets a one-time flash before it redirects. The flash is a cookie signed with the session secret, bound to the session that set it, and it lives 60 seconds. The next rendered page clears it and shows it only if the page has a page head. A flash that is unsigned, tampered or set by another session shows nothing.
 
 ### Alerts, Notices and Done
 - **Alert:** an 8px-radius box padded 12px 14px with a Danger Line border and a Danger Tint fill, holding a 16px alert-circle icon and 14px Danger text 10px apart. It sits 24px above the form it belongs to, keeps off the dashed gutters (see The Dashed Gutter Rule) and is announced with `role="alert"`.
-- **Notice:** the same shape in orange, with a Notice Line border, a Peach Tint fill and Orange Ink text. It is for information the user must act on now, such as "This token is shown once. Save it now."
+- **Notice:** the same shape in orange, with a Notice Line border, a Peach Tint fill and Orange Ink text, wrapped with `text-wrap: pretty`. It is for information the user must act on now, such as "This token is shown once. Save it now." Set above a form, it sits 24px above the frame and keeps off the dashed gutters like the Alert.
 - **Done:** the same shape in Ink on white with a Hairline Strong border, and a 16px check-circle icon in Orange Ink. It confirms a change the page cannot show, such as "Your password has been changed." It sits under the page head, 24px above the content, keeps off the dashed gutters like the Alert, and is announced with `role="status"`.
 
 ### Navigation
@@ -824,7 +851,9 @@ The hero of the system: an orange field that hands over one line of shell, or on
 - **Skill names:** a skill is named `<project name>/<slug>` wherever it is titled: its cell, on the index and on a project's page alike, its skill panel and its browser tab, because two projects may each have a skill of the same slug. A cell's meta row leaves the project's name out, since the title already carries it.
 
 ### Device
-- **Device approval:** `/device`, a narrow working page: the code form (one field, Continue); the confirmation (the warning notice, a flush Request panel with Computer, Requested (labelled UTC), From (the country's localized name) and Code rows, a Projects panel of checkbox choice cards in the `.cf-choices` grid inside a fieldset with a screen-reader legend, with Approve and an outline Deny); and a result page at `/device/<id>`, reached by a redirect so a reload never posts again, that is only a page head.
+- **Code form:** `/device`, a narrow working page. Its lede names `skillsgist login` inline, and the form frame holds one Code field and a footer bar with Continue. The CLI's link prefills the code.
+- **Confirmation:** the same column. Under the page head sits the warning Notice, which names `skillsgist login` and is left out when the viewer is in no project, since there is nothing to approve. Below it is one form frame, ordered the way the CLI tells the reader to work. First comes the code section: a Code label, the code in Mono Code, and a Caption hint telling the reader to check that their terminal shows the same code and to deny the request if it does not. Then come Computer, Requested (labelled UTC) and From (the country's localized name) as a row list. Then a fieldset with a visible "Projects it may install from" legend over checkbox choice cards in the `.cf-choices` grid, each holding only the project's name with no detail line, with a Caption hint saying the computer can be signed out on the account page. A viewer in no project gets that label over a Caption line instead. The frame closes with a footer bar holding Approve and an outline Deny, or Deny alone when there is nothing to approve.
+- **Result:** `/device/<id>`, reached by a redirect so a reload never posts again. It is only a page head. The approved lede names the projects, sends the reader back to the terminal and links the account page, where the computer can be signed out. The denied lede names `skillsgist login`.
 
 ### Sign-in Frame
 - **Stage:** a centered frame on a field of Hairline Strong dots (0.9px on a 10px pitch). The field extends past the page body's padding toward the nav and the footer, and a radial mask fades it out from 30% of the way to its edges.

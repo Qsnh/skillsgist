@@ -196,7 +196,7 @@ export function PageHead(props: {
   title: unknown;
   aside?: unknown;
   compact?: boolean;
-  error?: string;
+  error?: unknown;
   children?: unknown;
 }) {
   const flashed = useContext(FlashContext);
@@ -241,18 +241,21 @@ export function Field(props: {
   name: string;
   type?: string;
   value?: string;
-  hint?: string;
+  hint?: unknown;
   autocomplete?: string;
+  code?: boolean;
 }) {
   return (
     <label class="cf-field">
       <span class="cf-label">{props.label}</span>
       <input
-        class="cf-input"
+        class={props.code ? "cf-input cf-input-code" : "cf-input"}
         name={props.name}
         type={props.type ?? "text"}
         value={props.value}
         autocomplete={props.autocomplete}
+        autocapitalize={props.code ? "characters" : undefined}
+        spellcheck={props.code ? false : undefined}
         required
       />
       {props.hint ? <span class="cf-hint">{props.hint}</span> : null}
@@ -326,7 +329,7 @@ export function AlertIcon() {
   );
 }
 
-export function Alert(props: { message?: string }) {
+export function Alert(props: { message?: unknown }) {
   if (!props.message) return null;
   return (
     <p class="cf-alert" role="alert">

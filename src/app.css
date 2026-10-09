@@ -921,6 +921,16 @@
     text-wrap: pretty;
   }
 
+  :is(.cf-head-lede, .cf-alert, .cf-notice) code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    white-space: nowrap;
+  }
+
+  .cf-head-lede .cf-link {
+    font-size: inherit;
+  }
+
   .cf-panel-head {
     display: flex;
     flex-wrap: wrap;
@@ -1016,6 +1026,16 @@
 
   .cf-input::placeholder {
     color: var(--color-cf-muted);
+  }
+
+  .cf-input-code {
+    max-width: 16ch;
+    height: 48px;
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .cf-textarea {
@@ -1135,6 +1155,16 @@
     background: var(--color-cf-tint);
   }
 
+  .cf-choice:only-child {
+    grid-column: 1 / -1;
+  }
+
+  .cf-choices + .cf-hint {
+    margin-top: 10px;
+    text-wrap: balance;
+  }
+
+
   .cf-choice-input {
     position: absolute;
     left: 16px;
@@ -1152,6 +1182,35 @@
   .cf-choice-detail {
     font-size: 13px;
     color: var(--color-cf-muted);
+  }
+
+  .cf-device-check {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cf-device-code {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cf-device-code-value {
+    font-family: var(--font-mono);
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    color: var(--color-cf-ink);
+  }
+
+  .cf-form-rows {
+    border-bottom: 1px solid var(--color-cf-line);
+  }
+
+  .cf-form-rows .cf-row {
+    padding: 12px 24px;
   }
 
   .cf-editor {
@@ -1228,6 +1287,7 @@
     border-color: #f6d3c1;
     background: var(--color-cf-tint);
     color: var(--color-cf-orange-ink);
+    text-wrap: pretty;
   }
 
   .cf-done {
@@ -1252,8 +1312,12 @@
     padding-inline: var(--cf-gutter-inset);
   }
 
-  :is(.cf-page-body, .cf-narrow) > :is(.cf-alert, .cf-done) {
+  :is(.cf-page-body, .cf-narrow) > :is(.cf-alert, .cf-notice, .cf-done) {
     margin-inline: var(--cf-gutter-inset);
+  }
+
+  :is(.cf-page-body, .cf-narrow) > .cf-notice {
+    margin-bottom: 24px;
   }
 
   @media (max-width: 1007.98px) {
@@ -2085,6 +2149,14 @@
 
     .cf-form-foot {
       padding: 14px 18px;
+    }
+
+    .cf-form-rows .cf-row {
+      padding-inline: 18px;
+    }
+
+    .cf-device-code-value {
+      font-size: 26px;
     }
 
     .cf-choices {

@@ -68,6 +68,7 @@ describe("reaching the page", () => {
     const { user_code } = await startDevice();
     const html = await (await get(`/device?code=${user_code.toLowerCase()}`, cookie)).text();
     expect(html).toContain(`value="${user_code}"`);
+    expect(html).toMatch(/<input class="cf-input cf-input-code" name="code"[^>]*autocapitalize="characters" spellcheck="false"/);
     expect(html).not.toContain('value="approve"');
     expect(await status()).toBe("pending");
   });
@@ -82,7 +83,7 @@ describe("approving", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("&lt;b&gt;laptop&lt;/b&gt;");
-    expect(html).toContain("Approve only if you ran skillsgist login yourself just now.");
+    expect(html).toContain("Approve only if you ran <code>skillsgist login</code> yourself just now.");
     expect(html).toMatch(/<input type="checkbox" name="project" value="team-b"[^>]*checked/);
     expect(html).toMatch(/<input type="checkbox" name="project" value="default"(?![^>]*checked)[^>]*>/);
     expect(html).not.toContain('value="team-c"');
@@ -95,8 +96,19 @@ describe("approving", () => {
     const { user_code } = await startDevice();
     const html = await (await postForm("/device", cookie, { code: user_code })).text();
     expect(html).toMatch(
-      /<fieldset class="cf-fieldset"><legend class="sr-only">Projects it may install from<\/legend><div class="cf-choices">[\s\S]*?value="default"[\s\S]*?<\/fieldset>/,
+      /<fieldset class="cf-form-section cf-fieldset"><legend class="cf-label">Projects it may install from<\/legend><div class="cf-choices">[\s\S]*?value="default"[\s\S]*?<\/fieldset>/,
     );
+    expect(html).not.toContain("cf-choice-detail");
+  });
+
+  it("leads with the code to check against the terminal", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    const { user_code } = await startDevice({ device_name: "laptop" });
+    const html = await (await postForm("/device", cookie, { code: user_code.toLowerCase() })).text();
+    const code = html.indexOf(`<dd class="cf-device-code-value">${user_code}</dd>`);
+    expect(code).toBeGreaterThan(-1);
+    expect(html).toContain(en.device.codeCheck);
+    expect(code).toBeLessThan(html.indexOf('<dd class="cf-row-value">laptop</dd>'));
   });
 
   it("labels the request time as UTC and names the country it came from", async () => {
@@ -127,6 +139,7 @@ describe("approving", () => {
     const done = await (await follow(res, cookie)).text();
     expect(done).toContain("It can now install the private skills of Default and Team B.");
     expect(done).toContain("Return to your terminal");
+    expect(done).toContain('You can sign it out on your <a href="/me" class="cf-link">account page</a> at any time.');
     expect(await grants()).toEqual(["default", "team-b"]);
     expect(await status()).toBe("approved");
   });
@@ -137,7 +150,7 @@ describe("approving", () => {
     for (const fields of [[["code", user_code], ["decision", "approve"]], [["code", user_code], ["decision", "approve"], ["project", "team-c"]]] as Array<Array<[string, string]>>) {
       const res = await postFields("/device", cookie, fields);
       expect(res.status).toBe(400);
-      expect(await res.text()).toContain("Choose at least one project");
+      expect(await res.text()).toContain("Tick at least one project");
     }
     expect(await status()).toBe("pending");
   });
@@ -147,6 +160,7 @@ describe("approving", () => {
     const { user_code } = await startDevice();
     const html = await (await postForm("/device", cookie, { code: user_code })).text();
     expect(html).toContain("You are not in any project");
+    expect(html).not.toContain("Approve only if");
     expect(html).not.toContain('value="approve"');
     expect(html).toContain('value="deny"');
   });
@@ -232,7 +246,7 @@ describe("approving", () => {
     await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
     const again = await postFields("/device", bob.cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
     expect(again.status).toBe(400);
-    expect(await again.text()).toContain("That code is wrong or has expired");
+    expect(await again.text()).toContain("That code is wrong or has expired. Check the code in your terminal, or run <code>skillsgist login</code> again.");
     expect(await failures()).toBe(1);
   });
 

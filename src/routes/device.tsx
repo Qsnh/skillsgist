@@ -12,7 +12,7 @@ import type { Viewer } from "../db/queries";
 import { localeOf, messages } from "../i18n";
 import { formatList } from "../i18n/format";
 import { safeNext } from "../paths";
-import { DeviceCodePage, DeviceConfirmPage, DeviceDonePage } from "../views/device";
+import { DeviceCodePage, DeviceConfirmPage, DeviceDonePage, LoginCommand } from "../views/device";
 
 export const deviceRoutes = new Hono<AppEnv>();
 
@@ -64,11 +64,11 @@ deviceRoutes.post("/device", signedIn, async (c) => {
     return page(c, <DeviceCodePage user={user} code={raw} error={t.device.locked} />, 429);
   }
   if (!code || !login || login.status !== "pending") {
-    return page(c, <DeviceCodePage user={user} code={raw} error={t.device.badCode} />, 400);
+    return page(c, <DeviceCodePage user={user} code={raw} error={t.device.badCode(<LoginCommand />)} />, 400);
   }
   await refundCodeAttempt(c.env.DB, user.id);
   if (login.expires_at <= now) {
-    return page(c, <DeviceCodePage user={user} code="" error={t.device.expired} />, 400);
+    return page(c, <DeviceCodePage user={user} code="" error={t.device.expired(<LoginCommand />)} />, 400);
   }
   const confirm = (viewer: Viewer, checked: string[], error?: string) =>
     page(
@@ -83,7 +83,7 @@ deviceRoutes.post("/device", signedIn, async (c) => {
     if (current?.status === "pending" && current.expires_at > Date.now()) {
       return confirm((await getViewer(c.env.DB, user.id)) ?? user, [], t.device.projectsGone);
     }
-    return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode} />, 400);
+    return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode(<LoginCommand />)} />, 400);
   };
   const decision = values(body.decision)[0];
   if (decision === "deny") {
