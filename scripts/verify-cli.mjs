@@ -108,16 +108,22 @@ const DEFAULT_CLI_TIMEOUT_MS = 180_000;
 
 const children = new Set();
 
+function killGroup(child) {
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {}
+}
+
 function cli(args, env, opts = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(CLI[0], [...CLI.slice(1), ...args], { env, cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(CLI[0], [...CLI.slice(1), ...args], { env, cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"], detached: true });
     children.add(child);
     let out = "";
     let timedOut = false;
     const timeoutMs = opts.timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killGroup(child);
     }, timeoutMs);
     for (const stream of [child.stdout, child.stderr]) {
       stream.setEncoding("utf8");
@@ -233,13 +239,17 @@ async function killChildren() {
     [...children].map(
       (child) =>
         new Promise((resolve) => {
-          if (child.exitCode !== null || child.signalCode !== null) return resolve();
           child.once("close", resolve);
-          child.kill("SIGKILL");
+          killGroup(child);
         }),
     ),
   );
 }
+
+process.once("SIGINT", () => {
+  for (const child of children) killGroup(child);
+  process.exit(130);
+});
 
 if (!terminalArgs) {
   process.stderr.write(
