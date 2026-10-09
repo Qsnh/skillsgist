@@ -15,7 +15,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Upload a skill at /new with ...
-        2. Run `npx skills add https://<your-domain>/i/<install_key>`
+        2. Run `npx skillsgist add https://<your-domain>/p/<project>`
         3. ...
     validations:
       required: true
@@ -24,7 +24,8 @@ body:
     attributes:
       label: Area
       options:
-        - Installing with npx skills
+        - Installing with npx skillsgist or npx skills
+        - Signing a computer in with npx skillsgist login
         - Publishing from the web
         - Publishing through the API
         - Accounts and administration
@@ -36,17 +37,17 @@ body:
     id: version
     attributes:
       label: skillsgist version or commit
-      placeholder: v1.0.0 or a commit SHA
+      placeholder: v2.0.0 or a commit SHA
     validations:
       required: true
   - type: input
     id: cli-version
     attributes:
-      label: npx skills version
-      description: Only if the problem involves installing. Run `npx skills --version`.
+      label: CLI version
+      description: Only if the problem involves installing or signing in. Run `npx skillsgist --version`, or `npx skills --version` if you installed with `npx skills`.
   - type: textarea
     id: logs
     attributes:
       label: Logs and error output
-      description: CLI output, `wrangler tail` output, or the error shown in the browser. Remove install keys and API tokens first.
+      description: CLI output, `wrangler tail` output, or the error shown in the browser. Remove install keys, sign-in codes and API tokens first.
       render: shell
