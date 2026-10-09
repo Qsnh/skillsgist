@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getVersion } from "../src/db/queries";
 import app from "../src/index";
 import {
-  bearer, env, fetchWith, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish,
+  apiToken, bearer, env, fetchWith, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish,
   resetDb, seedAndLogin, seedProject, seedWithSkills, signInDevice,
 } from "./helpers";
 
@@ -198,6 +198,18 @@ describe("credentials the registry refuses or ignores", () => {
       expect(res.status, path).toBe(401);
       expect(res.headers.get("WWW-Authenticate")).toBe('Bearer error="invalid_token"');
     }
+  });
+
+  it("reads the Bearer scheme in any case, here and on the publish API", async () => {
+    const { user, cookie } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
+    const { token } = await signInDevice(user.id, ["default"]);
+    expect(await names(await fetchWith(INDEX, { Authorization: `bearer ${token}` }))).toEqual(["other-skill"]);
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+      method: "PUT",
+      headers: { Authorization: `BEARER   ${await apiToken(cookie)}`, "Content-Type": "text/markdown" },
+      body: GOOD_MD,
+    });
+    expect(res.status).toBe(201);
   });
 
   it("treats another Authorization scheme as anonymous", async () => {

@@ -153,10 +153,14 @@ export async function sessionCsrf(c: Ctx): Promise<string | null> {
   return (await readSession(c))?.csrf ?? null;
 }
 
+export function bearerToken(c: Ctx): string | null {
+  const [scheme, token, ...rest] = (c.req.header("Authorization") ?? "").trim().split(/\s+/);
+  if (scheme.toLowerCase() !== "bearer") return null;
+  return token && rest.length === 0 ? token : "";
+}
+
 export async function userFromApiToken(c: Ctx): Promise<Viewer | null> {
-  const header = c.req.header("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-  const token = header.slice(7).trim();
+  const token = bearerToken(c);
   if (!token) return null;
   return await getViewerByApiTokenHash(c.env.DB, await sha256Hex(token));
 }

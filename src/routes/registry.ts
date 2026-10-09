@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
-import { bearerAccess, PRIVATE_HEADERS, privateNotFound, projectGate, unavailable } from "../bearer";
+import { PRIVATE_HEADERS, privateNotFound, projectGate, unavailable } from "../bearer";
 import type { ProjectGate } from "../bearer";
 import { getArtifactByDigest, getPublicArtifact, listPublishedForIndex } from "../db/queries";
 import type { ArtifactRef, IndexFilter } from "../db/queries";
@@ -68,7 +68,7 @@ async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
   if (req.scope.kind === "root") {
     return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, { kind: "root" }, req.only), origin));
   }
-  const gate = projectGate(await bearerAccess(c), req.scope.project);
+  const gate = await projectGate(c, req.scope.project);
   const filter: IndexFilter = { kind: "project", project: req.scope.project, publicOnly: gate.kind === "public" };
   const rows = await listPublishedForIndex(c.env.DB, filter, req.only);
   if (rows.length === 0 && gate.kind === "public" && gate.refusal) return gate.refusal;
@@ -96,7 +96,7 @@ registryRoutes.get("/p/:project/d/:slug/:file", async (c) => {
     c,
     c.req.param("file"),
     (digest) => getArtifactByDigest(c.env.DB, project, c.req.param("slug"), digest),
-    projectGate(await bearerAccess(c), project),
+    await projectGate(c, project),
   );
 });
 

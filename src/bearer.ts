@@ -1,13 +1,14 @@
+import { bearerToken } from "./auth";
 import type { Ctx } from "./auth";
 import { DEVICE_TOKEN_PREFIX, INSTALL_KEY_PREFIX, LAST_USED_WRITE_MS, loginExpired } from "./credentials";
 import { loginAccessByTokenHash, markLoginUsed } from "./db/logins";
-import { getInstallKeyAccess } from "./db/queries";
+import { getInstallKeyAccess, getMember } from "./db/queries";
 import { sha256Hex } from "./hash";
 
 export type BearerAccess =
   | { kind: "anonymous" }
   | { kind: "invalid" }
-  | { kind: "login"; loginId: string; username: string; projects: string[]; memberOf: string[] }
+  | { kind: "login"; loginId: string; userId: string; username: string; projects: string[] }
   | { kind: "install_key"; username: string; project: string };
 
 export type ProjectGate = { kind: "all" } | { kind: "public"; refusal: Response | null };
@@ -33,11 +34,9 @@ function forbidden(error: "wrong_project" | "project_not_granted", project: stri
 }
 
 export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
-  const header = c.req.header("Authorization")?.trim();
-  if (!header) return ANONYMOUS;
-  const [scheme, token, ...rest] = header.split(/\s+/);
-  if (scheme.toLowerCase() !== "bearer") return ANONYMOUS;
-  if (!token || rest.length > 0) return INVALID;
+  const token = bearerToken(c);
+  if (token === null) return ANONYMOUS;
+  if (!token) return INVALID;
   if (token.startsWith(INSTALL_KEY_PREFIX)) {
     const key = await getInstallKeyAccess(c.env.DB, token);
     return key ? { kind: "install_key", username: key.username, project: key.project } : INVALID;
@@ -51,10 +50,11 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
       markLoginUsed(c.env.DB, login.id, now).catch((err) => console.error("cli login use write failed", err)),
     );
   }
-  return { kind: "login", loginId: login.id, username: login.username, projects: login.granted, memberOf: login.memberOf };
+  return { kind: "login", loginId: login.id, userId: login.user_id, username: login.username, projects: login.granted };
 }
 
-export function projectGate(access: BearerAccess, project: string): ProjectGate {
+export async function projectGate(c: Ctx, project: string): Promise<ProjectGate> {
+  const access = await bearerAccess(c);
   switch (access.kind) {
     case "anonymous":
       return { kind: "public", refusal: null };
@@ -66,7 +66,10 @@ export function projectGate(access: BearerAccess, project: string): ProjectGate 
         : { kind: "public", refusal: forbidden("wrong_project", access.project) };
     case "login":
       if (access.projects.includes(project)) return { kind: "all" };
-      return { kind: "public", refusal: access.memberOf.includes(project) ? forbidden("project_not_granted", project) : null };
+      return {
+        kind: "public",
+        refusal: (await getMember(c.env.DB, project, access.userId)) ? forbidden("project_not_granted", project) : null,
+      };
   }
 }
 

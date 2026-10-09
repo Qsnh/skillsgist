@@ -135,12 +135,12 @@ describe("access and cleanup", () => {
     await logins.activateLogin(env.DB, "l1", "token-hash", NOW);
   }
 
-  it("reports the granted projects the user is still in, and every project the user is in", async () => {
+  it("reports the sign-in's user and the granted projects the user is still in", async () => {
     const { user } = await seedUser({ username: "alice" });
     await joinProject(user.id, "team-b");
-    await active(user.id, ["default"]);
+    await active(user.id, ["team-b", "default"]);
     expect(await logins.loginAccessByTokenHash(env.DB, "token-hash")).toEqual({
-      id: "l1", username: "alice", last_used_at: NOW, granted: ["default"], memberOf: ["default", "team-b"],
+      id: "l1", user_id: user.id, username: "alice", last_used_at: NOW, granted: ["default", "team-b"],
     });
     expect(await logins.loginAccessByTokenHash(env.DB, "nope")).toBeNull();
   });

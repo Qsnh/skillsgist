@@ -22,10 +22,10 @@ export interface CliLoginRow {
 
 export interface LoginAccess {
   id: string;
+  user_id: string;
   username: string;
   last_used_at: number | null;
   granted: string[];
-  memberOf: string[];
 }
 
 export interface CliLoginSummary {
@@ -183,39 +183,17 @@ export async function deleteUserLogins(db: D1Database, userId: string): Promise<
 }
 
 export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {
-  const [login, granted, member] = await db.batch([
-    db
-      .prepare(
-        `SELECT l.id, l.last_used_at, u.username FROM cli_logins l JOIN users u ON u.id = l.user_id
-         WHERE l.token_hash = ? AND l.status = 'active'`,
-      )
-      .bind(hash),
-    db
-      .prepare(
-        `SELECT clp.project FROM cli_login_projects clp
-         JOIN cli_logins l ON l.id = clp.login_id
-         WHERE l.token_hash = ? AND l.status = 'active'
-         ORDER BY clp.project`,
-      )
-      .bind(hash),
-    db
-      .prepare(
-        `SELECT m.project FROM memberships m JOIN cli_logins l ON l.user_id = m.user_id
-         WHERE l.token_hash = ? AND l.status = 'active'
-         ORDER BY m.project`,
-      )
-      .bind(hash),
-  ]);
-  const row = login.results[0] as { id: string; last_used_at: number | null; username: string } | undefined;
+  const row = await db
+    .prepare(
+      `SELECT l.id, l.user_id, l.last_used_at, u.username,
+              (SELECT json_group_array(clp.project) FROM cli_login_projects clp WHERE clp.login_id = l.id) AS granted
+       FROM cli_logins l JOIN users u ON u.id = l.user_id
+       WHERE l.token_hash = ? AND l.status = 'active'`,
+    )
+    .bind(hash)
+    .first<Omit<LoginAccess, "granted"> & { granted: string }>();
   if (!row) return null;
-  const projects = (rows: unknown[]) => (rows as Array<{ project: string }>).map((r) => r.project);
-  return {
-    id: row.id,
-    username: row.username,
-    last_used_at: row.last_used_at,
-    granted: projects(granted.results),
-    memberOf: projects(member.results),
-  };
+  return { ...row, granted: (JSON.parse(row.granted) as string[]).sort() };
 }
 
 export async function markLoginUsed(db: D1Database, id: string, at: number): Promise<void> {
