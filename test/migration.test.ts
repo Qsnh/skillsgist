@@ -7,12 +7,16 @@ const { MIGRATION_DB: db, TEST_MIGRATIONS: migrations } = env as unknown as {
 };
 
 const beforeProjects = migrations.filter((m) => m.name < "0003");
-const fromProjects = migrations.filter((m) => m.name >= "0003");
+const projectsOnly = migrations.filter((m) => m.name >= "0003" && m.name < "0004");
 const beforePublishing = migrations.filter((m) => m.name < "0004");
 const fromPublishing = migrations.filter((m) => m.name >= "0004");
+const beforePrefix = migrations.filter((m) => m.name < "0005");
+const fromPrefix = migrations.filter((m) => m.name >= "0005");
 
 async function wipe(): Promise<void> {
-  for (const table of ["memberships", "versions", "skills", "users", "projects", "d1_migrations"]) {
+  for (const table of [
+    "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+  ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
 }
@@ -47,7 +51,7 @@ describe("migration 0003 on an instance that already has data", () => {
       version.bind("demo", 2, "sha256:b", 2, "demo", "A demo", "md2", "html2", 1, "[]", "skills/demo/2.zip", "u1", 20),
       version.bind("other", 1, "sha256:c", 3, "other", "Another", "md3", "html3", 1, "[]", "skills/other/1.zip", "u1", 11),
     ]);
-    await applyD1Migrations(db, fromProjects);
+    await applyD1Migrations(db, projectsOnly);
   });
 
   it("creates the default project", async () => {
@@ -166,5 +170,91 @@ describe("migration 0004 on an instance that already has members", () => {
       db.prepare("UPDATE memberships SET can_publish = ? WHERE user_id = 'u1'").bind(value).run();
     await expect(set(0)).resolves.toBeDefined();
     await expect(set(2)).rejects.toThrow(/CHECK/);
+  });
+});
+
+describe("migration 0005 on an instance that already has members", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, beforePrefix);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)"),
+      db.prepare(
+        "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES ('default', 'u1', 'admin', 'k1', 1, 7)",
+      ),
+      db.prepare(
+        "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES ('team-b', 'u1', 'member', 'k2', 0, 8)",
+      ),
+    ]);
+    await applyD1Migrations(db, fromPrefix);
+  });
+
+  it("replaces every install key with a new sgi_ key and keeps the rest of each membership", async () => {
+    const memberships = await rows("SELECT * FROM memberships ORDER BY project");
+    expect(memberships.map(({ install_key, ...rest }) => rest)).toEqual([
+      { project: "default", user_id: "u1", role: "admin", can_publish: 1, created_at: 7 },
+      { project: "team-b", user_id: "u1", role: "member", can_publish: 0, created_at: 8 },
+    ]);
+    const keys = memberships.map((m) => m.install_key as string);
+    for (const key of keys) expect(key).toMatch(/^sgi_[a-f0-9]{64}$/);
+    expect(new Set(keys).size).toBe(2);
+  });
+});
+
+describe("migrations 0006 and 0007", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u1', 'admin', 'sgi_k', 0)"),
+      db.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l1', 'active', 'u1', 'x', 5, 0, 0)",
+      ),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project, user_id) VALUES ('l1', 'default', 'u1')"),
+    ]);
+  });
+
+  it("refuses an unknown status or user, and a grant without a membership", async () => {
+    const insert = (status: string, user: string) =>
+      db.prepare("INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l2', ?, ?, 'x', 5, 0, 0)").bind(status, user).run();
+    await expect(insert("lost", "u1")).rejects.toThrow(/CHECK/);
+    await expect(insert("active", "nobody")).rejects.toThrow(/FOREIGN KEY/);
+    const grant = (project: string) =>
+      db.prepare("INSERT INTO cli_login_projects (login_id, project, user_id) VALUES ('l1', ?, 'u1')").bind(project).run();
+    await expect(grant("nope")).rejects.toThrow(/FOREIGN KEY/);
+    await db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)").run();
+    await expect(grant("team-b")).rejects.toThrow(/FOREIGN KEY/);
+  });
+
+  it("drops a grant when its membership ends, and a sign-in when its user is deleted", async () => {
+    await db.prepare("DELETE FROM memberships WHERE user_id = 'u1'").run();
+    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([]);
+    expect(await rows("SELECT id FROM cli_logins")).toEqual([{ id: "l1" }]);
+    await db.prepare("DELETE FROM users WHERE id = 'u1'").run();
+    expect(await rows("SELECT * FROM cli_logins")).toEqual([]);
+  });
+});
+
+describe("migration 0007 on an instance that already has sign-ins", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations.filter((m) => m.name < "0007"));
+    await db.batch([
+      db.prepare("INSERT INTO projects (slug, name, created_at) VALUES ('team-b', 'Team B', 0)"),
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO memberships (project, user_id, role, install_key, created_at) VALUES ('default', 'u1', 'admin', 'sgi_k', 0)"),
+      db.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at) VALUES ('l1', 'active', 'u1', 'x', 5, 0, 0)",
+      ),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'default')"),
+      db.prepare("INSERT INTO cli_login_projects (login_id, project) VALUES ('l1', 'team-b')"),
+    ]);
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0007"));
+  });
+
+  it("keeps the grants of current memberships, records their user, and drops the rest", async () => {
+    expect(await rows("SELECT * FROM cli_login_projects")).toEqual([{ login_id: "l1", project: "default", user_id: "u1" }]);
   });
 });

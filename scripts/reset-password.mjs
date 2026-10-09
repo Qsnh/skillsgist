@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
-import { hashPassword, MIN_PASSWORD_LENGTH, resetPasswordSql, USERNAME } from "./reset-password-lib.mjs";
+import { hashPassword, MIN_PASSWORD_LENGTH, resetPasswordSql, revokeCliLoginsSql, USERNAME } from "./reset-password-lib.mjs";
 
 const USAGE = "Usage: npm run reset-password -- [username] [--local]";
 const WRANGLER = fileURLToPath(new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url));
@@ -106,9 +106,19 @@ if (password.length < MIN_PASSWORD_LENGTH) fail(`The password must be at least $
 if ((await ask("Repeat the new password: ", { hidden: true })) !== password) fail("The passwords do not match.");
 piped?.close();
 
-const sql = resetPasswordSql(username, await hashPassword(password));
-const { code, stdout } = await wrangler(["d1", "execute", "DB", `--${target}`, "--json", "--command", sql]);
-const parsed = parseJson(stdout);
-if (code !== 0) fail(`Wrangler failed:\n${wranglerError(parsed, stdout)}`);
-if (!parsed?.[0]?.results?.length) fail(`No user named "${username}" in the ${target} database.`);
+const execute = async (sql) => {
+  const { code, stdout } = await wrangler(["d1", "execute", "DB", `--${target}`, "--json", "--command", sql]);
+  const parsed = parseJson(stdout);
+  return code === 0 ? { parsed } : { error: wranglerError(parsed, stdout) };
+};
+
+const reset = await execute(resetPasswordSql(username, await hashPassword(password)));
+if (reset.error !== undefined) fail(`Wrangler failed:\n${reset.error}`);
+if (!reset.parsed?.[0]?.results?.length) fail(`No user named "${username}" in the ${target} database.`);
 process.stdout.write(`Reset the password of "${username}" in the ${target} database. Sign in at /login with the new password.\n`);
+
+const revoke = await execute(revokeCliLoginsSql(username));
+if (revoke.error === undefined) process.stdout.write("Computers signed in with the CLI were signed out.\n");
+else if (!revoke.error.includes("no such table: cli_logins")) {
+  fail(`Could not sign out the computers signed in with the CLI:\n${revoke.error}`);
+}

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
-import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./auth";
-import { API_PREFIX, csrfToken } from "./csrf";
+import { API_PREFIX, csrfOrigin, csrfToken } from "./csrf";
 import { detectLocale, localeOf, messages } from "./i18n";
+import { deviceRoutes } from "./routes/device";
 import { languageRoutes } from "./routes/language";
+import { oauthRoutes } from "./routes/oauth";
 import { projectsRoutes } from "./routes/projects";
 import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
@@ -26,13 +27,15 @@ app.use("*", async (c, next) => {
 });
 
 app.use("*", detectLocale);
-app.use("*", csrf());
+app.use("*", csrfOrigin);
 app.use("*", csrfToken);
 
 app.get("/healthz", (c) => c.text("ok"));
 app.route("/", languageRoutes);
 app.route("/", registryRoutes);
+app.route("/", oauthRoutes);
 app.route("/", usersRoutes);
+app.route("/", deviceRoutes);
 app.route("/", publishRoutes);
 app.route("/", projectsRoutes);
 app.route("/", skillsRoutes);

@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-// Verify registry protocol compatibility against the real `npx skills`.
-// Start a local wrangler dev, publish a skill, have the CLI install it, then check the files landed.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { createInterface } from "node:readline";
 
 const PORT = 8788;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -17,8 +16,21 @@ const PASSWORD = "verify-cli-password";
 // injects it for just this process without requiring any file on disk.
 const SESSION_SECRET = randomBytes(32).toString("hex");
 
+const seenSecrets = new Set([SESSION_SECRET]);
+
+function remember(secret) {
+  if (secret) seenSecrets.add(secret);
+  return secret;
+}
+
+function redact(text) {
+  let result = text;
+  for (const secret of seenSecrets) result = result.split(secret).join(`${secret.slice(0, 8)}…`);
+  return result.replace(/sg[dit]_[a-f0-9]+/g, (match) => (match.length > 8 ? `${match.slice(0, 8)}…` : match));
+}
+
 function log(msg) {
-  process.stdout.write(`[verify-cli] ${msg}\n`);
+  process.stdout.write(`[verify-cli] ${redact(msg)}\n`);
 }
 
 async function waitForServer(timeoutMs = 60_000) {
@@ -87,11 +99,88 @@ function inTerminal(command, opts = {}) {
   });
 }
 
-/** `npx skills add <url>` against a throwaway HOME, so the real one is untouched. */
-async function installTo(url, extraArgs = []) {
-  const home = tempDir();
-  await run("npx", ["--yes", "skills", "add", url, "-g", "-y", "--copy", ...extraArgs], { env: isolatedEnv(home) });
+function commandWords(line) {
+  const words = [];
+  let word;
+  for (const [, space, double, single, bare, stray] of line.matchAll(/(\s+)|"((?:[^"\\]|\\.)*)"|'([^']*)'|((?:[^\s"'\\]|\\.)+)|(.)/gs)) {
+    if (stray !== undefined) throw new Error(`SKILLSGIST_CLI has an unmatched ${stray}: ${line}`);
+    if (space !== undefined) {
+      if (word !== undefined) words.push(word);
+      word = undefined;
+    } else {
+      word = (word ?? "") + (single ?? (double ?? bare).replace(/\\(.)/gs, "$1"));
+    }
+  }
+  if (word !== undefined) words.push(word);
+  return words;
+}
+
+const shellWord = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`);
+
+const CLI = commandWords(process.env.SKILLSGIST_CLI?.trim() || "npx --yes skillsgist@latest").map((part) =>
+  /^\.\.?\//.test(part) ? resolve(part) : part,
+);
+
+const DEFAULT_CLI_TIMEOUT_MS = 180_000;
+
+const children = new Set();
+
+function killGroup(child) {
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {}
+}
+
+function cli(args, env, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(CLI[0], [...CLI.slice(1), ...args], { env, cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    children.add(child);
+    let out = "";
+    let timedOut = false;
+    const timeoutMs = opts.timeoutMs ?? DEFAULT_CLI_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killGroup(child);
+    }, timeoutMs);
+    for (const stream of [child.stdout, child.stderr]) {
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
+        out += chunk;
+        opts.onOutput?.(out);
+      });
+    }
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      children.delete(child);
+      reject(err);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      children.delete(child);
+      resolve({ code, out: timedOut ? `${out}\ntimed out after ${timeoutMs}ms and was killed` : out });
+    });
+  });
+}
+
+async function installTo(url, extraArgs = [], env = {}, home = tempDir()) {
+  const { code, out } = await cli(["add", url, "-g", "-y", "--copy", ...extraArgs], isolatedEnv(home, env));
+  if (code !== 0) throw new Error(`skillsgist add ${url} exited with ${code}:\n${out}`);
   return home;
+}
+
+function filesContaining(root, secret) {
+  const hits = [];
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      const st = statSync(full);
+      if (st.isDirectory()) stack.push(full);
+      else if (readFileSync(full).includes(secret)) hits.push(full);
+    }
+  }
+  return hits;
 }
 
 /** The skill directory name installed under this HOME (taken from the directory holding SKILL.md). */
@@ -162,6 +251,23 @@ async function stopServer(server) {
   }
 }
 
+async function killChildren() {
+  await Promise.all(
+    [...children].map(
+      (child) =>
+        new Promise((resolve) => {
+          child.once("close", resolve);
+          killGroup(child);
+        }),
+    ),
+  );
+}
+
+process.once("SIGINT", () => {
+  for (const child of children) killGroup(child);
+  process.exit(130);
+});
+
 if (!terminalArgs) {
   process.stderr.write(
     "[verify-cli] failed: running the agent prompt in a terminal needs `script` from util-linux (Linux) or BSD (macOS, FreeBSD), and this system has neither\n",
@@ -172,8 +278,11 @@ if (!terminalArgs) {
 const server = spawn(
   "npx",
   ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--var", `SESSION_SECRET:${SESSION_SECRET}`],
-  { stdio: ["ignore", "inherit", "inherit"] },
+  { stdio: ["ignore", "pipe", "pipe"] },
 );
+for (const [from, to] of [[server.stdout, process.stdout], [server.stderr, process.stderr]]) {
+  createInterface({ input: from, crlfDelay: Infinity }).on("line", (line) => to.write(`${redact(line)}\n`));
+}
 
 let exitCode = 1;
 try {
@@ -223,18 +332,18 @@ try {
     });
 
   const tokenHtml = await (await postPage("/me/api-token", {})).text();
-  const token = /sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0];
+  const token = remember(/sgt_[a-f0-9]{32}/.exec(tokenHtml)?.[0]);
   if (!token) throw new Error("could not generate an api token");
 
   const projectKey = async (project) => {
-    const html = await (await fetch(`${ORIGIN}/p/${project}`, { headers: { Cookie: cookie } })).text();
-    const key = /\/i\/([a-f0-9]{32})/.exec(html)?.[1];
+    const html = await (await fetch(`${ORIGIN}/p/${project}/settings`, { headers: { Cookie: cookie } })).text();
+    const key = remember(/sgi_[a-f0-9]{64}/.exec(html)?.[0]);
     if (!key) throw new Error(`could not read the install key for project ${project}`);
     return key;
   };
 
   const installKey = await projectKey("default");
-  log(`install key: ${installKey.slice(0, 8)}…`);
+  log(`install key: ${installKey}`);
 
   const downloadCounts = async () => {
     const html = await (await fetch(`${ORIGIN}/`, { headers: { Cookie: cookie } })).text();
@@ -277,9 +386,6 @@ try {
     return res.status;
   };
 
-  // Pass ?visibility=private explicitly: step 7 switches demo-skill to public,
-  // and without switching it back here the second run of this script would blow
-  // up on the "demo-skill is still private" precondition.
   await publishFixture("wrapped.zip", "application/zip", "?visibility=private");
   log("published demo-skill (private)");
 
@@ -313,86 +419,68 @@ try {
   await publishMarkdown("other-skill", "A second skill, so the index has more than one.", "public");
   log("published other-skill (public)");
 
-  // 4. Check the digest in the index matches the artifact bytes
-  const index = await (
-    await fetch(`${ORIGIN}/i/${installKey}/.well-known/agent-skills/index.json`)
+  const keyedIndex = await (
+    await fetch(`${ORIGIN}/p/default/.well-known/agent-skills/index.json`, { headers: { Authorization: `Bearer ${installKey}` } })
   ).json();
-  const entry = index.skills.find((s) => s.name === "demo-skill");
+  const entry = keyedIndex.skills.find((s) => s.name === "demo-skill");
   if (!entry) throw new Error("demo-skill is not in the index");
-  const artifact = new Uint8Array(await (await fetch(entry.url)).arrayBuffer());
+  const artifact = new Uint8Array(
+    await (await fetch(entry.url, { headers: { Authorization: `Bearer ${installKey}` } })).arrayBuffer(),
+  );
   const hash = await crypto.subtle.digest("SHA-256", artifact);
   const hex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
   if (`sha256:${hex}` !== entry.digest) throw new Error("artifact digest does not match the index");
-  log("digest verified");
+  const anonFiltered = await (await fetch(`${ORIGIN}/p/default/.well-known/agent-skills/index.json`)).json();
+  if (anonFiltered.skills.length !== 1 || anonFiltered.skills[0].name !== "other-skill") {
+    throw new Error(`the unauthenticated index should list only other-skill, got: ${anonFiltered.skills.map((s) => s.name).join(", ")}`);
+  }
+  log("install key digest verified, unauthenticated index hides demo-skill");
 
-  // 5. Install with the real npx skills into an isolated HOME, so the machine's own skills directory stays untouched
-  const beforeInstall = await settledDownloadCounts();
-  const home = await installTo(`${ORIGIN}/i/${installKey}`, ["-s", "demo-skill"]);
-
-  const installed = findFile(home, join("demo-skill", "SKILL.md"));
-  if (!installed) throw new Error(`npx skills did not install demo-skill into ${home}`);
-  const content = readFileSync(installed, "utf8");
-  if (!content.includes("name: demo-skill")) throw new Error("the installed SKILL.md has the wrong content");
-  // Files other than SKILL.md should land too — proof this installed a complete
-  // skill directory, not just a file that happened to share a name.
-  if (!findFile(home, join("demo-skill", "references", "api.md"))) {
+  const beforeEnvInstall = await settledDownloadCounts();
+  const envHome = await installTo(`${ORIGIN}/p/default`, ["-s", "demo-skill"], { SKILLSGIST_HOST: ORIGIN, SKILLSGIST_INSTALL_KEY: installKey });
+  const envInstalled = findFile(envHome, join("demo-skill", "SKILL.md"));
+  if (!envInstalled) throw new Error(`skillsgist add did not install demo-skill into ${envHome}`);
+  if (!readFileSync(envInstalled, "utf8").includes("name: demo-skill")) throw new Error("the installed SKILL.md has the wrong content");
+  if (!findFile(envHome, join("demo-skill", "references", "api.md"))) {
     throw new Error("the installed skill is missing references/api.md — incomplete install");
   }
-  if (!findFile(home, join("demo-skill", "scripts", "run.sh"))) {
+  if (!findFile(envHome, join("demo-skill", "scripts", "run.sh"))) {
     throw new Error("the installed skill is missing scripts/run.sh — incomplete install");
   }
-  expectInstalled(home, ["demo-skill"], "-s demo-skill");
-  log(`installed: ${installed}`);
-
-  const afterInstall = await settledDownloadCounts();
-  const counted = countedSince(beforeInstall, afterInstall);
-  if (counted["demo-skill"] !== 1) {
-    throw new Error(`one install of demo-skill should count one download, counted ${counted["demo-skill"]}`);
+  expectInstalled(envHome, ["demo-skill"], "-s demo-skill with SKILLSGIST_INSTALL_KEY");
+  const afterEnvInstall = await settledDownloadCounts();
+  const envCounted = countedSince(beforeEnvInstall, afterEnvInstall);
+  if (envCounted["demo-skill"] !== 1) {
+    throw new Error(`one install of demo-skill should count one download, counted ${envCounted["demo-skill"]}`);
   }
-  log(`whole-index install with -s demo-skill counted demo-skill +1, other-skill +${counted["other-skill"]}`);
+  if (existsSync(join(envHome, ".config", "skillsgist", "credentials.json"))) {
+    throw new Error("installing with SKILLSGIST_INSTALL_KEY should not write credentials.json");
+  }
+  const leakedKey = filesContaining(envHome, installKey);
+  if (leakedKey.length > 0) throw new Error(`the install key leaked into installed files: ${leakedKey.join(", ")}`);
+  log(`env install counted demo-skill +1, other-skill +${envCounted["other-skill"]}, and left no trace of the key`);
 
-  // 6. Keyed single-skill install address. The index holds both demo-skill and
-  // other-skill at this point, so this assertion really does prove "narrow to
-  // the slug in the path" works.
-  const home2 = await installTo(`${ORIGIN}/i/${installKey}/.well-known/agent-skills/demo-skill`);
-  expectInstalled(home2, ["demo-skill"], "keyed single-skill install address");
-  const countedSingle = countedSince(afterInstall, await settledDownloadCounts());
-  if (countedSingle["demo-skill"] !== 1 || countedSingle["other-skill"] !== 0) {
+  const keyedHome = await installTo(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`, [], {
+    SKILLSGIST_HOST: ORIGIN,
+    SKILLSGIST_INSTALL_KEY: installKey,
+  });
+  expectInstalled(keyedHome, ["demo-skill"], "keyed single-skill install address");
+  const keyedCounted = countedSince(afterEnvInstall, await settledDownloadCounts());
+  if (keyedCounted["demo-skill"] !== 1 || keyedCounted["other-skill"] !== 0) {
     throw new Error(
-      `the single-skill address should count demo-skill +1 and other-skill +0, counted +${countedSingle["demo-skill"]} and +${countedSingle["other-skill"]}`,
+      `the single-skill address should count demo-skill +1 and other-skill +0, counted +${keyedCounted["demo-skill"]} and +${keyedCounted["other-skill"]}`,
     );
   }
-  log("keyed single-skill install path passed and counted exactly one download");
+  log("keyed single-skill install address passed and counted exactly one download");
 
-  // 7. The anonymous single-install address for a public skill — the one /p/default/s/:slug
-  // shows a signed-out visitor. First confirm demo-skill does not appear in the
-  // anonymous index while it is still private.
-  const anonIndex = async () =>
-    (await (await fetch(`${ORIGIN}/.well-known/agent-skills/index.json`)).json()).skills.map(
-      (entry) => entry.name,
-    );
-
-  const before = await anonIndex();
-  if (before.includes("demo-skill")) throw new Error("demo-skill is still private; the anonymous index must not contain it");
-  if (!before.includes("other-skill")) throw new Error("the anonymous index should contain other-skill");
-
-  // Republish the same bytes with ?visibility=public added. Unchanged content
-  // takes the 200 branch, but the visibility write happens before the digest
-  // check, so it still takes effect (see the Fix 1 comment in src/publish.ts).
-  await publishFixture("wrapped.zip", "application/zip", "?visibility=public");
-  const after = await anonIndex();
-  if (!after.includes("demo-skill") || !after.includes("other-skill")) {
-    throw new Error(`after switching to public the anonymous index should hold two skills, got: ${after.join(", ")}`);
-  }
-  log(`demo-skill switched to public, anonymous index: ${after.join(", ")}`);
-
-  const home3 = await installTo(`${ORIGIN}/.well-known/agent-skills/demo-skill`);
-  expectInstalled(home3, ["demo-skill"], "anonymous single-skill install address");
-  log("anonymous single-skill install path passed");
-
-  const home3b = await installTo(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
-  expectInstalled(home3b, ["demo-skill"], "project public single-skill install address");
-  log("project public single-skill install path passed");
+  const anonCliHome = await installTo(`${ORIGIN}/p/default/.well-known/agent-skills/other-skill`);
+  expectInstalled(anonCliHome, ["other-skill"], "anonymous single-skill install with the skillsgist CLI");
+  const stockHome = tempDir();
+  await run("npx", ["--yes", "skills", "add", `${ORIGIN}/p/default/.well-known/agent-skills/other-skill`, "-g", "-y", "--copy"], {
+    env: isolatedEnv(stockHome),
+  });
+  expectInstalled(stockHome, ["other-skill"], "anonymous single-skill install with the stock npx skills");
+  log("anonymous public installs passed with both the skillsgist CLI and the stock npx skills");
 
   const created = await postPage("/projects/new", { name: "Verify other", slug: "verify-other" });
   if (created.status !== 302 && created.status !== 400) {
@@ -408,74 +496,137 @@ try {
   await publishMarkdown("demo-skill", "The verify-other copy of demo-skill.", "private", "verify-other");
   log("published a second demo-skill (private) into project verify-other");
 
-  const keyedSkills = async (key) =>
-    (await (await fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).json()).skills;
-  const ours = (await keyedSkills(installKey)).find((s) => s.name === "demo-skill");
-  const otherSkills = await keyedSkills(otherKey);
-  if (otherSkills.length !== 1 || otherSkills[0].name !== "demo-skill") {
-    throw new Error(`verify-other's key should list only its demo-skill, got: ${otherSkills.map((s) => s.name).join(", ")}`);
+  const otherKeyEnv = { SKILLSGIST_HOST: ORIGIN, SKILLSGIST_INSTALL_KEY: otherKey };
+  const { code: wrongCode, out: wrongOut } = await cli(
+    ["add", `${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`, "-g", "-y", "--copy"],
+    isolatedEnv(tempDir(), otherKeyEnv),
+  );
+  if (wrongCode === 0 || !wrongOut.includes("is for project verify-other")) {
+    throw new Error(`installing default's private demo-skill with verify-other's key should fail naming its project, got code ${wrongCode}:\n${wrongOut}`);
   }
-  if (!ours || ours.digest === otherSkills[0].digest) {
-    throw new Error("the two projects' demo-skill should be two different skills");
-  }
-  const crossed = await fetch(otherSkills[0].url.replace(otherKey, installKey));
-  if (crossed.status !== 404) {
-    throw new Error(`the default project's key downloaded verify-other's demo-skill (${crossed.status})`);
-  }
-
-  const home4 = await installTo(`${ORIGIN}/i/${otherKey}`);
-  expectInstalled(home4, ["demo-skill"], "verify-other's install key");
-  const otherInstalled = findFile(home4, join("demo-skill", "SKILL.md"));
-  if (!otherInstalled || !readFileSync(otherInstalled, "utf8").includes("The verify-other copy of demo-skill.")) {
+  const publicWithOtherKey = await installTo(`${ORIGIN}/p/default`, [], otherKeyEnv);
+  expectInstalled(publicWithOtherKey, ["other-skill"], "default's public skills with verify-other's install key");
+  const wrongProjectHome = await installTo(`${ORIGIN}/p/verify-other`, [], otherKeyEnv);
+  expectInstalled(wrongProjectHome, ["demo-skill"], "verify-other's install key");
+  const wrongProjectInstalled = findFile(wrongProjectHome, join("demo-skill", "SKILL.md"));
+  if (!wrongProjectInstalled || !readFileSync(wrongProjectInstalled, "utf8").includes("The verify-other copy of demo-skill.")) {
     throw new Error("verify-other's install key installed the wrong demo-skill");
   }
   log("project-scoped install keys passed");
+
+  const deviceHome = tempDir();
+  let codeFound = false;
+  let resolveUserCode;
+  const userCodeFound = new Promise((resolve) => {
+    resolveUserCode = resolve;
+  });
+  const onLoginOutput = (out) => {
+    const match = /\b([BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4})\b/.exec(out);
+    if (match) {
+      codeFound = true;
+      resolveUserCode(match[1]);
+    }
+  };
+  const loginPromise = cli(["login", `${ORIGIN}/p/default`, "--no-browser"], isolatedEnv(deviceHome), { onOutput: onLoginOutput });
+  const userCode = await Promise.race([
+    userCodeFound,
+    loginPromise.then(({ code, out }) => {
+      if (!codeFound) throw new Error(`skillsgist login exited with ${code} before printing a device code:\n${out}`);
+    }),
+  ]);
+  log(`device code: ${userCode}`);
+
+  const confirmPage = await postPage("/device", { code: userCode });
+  if (confirmPage.status !== 200) throw new Error(`POST /device with the code answered ${confirmPage.status}`);
+  const approvePage = await postPage("/device", { code: userCode, decision: "approve", project: "default" });
+  const approvedAt = approvePage.headers.get("location") ?? "";
+  if (approvePage.status !== 302 || !approvedAt.startsWith("/device/")) {
+    throw new Error(`POST /device approve answered ${approvePage.status} ${approvedAt}`);
+  }
+  for (let reload = 0; reload < 2; reload++) {
+    const approvedHtml = await (await fetch(`${ORIGIN}${approvedAt}`, { headers: { Cookie: cookie } })).text();
+    if (!approvedHtml.includes("Computer approved")) throw new Error(`${approvedAt} does not say the computer was approved`);
+  }
+
+  const { code: loginExit, out: loginOut } = await loginPromise;
+  if (loginExit !== 0 || !loginOut.includes("projects: default")) {
+    throw new Error(`skillsgist login did not finish signed in to project default:\n${loginOut}`);
+  }
+  const credentialsPath = join(deviceHome, ".config", "skillsgist", "credentials.json");
+  if (!existsSync(credentialsPath)) throw new Error(`login did not write ${credentialsPath}`);
+  const credentialsMode = statSync(credentialsPath).mode & 0o777;
+  if (credentialsMode !== 0o600) throw new Error(`credentials.json should be mode 0600, got ${credentialsMode.toString(8)}`);
+  log("device sign-in approved and finished");
+
+  await installTo(`${ORIGIN}/p/default`, ["-s", "demo-skill"], {}, deviceHome);
+  expectInstalled(deviceHome, ["demo-skill"], "device sign-in install");
+  log("device sign-in installed the private skill without SKILLSGIST_INSTALL_KEY");
+
+  const savedCredentials = JSON.parse(readFileSync(credentialsPath, "utf8"));
+  const deviceToken = remember(savedCredentials.hosts?.[ORIGIN]?.token);
+  if (!deviceToken) throw new Error("could not read the device token from credentials.json");
+  const { code: logoutCode, out: logoutOut } = await cli(["logout"], isolatedEnv(deviceHome));
+  if (logoutCode !== 0) throw new Error(`skillsgist logout exited with ${logoutCode}:\n${logoutOut}`);
+  const revokedWhoami = await fetch(`${ORIGIN}/api/whoami`, { headers: { Authorization: `Bearer ${deviceToken}` } });
+  if (revokedWhoami.status !== 401) throw new Error(`a revoked device token should answer 401 from /api/whoami, got ${revokedWhoami.status}`);
+  if (existsSync(credentialsPath)) throw new Error("logout did not delete credentials.json");
+  log("device logout revoked the token and removed credentials.json");
+
+  const { code: oldAddressCode, out: oldAddressOut } = await cli(["add", `${ORIGIN}/i/${"a".repeat(32)}`], isolatedEnv(tempDir()));
+  if (oldAddressCode === 0 || !oldAddressOut.includes("Install keys no longer go in the URL")) {
+    throw new Error(`an /i/ address should be rejected with "Install keys no longer go in the URL", got code ${oldAddressCode}:\n${oldAddressOut}`);
+  }
+  const staleIndex = await fetch(`${ORIGIN}/i/${"a".repeat(32)}/.well-known/agent-skills/index.json`);
+  if (staleIndex.status !== 404) throw new Error(`a stale /i/ address should answer 404, got ${staleIndex.status}`);
+  log("old /i/ addresses are rejected by the CLI and answer 404 from the server");
 
   await publishFixture("wrapped.zip", "application/zip", "?visibility=private");
   const skillPage = await (await fetch(`${ORIGIN}/p/default/s/demo-skill`, { headers: { Cookie: cookie } })).text();
   const shown = /`(npx [^`<]+)`/.exec(skillPage)?.[1];
   if (!shown) throw new Error("the skill page shows no agent prompt");
-  if (!shown.includes(`/i/${installKey}/.well-known/agent-skills/demo-skill `)) {
-    throw new Error(`the private demo-skill's prompt does not install from its keyed single-skill address: ${shown}`);
-  }
-  const older = shown.replace(/\bskills add\b/, "skills@1.5.7 add");
-  if (older === shown) throw new Error(`the agent prompt does not run skills add: ${shown}`);
-  for (const [cli, command] of [["skills", shown], ["skills@1.5.7", older]]) {
-    for (const [where, agentEnv, agentDir] of [
-      ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
-      ["inside an agent the CLI does not know", {}, null],
-    ]) {
-      const label = `the agent prompt run with ${cli} ${where}`;
-      const project = tempDir();
-      const home = tempDir();
-      const env = isolatedEnv(home, { ...agentEnv, npm_config_cache: tempDir("skillsgist-verify-npm-") });
-      const output = await inTerminal(command, { cwd: project, env });
-      const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
-      if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
-      const dir = join(home, reported.slice(2));
-      if (
-        !existsSync(join(dir, "SKILL.md")) ||
-        !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
-        !existsSync(join(dir, "references", "api.md")) ||
-        !existsSync(join(dir, "scripts", "run.sh"))
-      ) {
-        throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
-      }
-      expectInstalled(home, ["demo-skill"], label);
-      if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
-        throw new Error(`${label} did not install demo-skill for that agent`);
-      }
-      const leftovers = readdirSync(project);
-      if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
-      log(`${label} installed demo-skill into ${reported} and left the project untouched`);
+  const expectedPrompt = `npx -y skillsgist add ${ORIGIN}/p/default/.well-known/agent-skills/demo-skill --skill demo-skill -g -y`;
+  if (shown !== expectedPrompt) throw new Error(`the agent prompt should be "${expectedPrompt}", got "${shown}"`);
+  const command = shown.replace("npx -y skillsgist", () => CLI.map(shellWord).join(" "));
+  for (const [where, agentEnv, agentDir] of [
+    ["inside Claude Code", { CLAUDECODE: "1" }, ".claude"],
+    ["inside an agent the CLI does not know", {}, null],
+  ]) {
+    const label = `the agent prompt run ${where}`;
+    const project = tempDir();
+    const home = tempDir();
+    const env = isolatedEnv(home, {
+      ...agentEnv,
+      npm_config_cache: tempDir("skillsgist-verify-npm-"),
+      SKILLSGIST_HOST: ORIGIN,
+      SKILLSGIST_INSTALL_KEY: installKey,
+    });
+    const output = await inTerminal(command, { cwd: project, env });
+    const reported = /~\/\.agents\/skills\/demo-skill\b/.exec(output)?.[0];
+    if (!reported) throw new Error(`${label} did not report the global directory of demo-skill:\n${output}`);
+    const dir = join(home, reported.slice(2));
+    if (
+      !existsSync(join(dir, "SKILL.md")) ||
+      !readFileSync(join(dir, "SKILL.md"), "utf8").includes("name: demo-skill") ||
+      !existsSync(join(dir, "references", "api.md")) ||
+      !existsSync(join(dir, "scripts", "run.sh"))
+    ) {
+      throw new Error(`${label} did not install demo-skill and its supporting files into ${reported}`);
     }
+    expectInstalled(home, ["demo-skill"], label);
+    if (agentDir && !existsSync(join(home, agentDir, "skills", "demo-skill", "SKILL.md"))) {
+      throw new Error(`${label} did not install demo-skill for that agent`);
+    }
+    const leftovers = readdirSync(project);
+    if (leftovers.length > 0) throw new Error(`${label} wrote into the project: ${leftovers.join(", ")}`);
+    log(`${label} installed demo-skill into ${reported} and left the project untouched`);
   }
 
   log("all contract checks passed");
   exitCode = 0;
 } catch (err) {
-  process.stderr.write(`[verify-cli] failed: ${err.message}\n`);
+  process.stderr.write(`[verify-cli] failed: ${redact(err.message)}\n`);
 } finally {
+  await killChildren();
   await stopServer(server);
   for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 }

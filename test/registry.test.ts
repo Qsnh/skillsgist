@@ -1,10 +1,10 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setVisibility } from "../src/db/queries";
+import { getVersion, setVisibility } from "../src/db/queries";
 import { buildIndex } from "../src/registry";
 import type { IndexSource } from "../src/registry";
 import {
-  env, get, GOOD_MD, indexAt, indexNames, indexStatus, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb,
+  env, get, GOOD_MD, indexAt, indexNames, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb,
   seedWithSkills, twoProjects,
 } from "./helpers";
 
@@ -104,14 +104,16 @@ describe("registry index", () => {
     expect(await indexNames("/.well-known/agent-skills/no-such-skill")).toEqual([]);
   });
 
-  // The wildcard routes only take paths ending in an index. Bare addresses stay
-  // 404 — keyed bare addresses always have, and the CLI never requests a bare
-  // address, it only ever appends another layer.
   it("still 404s a .well-known path that is not an index", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
 
     expect((await get("/.well-known/agent-skills/demo-skill")).status).toBe(404);
     expect((await get("/.well-known/agent-skills/demo-skill/nope.json")).status).toBe(404);
+
+    const projectScoped = await get("/p/default/.well-known/agent-skills/demo-skill");
+    expect(projectScoped.status).toBe(404);
+    expect(projectScoped.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(projectScoped.headers.get("Vary")).toBe("Authorization");
   });
 });
 
@@ -139,40 +141,6 @@ describe("artifact download", () => {
 describe("project install addresses", () => {
   beforeEach(resetDb);
 
-  it("limits an install key to its own project, public skills included", async () => {
-    const { alice, bob } = await twoProjects();
-    await publish(alice.cookie, GOOD_MD, "private");
-    await publish(bob.cookie, OTHER_MD, "public");
-
-    expect(await indexNames(`/i/${await installKey(alice.user.id)}`)).toEqual(["demo-skill"]);
-    expect(await indexNames(`/i/${await installKey(bob.user.id, "team-b")}`)).toEqual(["other-skill"]);
-    expect(await indexNames(`/i/${await installKey(alice.user.id)}/.well-known/agent-skills/other-skill`)).toEqual([]);
-  });
-
-  it("refuses a keyed download of another project's skill, private or public", async () => {
-    const { alice, bob } = await twoProjects();
-    await publish(bob.cookie, OTHER_MD, "private");
-    const bobKey = await installKey(bob.user.id, "team-b");
-    const url = (await indexAt(`/i/${bobKey}`))[0].url;
-    expect(url).toContain(`${ORIGIN}/i/${bobKey}/d/other-skill/`);
-    const crossed = url.replace(bobKey, await installKey(alice.user.id));
-
-    expect((await SELF.fetch(url)).status).toBe(200);
-    expect((await SELF.fetch(crossed)).status).toBe(404);
-    await setVisibility(env.DB, "team-b", "other-skill", "public");
-    expect((await SELF.fetch(crossed)).status).toBe(404);
-  });
-
-  it("stops a key as soon as its membership is gone", async () => {
-    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
-    const key = await installKey(user.id);
-    const url = (await indexAt(`/i/${key}`))[0].url;
-    await env.DB.prepare("DELETE FROM memberships WHERE user_id = ?").bind(user.id).run();
-
-    expect(await indexStatus(key)).toBe(404);
-    expect((await SELF.fetch(url)).status).toBe(404);
-  });
-
   it("serves each project's public skills at /p/<project>, under either alias", async () => {
     const { alice, bob } = await twoProjects();
     await publish(alice.cookie, GOOD_MD, "public");
@@ -188,16 +156,23 @@ describe("project install addresses", () => {
   });
 
   it("downloads a project's public artifact but not a private one", async () => {
-    const alice = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const entry = (await indexAt("/p/default"))[0];
     expect(entry.url).toBe(`${ORIGIN}/p/default/d/demo-skill/${entry.digest.slice("sha256:".length)}.zip`);
     const res = await SELF.fetch(entry.url);
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=300");
 
-    const keyed = (await indexAt(`/i/${await installKey(alice.user.id)}`)).find((s) => s.name === "other-skill")!;
-    const hex = keyed.digest.slice("sha256:".length);
+    const digest = (await getVersion(env.DB, "default", "other-skill", 1))!.digest;
+    const hex = digest.slice("sha256:".length);
     expect((await get(`/p/default/d/other-skill/${hex}.zip`)).status).toBe(404);
+  });
+
+  it("no longer serves anything under /i/", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
+    const key = await installKey(user.id);
+    expect((await get(`/i/${key}/.well-known/agent-skills/index.json`)).status).toBe(404);
+    expect((await get(`/i/${key}/d/demo-skill/${"0".repeat(64)}.zip`)).status).toBe(404);
   });
 
   it("keeps two public skills with the same name apart, and leaves the name out of the root index", async () => {

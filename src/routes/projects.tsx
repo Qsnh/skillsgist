@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import {
-  canAccessProject, canManageProject, currentUser, membershipIn, newInstallKey, requireAdmin, requireUser, roleOf,
-  skillScope,
+  canAccessProject, canManageProject, currentUser, membershipIn, requireAdmin, requireUser, roleOf, skillScope,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
+import { newInstallKey } from "../credentials";
 import { page } from "../csrf";
 import {
   addMembership, createProject, deleteMembership, deleteProject, getMember, getProject, getUserById, listMembers,
@@ -13,10 +13,8 @@ import {
 import type { ProjectRow, Viewer } from "../db/queries";
 import { flash } from "../flash";
 import { messages } from "../i18n";
-import { projectPath, projectSettingsPath } from "../paths";
+import { PROJECT_SLUG, projectPath, projectSettingsPath } from "../paths";
 import { NewProjectPage, ProjectPage, ProjectSettingsPage, ProjectsPage } from "../views/projects";
-
-const PROJECT_SLUG = /^[a-z0-9-]{2,32}$/;
 
 function projectName(value: unknown): string | null {
   const name = typeof value === "string" ? value.trim() : "";

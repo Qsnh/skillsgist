@@ -31,6 +31,9 @@ const EXEMPT = new Set([
   // Covered by the Origin / Sec-Fetch-Site layer only — see TOKENLESS_PATHS.
   "POST /setup",
   "POST /login",
+  "POST /api/oauth/device",
+  "POST /api/oauth/token",
+  "POST /api/oauth/revoke",
 ]);
 
 // Every other state-changing route, mapped to a concrete path so the sweep
@@ -38,9 +41,11 @@ const EXEMPT = new Set([
 const PROTECTED: Record<string, (ids: { userId: string; slug: string }) => string> = {
   "POST /logout": () => "/logout",
   "POST /lang": () => "/lang",
+  "POST /device": () => "/device",
   "POST /me/api-token": () => "/me/api-token",
   "POST /me/api-token/revoke": () => "/me/api-token/revoke",
   "POST /me/password": () => "/me/password",
+  "POST /me/cli-logins/:id/revoke": () => "/me/cli-logins/nope/revoke",
   "POST /admin/users/new": () => "/admin/users/new",
   "POST /admin/users/:id/role": ({ userId }) => `/admin/users/${userId}/role`,
   "POST /admin/users/:id/password": ({ userId }) => `/admin/users/${userId}/password`,
@@ -83,10 +88,10 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/.well-known/skills/*",
   "GET /d/:slug/:file",
   "GET /p/:project/d/:slug/:file",
-  "GET /i/:key/d/:slug/:file",
-  "GET /i/:key/*",
   "GET /setup",
   "GET /login",
+  "GET /device",
+  "GET /device/:id",
   "GET /me",
   "GET /admin/users",
   "GET /admin/users/new",
@@ -102,6 +107,8 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/s/:slug",
   "GET /p/:project/s/:slug/download",
   "GET /p/:project/s/:slug/v/:version/download",
+  "GET /api/whoami",
+  "GET /.well-known/oauth-authorization-server",
 ]);
 
 // `app.routes` is flattened across every sub-app mounted with `.route()`;
@@ -202,6 +209,20 @@ describe("/api/* exemption", () => {
       body: GOOD_MD,
     });
     expect(res.status).toBe(404);
+  });
+
+  it("still refuses a cross-origin form post to the publish API", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: GOOD_MD,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("does not let a session cookie stand in for a Bearer credential on /api/whoami", async () => {
+    const { cookie } = await seedAndLogin({ username: "alice" });
+    expect((await SELF.fetch(`${ORIGIN}/api/whoami`, { headers: { Cookie: cookie } })).status).toBe(401);
   });
 });
 

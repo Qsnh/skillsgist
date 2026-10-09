@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as auth from "../src/auth";
 import * as users from "../src/routes/users";
-import { hashPassword, MIN_PASSWORD_LENGTH, resetPasswordSql, USERNAME } from "../scripts/reset-password-lib.mjs";
-import { env, login, postForm, resetDb, seedUser } from "./helpers";
+import {
+  hashPassword, MIN_PASSWORD_LENGTH, resetPasswordSql, revokeCliLoginsSql, USERNAME,
+} from "../scripts/reset-password-lib.mjs";
+import { bearer, env, fetchWith, login, postForm, resetDb, seedUser, signInDevice } from "./helpers";
 
 const NEW_PASSWORD = "a-brand-new-password";
 
@@ -39,5 +41,13 @@ describe("reset-password script", () => {
   it("rejects usernames that could break out of the SQL string", () => {
     expect(() => resetPasswordSql("alice' OR '1'='1", "pbkdf2$10000$c2FsdA==$aGFzaA==")).toThrow();
     expect(() => resetPasswordSql("alice", "pbkdf2$10000$x'$y")).toThrow();
+  });
+
+  it("has a statement that signs the account's computers out", async () => {
+    const { user } = await seedUser({ username: "alice" });
+    const { token } = await signInDevice(user.id, ["default"]);
+    await env.DB.prepare(revokeCliLoginsSql("alice")).run();
+    expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
+    expect(() => revokeCliLoginsSql("Alice'; --")).toThrow();
   });
 });

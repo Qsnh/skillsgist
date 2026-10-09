@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as q from "../src/db/queries";
-import { env, joinProject, resetDb } from "./helpers";
+import { env, joinProject, membership, resetDb } from "./helpers";
 
 const seedU1 = () => q.createUser(env.DB, { id: "u1", username: "alice", passwordHash: "h", role: "admin" });
 
@@ -44,15 +44,26 @@ describe("accounts, projects and memberships", () => {
     const first = { id: "u1", username: "root", passwordHash: "h", installKey: "k1" };
     expect(await q.createFirstAdmin(env.DB, first)).toBe(true);
     expect(await q.createFirstAdmin(env.DB, { ...first, id: "u2", username: "late", installKey: "k2" })).toBe(false);
-    expect(await q.getMembershipByInstallKey(env.DB, "k1")).toMatchObject({
-      project: "default", user_id: "u1", role: "member",
-    });
-    expect(await q.getMembershipByInstallKey(env.DB, "k2")).toBeNull();
+    expect(await membership("u1")).toMatchObject({ role: "member", install_key: "k1" });
+    expect(await membership("u2")).toBeNull();
   });
 
-  it("rotates nothing for a user in no project", async () => {
+  it("signs the CLI out with every password change and key rotation, even for a user in no project", async () => {
     await seedU1();
+    const signIn = (id: string) =>
+      env.DB.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at, last_used_at) VALUES (?, 'active', 'u1', 'x', 5, 0, 0, 0)",
+      )
+        .bind(id)
+        .run();
+    const signedIn = async () => (await env.DB.prepare("SELECT id FROM cli_logins").all()).results;
+    await signIn("l1");
     await expect(q.rotateInstallKeys(env.DB, "u1", () => "x")).resolves.toBeUndefined();
+    expect(await signedIn()).toEqual([]);
+    await signIn("l2");
+    await q.updatePassword(env.DB, "u1", "h2");
+    expect(await signedIn()).toEqual([]);
+    expect((await q.getUserById(env.DB, "u1"))?.password_hash).toBe("h2");
   });
 
   it("summarises the projects each account is in and the skills it owns", async () => {
@@ -64,11 +75,19 @@ describe("accounts, projects and memberships", () => {
     await q.insertVersion(env.DB, base);
     await q.insertVersion(env.DB, { ...base, skillId: "s2", slug: "other", name: "other" });
     await q.insertVersion(env.DB, { ...base, authorId: "u2" });
-    expect((await q.listUserSummaries(env.DB)).map((u) => [u.username, u.projects, u.skills])).toEqual([
-      ["alice", 2, 2],
-      ["bob", 0, 0],
+    await env.DB.batch(
+      [["l1", 100], ["l2", 50]].map(([id, usedAt]) =>
+        env.DB.prepare(
+          "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at, last_used_at) VALUES (?, 'active', 'u1', 'x', 5, 0, 0, ?)",
+        ).bind(id, usedAt),
+      ),
+    );
+    expect((await q.listUserSummaries(env.DB, 50)).map((u) => [u.username, u.projects, u.skills, u.cli_logins])).toEqual([
+      ["alice", 2, 2, 1],
+      ["bob", 0, 0, 0],
     ]);
-    expect(await q.getUserSummary(env.DB, "u1")).not.toHaveProperty("password_hash");
+    expect(await q.getUserSummary(env.DB, "u1", 50)).toMatchObject({ username: "alice", cli_logins: 1 });
+    expect(await q.getUserSummary(env.DB, "u1", 0)).not.toHaveProperty("password_hash");
   });
 });
 

@@ -1,8 +1,11 @@
 import { env as rawEnv, SELF } from "cloudflare:test";
 import { hashPassword, randomHex } from "../src/auth";
+import { newDeviceCode, newDeviceToken, newInstallKey, newUserCode } from "../src/credentials";
+import { activateLogin, approveLogin, createPendingLogin } from "../src/db/logins";
 import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import { sha256Hex } from "../src/hash";
 import type { IndexEntry } from "../src/registry";
 
 /**
@@ -55,6 +58,9 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM cli_login_projects"),
+    env.DB.prepare("DELETE FROM cli_logins"),
+    env.DB.prepare("DELETE FROM device_code_attempts"),
     env.DB.prepare("DELETE FROM memberships"),
     env.DB.prepare("DELETE FROM versions"),
     env.DB.prepare("DELETE FROM skills"),
@@ -79,7 +85,7 @@ export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow;
   const id = randomHex(8);
   await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
   const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
-  if (project !== null) await joinProject(id, project, randomHex(16), opts.projectRole);
+  if (project !== null) await joinProject(id, project, newInstallKey(), opts.projectRole);
   const user = await getUserByUsername(env.DB, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
@@ -140,6 +146,17 @@ export async function postForm(
       ...headers,
     },
     body: new URLSearchParams(fields),
+    redirect: "manual",
+  });
+}
+
+export async function postFields(path: string, cookie: string, fields: Array<[string, string]>): Promise<Response> {
+  const body = new URLSearchParams(fields);
+  body.set("_csrf", await csrfFor(cookie));
+  return SELF.fetch(`${ORIGIN}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", ...SAME_ORIGIN, Cookie: cookie },
+    body,
     redirect: "manual",
   });
 }
@@ -227,7 +244,7 @@ export async function twoProjects(aliceRole: "admin" | "member" = "admin") {
 export const joinProject = (
   userId: string,
   project: string,
-  key: string = randomHex(16),
+  key: string = newInstallKey(),
   role: "admin" | "member" = "member",
   canPublish: boolean = true,
 ) => addMembership(env.DB, { project, userId, role, installKey: key, canPublish });
@@ -246,8 +263,26 @@ export async function installKey(userId: string, project: string = DEFAULT_PROJE
   return row.install_key;
 }
 
-export const indexStatus = async (key: string) =>
-  (await SELF.fetch(`${ORIGIN}/i/${key}/.well-known/agent-skills/index.json`)).status;
+export const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+export async function signInDevice(
+  userId: string,
+  projects: string[],
+  lastUsedAt: number = Date.now(),
+  deviceName: string = "test-laptop",
+): Promise<{ id: string; token: string }> {
+  const id = randomHex(16);
+  const now = Date.now();
+  const created = await createPendingLogin(env.DB, {
+    id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName,
+    country: null, requestedScope: null, now,
+  });
+  if (!created) throw new Error("signInDevice: createPendingLogin failed");
+  if (!(await approveLogin(env.DB, id, userId, projects, now))) throw new Error("signInDevice: approveLogin failed");
+  const token = newDeviceToken();
+  if (!(await activateLogin(env.DB, id, await sha256Hex(token), lastUsedAt))) throw new Error("signInDevice: activateLogin failed");
+  return { id, token };
+}
 
 export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {
   const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);

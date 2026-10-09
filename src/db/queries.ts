@@ -142,20 +142,25 @@ export function getUserById(db: D1Database, id: string): Promise<UserRow | null>
 export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_hash" | "created_at" | "last_login_at"> & {
   projects: number;
   skills: number;
+  cli_logins: number;
 };
 
 const USER_SUMMARY_SQL = `SELECT u.id, u.username, u.role, u.api_token_hash, u.created_at, u.last_login_at,
          (SELECT COUNT(*) FROM memberships m WHERE m.user_id = u.id) AS projects,
-         (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills
+         (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills,
+         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active' AND l.last_used_at > ?1) AS cli_logins
   FROM users u`;
 
-export async function listUserSummaries(db: D1Database): Promise<UserSummary[]> {
-  const { results } = await db.prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`).all<UserSummary>();
+export async function listUserSummaries(db: D1Database, loginsUsedAfter: number): Promise<UserSummary[]> {
+  const { results } = await db
+    .prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`)
+    .bind(loginsUsedAfter)
+    .all<UserSummary>();
   return results;
 }
 
-export function getUserSummary(db: D1Database, id: string): Promise<UserSummary | null> {
-  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?`).bind(id).first<UserSummary>();
+export function getUserSummary(db: D1Database, id: string, loginsUsedAfter: number): Promise<UserSummary | null> {
+  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?2`).bind(loginsUsedAfter, id).first<UserSummary>();
 }
 
 export async function countAdmins(db: D1Database): Promise<number> {
@@ -187,10 +192,6 @@ export async function deleteUserReassigning(
     db.prepare("DELETE FROM memberships WHERE user_id = ?").bind(userId),
     db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
   ]);
-}
-
-export function getMembershipByInstallKey(db: D1Database, key: string): Promise<MembershipRow | null> {
-  return db.prepare("SELECT * FROM memberships WHERE install_key = ?").bind(key).first<MembershipRow>();
 }
 
 async function viewerWhere(
@@ -263,13 +264,18 @@ export async function updateInstallKey(
   await setInstallKey(db, project, userId, key).run();
 }
 
+const deleteUserLogins = (db: D1Database, userId: string) =>
+  db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId);
+
 export async function rotateInstallKeys(db: D1Database, userId: string, nextKey: () => string): Promise<void> {
   const { results } = await db
     .prepare("SELECT project FROM memberships WHERE user_id = ?")
     .bind(userId)
     .all<{ project: string }>();
-  if (results.length === 0) return;
-  await db.batch(results.map(({ project }) => setInstallKey(db, project, userId, nextKey())));
+  await db.batch([
+    ...results.map(({ project }) => setInstallKey(db, project, userId, nextKey())),
+    deleteUserLogins(db, userId),
+  ]);
 }
 
 const LISTED_SKILL_SQL = `SELECT s.*, u.username AS author, p.name AS project_name
@@ -477,7 +483,10 @@ export async function updateApiTokenHash(
 }
 
 export async function updatePassword(db: D1Database, userId: string, hash: string): Promise<void> {
-  await db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, userId).run();
+  await db.batch([
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, userId),
+    deleteUserLogins(db, userId),
+  ]);
 }
 
 export async function touchLogin(db: D1Database, userId: string, at: number): Promise<void> {
@@ -508,21 +517,6 @@ export function getArtifactByDigest(
   return db
     .prepare(`${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.digest = ?`)
     .bind(project, slug, digest)
-    .first<ArtifactRef>();
-}
-
-export function getArtifactByInstallKey(
-  db: D1Database,
-  key: string,
-  slug: string,
-  digest: string,
-): Promise<ArtifactRef | null> {
-  return db
-    .prepare(
-      `${ARTIFACT_SQL} JOIN memberships m ON m.project = s.project
-       WHERE m.install_key = ? AND s.slug = ? AND v.digest = ?`,
-    )
-    .bind(key, slug, digest)
     .first<ArtifactRef>();
 }
 
@@ -654,4 +648,11 @@ export async function projectsWithSkillNamed(db: D1Database, slug: string): Prom
 
 export async function moveSkill(db: D1Database, project: string, slug: string, target: string): Promise<void> {
   await db.prepare("UPDATE skills SET project = ? WHERE project = ? AND slug = ?").bind(target, project, slug).run();
+}
+
+export function getInstallKeyAccess(db: D1Database, key: string): Promise<{ project: string; username: string } | null> {
+  return db
+    .prepare("SELECT m.project, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?")
+    .bind(key)
+    .first<{ project: string; username: string }>();
 }

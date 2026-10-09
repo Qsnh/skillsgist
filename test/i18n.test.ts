@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Ctx } from "../src/auth";
 import { localeOf } from "../src/i18n";
 import { en } from "../src/i18n/en";
-import { formatCount, formatDate, formatStamp } from "../src/i18n/format";
+import { formatAgo, formatCount, formatDate, formatStamp } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
@@ -114,11 +114,24 @@ describe("dates, counts and script labels", () => {
     expect(formatDate("zh-CN", at)).toBe("2026年9月27日");
     expect(formatDate("zh-TW", at)).toBe("2026年9月27日");
     expect(formatDate("ja", at)).toBe("2026年9月27日");
-    expect(formatStamp("en", at)).toBe("Sep 27, 2026, 14:05");
-    expect(formatStamp("zh-CN", at)).toContain("14:05");
-    expect(formatStamp("zh-TW", at)).toContain("14:05");
-    expect(formatStamp("ja", at)).toContain("2026年9月27日");
+    expect(formatStamp("en", at)).toBe("Sep 27, 2026, 14:05 UTC");
+    for (const locale of ["zh-CN", "zh-TW", "ja"] as const) {
+      expect(formatStamp(locale, at)).toMatch(/^2026年9月27日 /);
+      expect(formatStamp(locale, at)).toContain("14:05");
+      expect(formatStamp(locale, at)).toContain("UTC");
+    }
     expect(formatCount("ja", 12345)).toBe("12,345");
+  });
+
+  it("says how long ago a time was, from the hour up", () => {
+    const now = Date.UTC(2026, 9, 8, 12);
+    const hour = 60 * 60 * 1000;
+    expect(formatAgo("en", now - 59 * 60 * 1000, now)).toBeNull();
+    expect(formatAgo("en", now - hour, now)).toBe("1 hour ago");
+    expect(formatAgo("en", now - 30 * hour, now)).toBe("1 day ago");
+    expect(formatAgo("en", now - 91 * 24 * hour, now)).toBe("3 months ago");
+    expect(formatAgo("zh-CN", now - 5 * hour, now)).toBe("5小时前");
+    expect(formatAgo("ja", now - 3 * 24 * hour, now)).toBe("3 日前");
   });
 
   it("hands the copy and fold scripts their labels", async () => {
@@ -165,7 +178,7 @@ describe("sign-in, account and user administration", () => {
     expect(html).toContain(zhCN.users.settingsTitle("bob"));
     expect(html).toContain(`<span class="cf-vis cf-vis-private">${zhCN.common.roles.member}</span>`);
     expect(html).toContain(zhCN.users.promote);
-    expect(html).toContain(zhCN.users.installKeysHint("bob", 1));
+    expect(html).toContain(zhCN.users.installKeysHint("bob", 1, 0));
   });
 
   it("refuses a member at an admin page in Japanese", async () => {
@@ -183,7 +196,7 @@ describe("registry and skill pages", () => {
     const html = await htmlIn("/?q=%E7%84%A1", { "Accept-Language": "ja" });
     expect(html).toContain(ja.skills.hero);
     expect(html).toContain(ja.skills.noMatches("無", null));
-    expect(html).toContain("<code>npx skills</code>");
+    expect(html).toContain("<code>npx skillsgist</code>");
     expect(html).toContain(`<a href="/login">${ja.layout.signIn}</a>`);
   });
 

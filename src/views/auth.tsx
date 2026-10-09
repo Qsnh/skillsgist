@@ -1,6 +1,9 @@
-import { Form } from "../csrf";
+import { useContext } from "hono/jsx";
+import { LOGIN_IDLE_DAYS, loginExpired } from "../credentials";
+import { Form, OriginContext } from "../csrf";
+import type { CliLoginSummary } from "../db/logins";
 import { useLocale, useT } from "../i18n";
-import { formatDate } from "../i18n/format";
+import { formatAgo, formatDate, formatStamp } from "../i18n/format";
 import { userSettingsPath } from "../paths";
 import { Alert, AlertIcon, Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import type { UserRow, UserSummary, Viewer } from "../db/queries";
@@ -39,12 +42,13 @@ export function SetupPage(props: { error?: string }) {
   );
 }
 
-export function LoginPage(props: { error?: string }) {
+export function LoginPage(props: { error?: string; next?: string }) {
   const t = useT();
   return (
     <Layout title={t.layout.signIn} user={null} hideSignIn>
       <AuthCard title={t.layout.signIn} error={props.error}>
         <form method="post" action="/login" class="cf-stack">
+          {props.next && props.next !== "/" ? <input type="hidden" name="next" value={props.next} /> : null}
           <Field label={t.common.username} name="username" autocomplete="username" />
           <Field label={t.common.password} name="password" type="password" autocomplete="current-password" />
           <Button wide>{t.layout.signIn}</Button>
@@ -88,8 +92,74 @@ function TokenStatus(props: { active: boolean }) {
   );
 }
 
-export function MePage(props: { user: Viewer; newToken?: string; error?: string }) {
+function CliLoginItem(props: { login: CliLoginSummary; now: number }) {
+  const locale = useLocale();
   const t = useT();
+  const { login } = props;
+  const name = login.device_name || t.auth.unnamedComputer;
+  const expired = loginExpired(login.last_used_at, props.now);
+  return (
+    <li class={expired ? "cf-row cf-login cf-login-expired" : "cf-row cf-login"}>
+      <div class="cf-row-main">
+        <p class="cf-login-head">
+          <span class={login.device_name ? "cf-login-name" : "cf-login-name cf-login-unnamed"}>{name}</span>
+          {expired ? <span class="cf-tag">{t.auth.cliLoginExpired}</span> : null}
+        </p>
+        <dl class="cf-login-facts">
+          <dt>{t.auth.cliLoginProjects}</dt>
+          <dd>
+            {login.projects.length ? (
+              <ul class="cf-chips">
+                {login.projects.map((project) => (
+                  <li class="cf-chip">{project}</li>
+                ))}
+              </ul>
+            ) : (
+              <span class="cf-login-none">{t.auth.noUsableProjects}</span>
+            )}
+          </dd>
+          <dt>{t.auth.cliLoginSignedIn}</dt>
+          <dd>
+            {login.approved_at ? (
+              <time datetime={new Date(login.approved_at).toISOString()}>{formatDate(locale, login.approved_at)}</time>
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>{t.auth.cliLoginLastUsed}</dt>
+          <dd>
+            {login.last_used_at ? (
+              <time
+                class="cf-login-ago"
+                datetime={new Date(login.last_used_at).toISOString()}
+                title={formatStamp(locale, login.last_used_at)}
+              >
+                {formatAgo(locale, login.last_used_at, props.now) ?? t.auth.cliLoginWithinHour}
+              </time>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </dl>
+      </div>
+      <ConfirmDelete
+        action={`/me/cli-logins/${login.id}/revoke`}
+        label={expired ? t.auth.removeComputer : t.auth.signOutComputer}
+        confirm={expired ? t.auth.removeNamed(name) : t.auth.signOutNamed(name)}
+        size="sm"
+        name="revoke-cli-login"
+      >
+        {expired ? t.auth.removeExpiredWarning(LOGIN_IDLE_DAYS) : t.auth.signOutWarning}
+      </ConfirmDelete>
+    </li>
+  );
+}
+
+export function MePage(props: { user: Viewer; logins: CliLoginSummary[]; newToken?: string; error?: string }) {
+  const now = Date.now();
+  const t = useT();
+  const origin = useContext(OriginContext);
+  const live = props.logins.filter((login) => !loginExpired(login.last_used_at, now)).length;
   return (
     <Layout title={t.layout.account} user={props.user}>
       <div class="cf-narrow">
@@ -117,6 +187,26 @@ export function MePage(props: { user: Viewer; newToken?: string; error?: string 
                 </ConfirmDelete>
               ) : null}
             </div>
+          </Panel>
+
+          <Panel
+            title={t.auth.cliLoginsPanel}
+            aside={<span class="cf-count">{live}</span>}
+            foot={props.logins.length ? <p class="cf-panel-note">{t.auth.cliLoginsIdle(LOGIN_IDLE_DAYS)}</p> : null}
+            flush
+          >
+            {props.logins.length === 0 ? (
+              <div class="cf-panel-body">
+                <p class="cf-hint">{t.auth.noCliLogins}</p>
+                <CodeBlock>npx skillsgist login {origin}</CodeBlock>
+              </div>
+            ) : (
+              <ul class="cf-rows">
+                {props.logins.map((login) => (
+                  <CliLoginItem login={login} now={now} />
+                ))}
+              </ul>
+            )}
           </Panel>
 
           <Panel title={t.auth.changePassword}>
@@ -227,11 +317,11 @@ export function UserSettingsPage(props: { user: UserRow; target: UserSummary; er
           </Panel>
 
           <Panel title={t.users.installKeys}>
-            {target.projects === 0 ? (
+            {target.projects + target.cli_logins === 0 ? (
               <p class="cf-hint">{t.users.noInstallKeys(target.username)}</p>
             ) : (
               <>
-                <p class="cf-hint">{t.users.installKeysHint(target.username, target.projects)}</p>
+                <p class="cf-hint">{t.users.installKeysHint(target.username, target.projects, target.cli_logins)}</p>
                 <Form action={`${path}/install-key`} class="cf-actions">
                   <Button variant="outline">{t.users.rotateKeys}</Button>
                 </Form>

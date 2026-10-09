@@ -2,7 +2,7 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
-import { installBase, projectPath, projectSettingsPath, skillPath } from "../paths";
+import { projectPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -93,7 +93,7 @@ function HeroLede(props: { user: Viewer | null }) {
   if (!props.user) {
     return (
       <p class="cf-hero-lede">
-        {t.skills.heroAnon(<code>npx skills</code>, <a href="/login">{t.layout.signIn}</a>)}
+        {t.skills.heroAnon(<code>npx skillsgist</code>, <a href="/login">{t.layout.signIn}</a>)}
       </p>
     );
   }
@@ -285,24 +285,15 @@ function MoveSkill(props: { skill: ListedSkill; targets: Array<{ slug: string; n
   );
 }
 
-function skillsAdd(url: string) {
-  return `skills add ${url}`;
+function addCommand(url: string) {
+  return `skillsgist add ${url}`;
 }
 
-function KeyNote(props: { note: unknown }) {
-  return props.note ? <p class="cf-install-note">{props.note}</p> : null;
+function Command(props: { url: string }) {
+  return <CodeBlock raised>npx {addCommand(props.url)}</CodeBlock>;
 }
 
-function Command(props: { url: string; note: unknown }) {
-  return (
-    <>
-      <CodeBlock raised>npx {skillsAdd(props.url)}</CodeBlock>
-      <KeyNote note={props.note} />
-    </>
-  );
-}
-
-function Install(props: { url: string; promptUrl: string; slug: string; commandNote: unknown; promptNote: unknown }) {
+function Install(props: { url: string; slug: string }) {
   const t = useT();
   return (
     <div class="cf-install">
@@ -318,13 +309,12 @@ function Install(props: { url: string; promptUrl: string; slug: string; commandN
         </label>
       </fieldset>
       <div id="install-command" data-mode="command" role="group" aria-label={t.skills.installCommand}>
-        <Command url={props.url} note={props.commandNote} />
+        <Command url={props.url} />
       </div>
       <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
         <CodeBlock raised prompt={false}>
-          {t.skills.agentPrompt(`npx -y ${skillsAdd(props.promptUrl)} --skill ${props.slug} -g -y`)}
+          {t.skills.agentPrompt(`npx -y ${addCommand(props.url)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
-        <KeyNote note={props.promptNote} />
       </div>
     </div>
   );
@@ -347,11 +337,8 @@ export function SkillPage(props: {
   const path = skillPath(skill);
   const membership = props.user ? membershipIn(props.user, skill.project) : undefined;
   const isPublic = skill.visibility === "public";
-  const base = installBase(props.origin, skill.project, membership?.install_key, isPublic);
-  const publicBase = installBase(props.origin, skill.project, undefined, isPublic);
+  const base = isPublic || membership !== undefined ? `${props.origin}${projectPath(skill.project)}` : null;
   const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
-  const settings = <a href={projectSettingsPath(skill.project)}>{t.projects.settings}</a>;
-  const commandNote = membership?.install_key ? t.skills.commandKeyNote(skill.project_name, settings) : null;
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
@@ -359,15 +346,9 @@ export function SkillPage(props: {
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
           {base === null ? null : isLatest ? (
-            <Install
-              url={address(base)}
-              promptUrl={address(publicBase ?? base)}
-              slug={skill.slug}
-              commandNote={commandNote}
-              promptNote={isPublic ? null : t.skills.promptKeyNote(skill.project_name, settings)}
-            />
+            <Install url={address(base)} slug={skill.slug} />
           ) : (
-            <Command url={address(base)} note={commandNote} />
+            <Command url={address(base)} />
           )}
         </div>
       </section>

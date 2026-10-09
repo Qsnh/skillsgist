@@ -1,5 +1,6 @@
 import { createContext, useContext } from "hono/jsx";
 import type { MiddlewareHandler } from "hono";
+import { csrf } from "hono/csrf";
 import type { JSX } from "hono/jsx/jsx-runtime";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { constantTimeEqual, CSRF_FIELD, sessionCsrf } from "./auth";
@@ -69,7 +70,14 @@ export const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export const API_PREFIX = "/api/";
 
+const OAUTH_PREFIX = "/api/oauth/";
+
 const TOKENLESS_PATHS = new Set(["/setup", "/login"]);
+
+const sameOrigin = csrf();
+
+export const csrfOrigin: MiddlewareHandler<AppEnv> = (c, next) =>
+  c.req.path.startsWith(OAUTH_PREFIX) ? next() : sameOrigin(c, next);
 
 export const csrfToken: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (SAFE_METHODS.has(c.req.method)) return next();

@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, newInstallKey, randomHex, requireAdmin, requireUser, roleOf,
-  startSession, verifyPassword,
+  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser, roleOf, startSession,
+  verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
+import { loginExpired, loginIdleCutoff, newInstallKey } from "../credentials";
 import { page } from "../csrf";
+import { deleteUserLogin, listUserLogins } from "../db/logins";
 import { flash } from "../flash";
 import { messages } from "../i18n";
 import {
@@ -12,9 +14,9 @@ import {
   getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
-import type { UserRow } from "../db/queries";
+import type { UserRow, Viewer } from "../db/queries";
 import { sha256Hex } from "../hash";
-import { userSettingsPath } from "../paths";
+import { safeNext, userSettingsPath } from "../paths";
 import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
 
 export const USERNAME = /^[a-z0-9-]{2,32}$/;
@@ -31,12 +33,22 @@ async function issueApiToken(db: D1Database, userId: string): Promise<{ token: s
   return { token, hash };
 }
 
+async function mePage(c: Ctx, user: Viewer, extra: { newToken?: string; error?: string } = {}): Promise<Response> {
+  const logins = await listUserLogins(c.env.DB, user.id);
+  return page(
+    c,
+    <MePage user={user} logins={logins} newToken={extra.newToken} error={extra.error} />,
+    extra.error ? 400 : undefined,
+    "/me",
+  );
+}
+
 const userSettings = async (
   c: Ctx,
   id: string,
   extra: { error?: string; newToken?: string } = {},
 ): Promise<Response> => {
-  const target = await getUserSummary(c.env.DB, id);
+  const target = await getUserSummary(c.env.DB, id, loginIdleCutoff(Date.now()));
   if (!target) return c.notFound();
   return page(
     c,
@@ -72,17 +84,18 @@ usersRoutes.post("/setup", async (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/login", async (c) => page(c, <LoginPage />));
+usersRoutes.get("/login", async (c) => page(c, <LoginPage next={safeNext(c.req.query("next"))} />));
 
 usersRoutes.post("/login", async (c) => {
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
+  const next = safeNext(body.next);
   const user = await getUserByUsername(c.env.DB, username);
   const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} />, 401);
+  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} next={next} />, 401);
   await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
-  return c.redirect("/", 302);
+  return c.redirect(next, 302);
 });
 
 usersRoutes.post("/logout", (c) => {
@@ -90,12 +103,12 @@ usersRoutes.post("/logout", (c) => {
   return c.redirect("/", 302);
 });
 
-usersRoutes.get("/me", requireUser, async (c) => page(c, <MePage user={c.get("user")} />));
+usersRoutes.get("/me", requireUser, (c) => mePage(c, c.get("user")));
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
   const { token, hash } = await issueApiToken(c.env.DB, user.id);
-  return page(c, <MePage user={{ ...user, api_token_hash: hash }} newToken={token} />, undefined, "/me");
+  return mePage(c, { ...user, api_token_hash: hash }, { newToken: token });
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
@@ -108,19 +121,28 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
   const t = messages(c);
   const body = await c.req.parseBody();
   if (!(await verifyPassword(String(body.current ?? ""), user.password_hash))) {
-    return page(c, <MePage user={user} error={t.auth.currentPasswordWrong} />, 400, "/me");
+    return mePage(c, user, { error: t.auth.currentPasswordWrong });
   }
   const next = String(body.next ?? "");
   if (next.length < MIN_PASSWORD_LENGTH) {
-    return page(c, <MePage user={user} error={t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH)} />, 400, "/me");
+    return mePage(c, user, { error: t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
   await flash(c, t.auth.passwordChanged);
   return c.redirect("/me", 302);
 });
 
+usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
+  const login = await deleteUserLogin(c.env.DB, c.get("user").id, c.req.param("id"));
+  if (!login) return c.notFound();
+  const t = messages(c);
+  const name = login.device_name || t.auth.unnamedComputer;
+  await flash(c, loginExpired(login.last_used_at, Date.now()) ? t.auth.cliLoginRemoved(name) : t.auth.cliLoginRevoked(name));
+  return c.redirect("/me", 302);
+});
+
 usersRoutes.get("/admin/users", requireAdmin, async (c) =>
-  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB)} />),
+  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB, loginIdleCutoff(Date.now()))} />),
 );
 
 usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));
