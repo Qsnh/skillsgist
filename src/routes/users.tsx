@@ -6,7 +6,7 @@ import {
 import type { AppEnv, Ctx } from "../auth";
 import { loginIdleCutoff, newInstallKey } from "../credentials";
 import { page } from "../csrf";
-import { deleteUserLogin, deleteUserLogins, listUserLogins } from "../db/logins";
+import { deleteUserLogin, listUserLogins } from "../db/logins";
 import { flash } from "../flash";
 import { messages } from "../i18n";
 import {
@@ -128,7 +128,6 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
     return mePage(c, user, { error: t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, user.id, await hashPassword(next));
-  await deleteUserLogins(c.env.DB, user.id);
   await flash(c, t.auth.passwordChanged);
   return c.redirect("/me", 302);
 });
@@ -212,7 +211,6 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
     return userSettings(c, guard.target.id, { error: messages(c).auth.passwordTooShort(MIN_PASSWORD_LENGTH) });
   }
   await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
-  await deleteUserLogins(c.env.DB, guard.target.id);
   await flash(c, messages(c).users.passwordReset(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
@@ -221,7 +219,6 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
   await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
-  await deleteUserLogins(c.env.DB, guard.target.id);
   await flash(c, messages(c).users.keysRotated(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });

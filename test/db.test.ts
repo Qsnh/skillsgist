@@ -48,9 +48,22 @@ describe("accounts, projects and memberships", () => {
     expect(await membership("u2")).toBeNull();
   });
 
-  it("rotates nothing for a user in no project", async () => {
+  it("signs the CLI out with every password change and key rotation, even for a user in no project", async () => {
     await seedU1();
+    const signIn = (id: string) =>
+      env.DB.prepare(
+        "INSERT INTO cli_logins (id, status, user_id, device_name, poll_interval, created_at, expires_at, last_used_at) VALUES (?, 'active', 'u1', 'x', 5, 0, 0, 0)",
+      )
+        .bind(id)
+        .run();
+    const signedIn = async () => (await env.DB.prepare("SELECT id FROM cli_logins").all()).results;
+    await signIn("l1");
     await expect(q.rotateInstallKeys(env.DB, "u1", () => "x")).resolves.toBeUndefined();
+    expect(await signedIn()).toEqual([]);
+    await signIn("l2");
+    await q.updatePassword(env.DB, "u1", "h2");
+    expect(await signedIn()).toEqual([]);
+    expect((await q.getUserById(env.DB, "u1"))?.password_hash).toBe("h2");
   });
 
   it("summarises the projects each account is in and the skills it owns", async () => {

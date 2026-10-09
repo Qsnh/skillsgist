@@ -264,13 +264,18 @@ export async function updateInstallKey(
   await setInstallKey(db, project, userId, key).run();
 }
 
+const deleteUserLogins = (db: D1Database, userId: string) =>
+  db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId);
+
 export async function rotateInstallKeys(db: D1Database, userId: string, nextKey: () => string): Promise<void> {
   const { results } = await db
     .prepare("SELECT project FROM memberships WHERE user_id = ?")
     .bind(userId)
     .all<{ project: string }>();
-  if (results.length === 0) return;
-  await db.batch(results.map(({ project }) => setInstallKey(db, project, userId, nextKey())));
+  await db.batch([
+    ...results.map(({ project }) => setInstallKey(db, project, userId, nextKey())),
+    deleteUserLogins(db, userId),
+  ]);
 }
 
 const LISTED_SKILL_SQL = `SELECT s.*, u.username AS author, p.name AS project_name
@@ -478,7 +483,10 @@ export async function updateApiTokenHash(
 }
 
 export async function updatePassword(db: D1Database, userId: string, hash: string): Promise<void> {
-  await db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, userId).run();
+  await db.batch([
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, userId),
+    deleteUserLogins(db, userId),
+  ]);
 }
 
 export async function touchLogin(db: D1Database, userId: string, at: number): Promise<void> {

@@ -178,10 +178,6 @@ export async function deleteUserLogin(db: D1Database, userId: string, id: string
   return row ? row.device_name : null;
 }
 
-export async function deleteUserLogins(db: D1Database, userId: string): Promise<void> {
-  await db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId).run();
-}
-
 export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {
   const row = await db
     .prepare(
