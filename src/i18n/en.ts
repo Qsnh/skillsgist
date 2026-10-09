@@ -185,16 +185,6 @@ export const en = {
     installPrompt: "Prompt",
     agentPrompt: (command: string) =>
       `Run \`${command}\`. Read the complete output of that command, redirecting it to a temporary file first if necessary, then open the SKILL.md in the directory that output reports and follow the instructions in it now. Resolve relative paths from that directory.`,
-    commandLoginNote: (login: Slot) => [
-      "This skill is private. Sign this computer in once with ",
-      login,
-      " before you run the command.",
-    ],
-    promptLoginNote: (login: Slot) => [
-      "This skill is private, so the agent's computer must be signed in with ",
-      login,
-      " or have SKILLSGIST_HOST and SKILLSGIST_INSTALL_KEY set.",
-    ],
     notAllowed: (action: SkillAction) => `You are not allowed to ${action} this skill`,
     moveForbidden: "You cannot move a skill into that project",
     nameTakenIn: (project: string, slug: string) => `${project} already has a skill named ${slug}`,

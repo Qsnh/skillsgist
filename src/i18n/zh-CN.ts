@@ -174,8 +174,6 @@ export const zhCN: Messages = {
     installPrompt: "提示词",
     agentPrompt: (command) =>
       `运行 \`${command}\`。完整阅读这条命令的输出，必要时先把输出重定向到临时文件，然后打开输出中给出的目录里的 SKILL.md，立即按其中的指令执行。相对路径都以这个目录为基准。`,
-    commandLoginNote: (login) => ["这是私有技能。请先用 ", login, " 登录这台电脑一次，再运行命令。"],
-    promptLoginNote: (login) => ["这是私有技能，智能体所在的电脑必须已用 ", login, " 登录，或设置了 SKILLSGIST_HOST 和 SKILLSGIST_INSTALL_KEY。"],
     notAllowed: (action) => `你无权${ACTIONS[action]}这个技能`,
     moveForbidden: "不能把技能移动到该项目",
     nameTakenIn: (project, slug) => `${project} 中已有名为 ${slug} 的技能`,

@@ -563,13 +563,13 @@
     color: var(--color-cf-ink-2);
   }
 
-  :is(.cf-link, .cf-hero-lede a, .cf-install-note a, .skill-doc a) {
+  :is(.cf-link, .cf-hero-lede a, .skill-doc a) {
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
 
-  :is(.cf-link, .cf-hero-lede a, .cf-install-note a, .skill-doc a):hover {
+  :is(.cf-link, .cf-hero-lede a, .skill-doc a):hover {
     text-decoration-thickness: 2px;
   }
 
@@ -1619,15 +1619,6 @@
 
   .cf-install [data-mode="prompt"] .cf-command-text::after {
     content: none;
-  }
-
-  .cf-install-note {
-    max-width: 64ch;
-    margin-top: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--color-cf-ember);
-    text-wrap: pretty;
   }
 
   @supports selector(:has(*)) {

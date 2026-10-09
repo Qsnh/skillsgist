@@ -184,12 +184,6 @@ export const ja: Messages = {
     installPrompt: "プロンプト",
     agentPrompt: (command) =>
       `\`${command}\` を実行してください。コマンドの出力は最後まで読み（必要なら先に一時ファイルへリダイレクトしてください）、出力に示されたディレクトリの SKILL.md を開いて、その指示に今すぐ従ってください。相対パスはそのディレクトリを基準に解決してください。`,
-    commandLoginNote: (login) => ["このスキルはプライベートです。コマンドを実行する前に、", login, " でこのコンピューターを一度サインインしてください。"],
-    promptLoginNote: (login) => [
-      "このスキルはプライベートなので、エージェントのコンピューターが ",
-      login,
-      " でサインイン済みか、SKILLSGIST_HOST と SKILLSGIST_INSTALL_KEY が設定されている必要があります。",
-    ],
     notAllowed: (action) => `このスキルを${ACTIONS[action]}する権限がありません`,
     moveForbidden: "そのプロジェクトにはスキルを移動できません",
     nameTakenIn: (project, slug) => `${project} にはすでに ${slug} という名前のスキルがあります`,

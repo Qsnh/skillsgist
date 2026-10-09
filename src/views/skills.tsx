@@ -289,20 +289,11 @@ function addCommand(url: string) {
   return `skillsgist add ${url}`;
 }
 
-function LoginNote(props: { note: unknown }) {
-  return props.note ? <p class="cf-install-note">{props.note}</p> : null;
+function Command(props: { url: string }) {
+  return <CodeBlock raised>npx {addCommand(props.url)}</CodeBlock>;
 }
 
-function Command(props: { url: string; note: unknown }) {
-  return (
-    <>
-      <CodeBlock raised>npx {addCommand(props.url)}</CodeBlock>
-      <LoginNote note={props.note} />
-    </>
-  );
-}
-
-function Install(props: { url: string; slug: string; commandNote: unknown; promptNote: unknown }) {
+function Install(props: { url: string; slug: string }) {
   const t = useT();
   return (
     <div class="cf-install">
@@ -318,13 +309,12 @@ function Install(props: { url: string; slug: string; commandNote: unknown; promp
         </label>
       </fieldset>
       <div id="install-command" data-mode="command" role="group" aria-label={t.skills.installCommand}>
-        <Command url={props.url} note={props.commandNote} />
+        <Command url={props.url} />
       </div>
       <div id="install-prompt" data-mode="prompt" role="group" aria-label={t.skills.installPrompt}>
         <CodeBlock raised prompt={false}>
           {t.skills.agentPrompt(`npx -y ${addCommand(props.url)} --skill ${props.slug} -g -y`)}
         </CodeBlock>
-        <LoginNote note={props.promptNote} />
       </div>
     </div>
   );
@@ -349,9 +339,6 @@ export function SkillPage(props: {
   const isPublic = skill.visibility === "public";
   const base = isPublic || membership !== undefined ? `${props.origin}${projectPath(skill.project)}` : null;
   const address = (from: string) => `${from}/.well-known/agent-skills/${skill.slug}`;
-  const login = <code>npx skillsgist login {props.origin}</code>;
-  const commandNote = isPublic ? null : t.skills.commandLoginNote(login);
-  const promptNote = isPublic ? null : t.skills.promptLoginNote(login);
   return (
     <Layout title={fullName(skill)} user={props.user} bare>
       <section class="cf-hero" aria-labelledby="skill-title">
@@ -359,9 +346,9 @@ export function SkillPage(props: {
           <h1 id="skill-title" class="cf-hero-title cf-skill-title">{fullName(skill)}</h1>
           <p class="cf-hero-lede">{version.description}</p>
           {base === null ? null : isLatest ? (
-            <Install url={address(base)} slug={skill.slug} commandNote={commandNote} promptNote={promptNote} />
+            <Install url={address(base)} slug={skill.slug} />
           ) : (
-            <Command url={address(base)} note={commandNote} />
+            <Command url={address(base)} />
           )}
         </div>
       </section>

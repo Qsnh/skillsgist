@@ -18,10 +18,6 @@ const COUNT_TEXT = /\d[\d,]* downloads?\b/;
 
 const details = (html: string) => /<dl class="cf-rows">([\s\S]*?)<\/dl>/.exec(html)?.[1];
 
-const LOGIN_COMMAND = "<code>npx skillsgist login http://localhost</code>";
-const COMMAND_LOGIN_NOTE = `<p class="cf-install-note">This skill is private. Sign this computer in once with ${LOGIN_COMMAND} before you run the command.</p>`;
-const PROMPT_LOGIN_NOTE = `<p class="cf-install-note">This skill is private, so the agent&#39;s computer must be signed in with ${LOGIN_COMMAND} or have SKILLSGIST_HOST and SKILLSGIST_INSTALL_KEY set.</p>`;
-
 describe("GET /", () => {
   beforeEach(resetDb);
 
@@ -190,12 +186,11 @@ describe("GET /p/:project/s/:slug", () => {
     expect((await SELF.fetch(skills[0].url)).status).toBe(200);
   });
 
-  it("shows a member the project address on public and private skills alike, with the sign-in note only on the private one", async () => {
+  it("shows a member the project address on public and private skills alike", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
 
     const priv = await installCommandOn("/p/default/s/other-skill", cookie);
     expect(priv.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/other-skill`);
-    expect(priv.html).toContain(COMMAND_LOGIN_NOTE);
 
     const demo = await installCommandOn("/p/default/s/demo-skill", cookie);
     expect(demo.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/demo-skill`);
@@ -230,7 +225,7 @@ describe("GET /p/:project/s/:slug", () => {
     expect(member.html).not.toMatch(/skillsgist(@\S+)? use /);
   });
 
-  it("shows the sign-in note under every box for a private skill, and never for a public one", async () => {
+  it("leaves the sign-in hint to the CLI, so no box carries a note, even for a private skill", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
 
     const open = await promptOn("/p/default/s/demo-skill", cookie);
@@ -239,8 +234,9 @@ describe("GET /p/:project/s/:slug", () => {
 
     const closed = await promptOn("/p/default/s/other-skill", cookie);
     expect(closed.url).toBe(`${ORIGIN}/p/default/.well-known/agent-skills/other-skill`);
-    expect(closed.html).toContain(`${COMMAND_LOGIN_NOTE}</div><div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt">`);
-    expect(closed.html).toContain(`${PROMPT_LOGIN_NOTE}</div></div>`);
+    expect(closed.html).toContain('<div id="install-prompt" data-mode="prompt" role="group" aria-label="Prompt">');
+    expect(closed.html).not.toContain("cf-install-note");
+    expect(closed.html).not.toContain("skillsgist login");
   });
 
   it("switches between command and prompt with a native radio pair, command first and the prompt without a $", async () => {
