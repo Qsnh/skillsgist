@@ -3,11 +3,12 @@ import { digestFromArtifactFile } from "../artifact";
 import type { AppEnv, Ctx } from "../auth";
 import { bearerAccess, PRIVATE_HEADERS, privateNotFound, projectGate, unavailable } from "../bearer";
 import type { ProjectGate } from "../bearer";
+import type { Downloader } from "../db/downloads";
 import { getArtifactByDigest, getPublicArtifact, listPublishedForIndex } from "../db/queries";
 import type { ArtifactRef, IndexFilter } from "../db/queries";
 import { projectPath } from "../paths";
 import { buildIndex } from "../registry";
-import { serveDownload } from "./download";
+import { bearerDownloader, serveDownload } from "./download";
 
 export const registryRoutes = new Hono<AppEnv>();
 
@@ -29,6 +30,7 @@ async function sendArtifact(
   file: string,
   lookup: (digest: string) => Promise<ArtifactRef | null>,
   gate: ProjectGate,
+  downloader: Downloader,
 ): Promise<Response> {
   const digest = digestFromArtifactFile(file);
   const artifact = digest ? await lookup(digest) : null;
@@ -36,7 +38,7 @@ async function sendArtifact(
   const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return privateNotFound();
   const cacheable = artifact.visibility === "public";
-  const res = serveDownload(c, object, artifact, cacheable);
+  const res = serveDownload(c, object, artifact, cacheable, downloader);
   if (!cacheable) res.headers.set("Vary", "Authorization");
   return res;
 }
@@ -86,17 +88,25 @@ for (const suffix of INDEX_SUFFIXES) {
   registryRoutes.get(`/p/:project${suffix}`, indexRoute);
 }
 
-registryRoutes.get("/d/:slug/:file", (c) =>
-  sendArtifact(c, c.req.param("file"), (digest) => getPublicArtifact(c.env.DB, c.req.param("slug"), digest), ANONYMOUS_GATE),
+registryRoutes.get("/d/:slug/:file", async (c) =>
+  sendArtifact(
+    c,
+    c.req.param("file"),
+    (digest) => getPublicArtifact(c.env.DB, c.req.param("slug"), digest),
+    ANONYMOUS_GATE,
+    bearerDownloader(await bearerAccess(c)),
+  ),
 );
 
 registryRoutes.get("/p/:project/d/:slug/:file", async (c) => {
   const project = c.req.param("project");
+  const access = await bearerAccess(c);
   return sendArtifact(
     c,
     c.req.param("file"),
     (digest) => getArtifactByDigest(c.env.DB, project, c.req.param("slug"), digest),
-    await projectGate(c, project, await bearerAccess(c)),
+    await projectGate(c, project, access),
+    bearerDownloader(access),
   );
 });
 

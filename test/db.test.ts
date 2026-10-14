@@ -136,21 +136,4 @@ describe("skills", () => {
     expect(await q.getSkill(env.DB, "default", "demo")).toBeNull();
     expect(await q.getVersion(env.DB, "team-b", "demo", 1)).not.toBeNull();
   });
-
-  it("counts downloads without touching updated_at, keeps the count across versions, and ignores a missing skill", async () => {
-    await q.insertVersion(env.DB, base);
-    const before = await q.getSkill(env.DB, "default", "demo");
-    expect(before?.download_count).toBe(0);
-
-    await q.incrementDownloads(env.DB, "default", "demo");
-    await q.incrementDownloads(env.DB, "default", "demo");
-
-    const after = await q.getSkill(env.DB, "default", "demo");
-    expect(after?.download_count).toBe(2);
-    expect(after?.updated_at).toBe(before?.updated_at);
-
-    await q.insertVersion(env.DB, { ...base, digest: digest("b") });
-    expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(2);
-    await expect(q.incrementDownloads(env.DB, "default", "gone")).resolves.toBeUndefined();
-  });
 });

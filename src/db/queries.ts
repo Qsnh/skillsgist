@@ -66,8 +66,10 @@ export interface VersionRow {
 export type VersionSummary = Pick<VersionRow, "version" | "created_at">;
 
 export interface ArtifactRef {
+  skill_id: string;
   project: string;
   slug: string;
+  version: number;
   visibility: "public" | "private";
   r2_key: string;
 }
@@ -455,13 +457,6 @@ export async function setVisibility(
     .run();
 }
 
-export async function incrementDownloads(db: D1Database, project: string, slug: string): Promise<void> {
-  await db
-    .prepare("UPDATE skills SET download_count = download_count + 1 WHERE project = ? AND slug = ?")
-    .bind(project, slug)
-    .run();
-}
-
 export async function deleteSkill(db: D1Database, project: string, slug: string): Promise<string[]> {
   const { results } = await db
     .prepare(`SELECT r2_key FROM versions WHERE skill_id = ${SKILL_ID_SQL}`)
@@ -494,7 +489,7 @@ export async function touchLogin(db: D1Database, userId: string, at: number): Pr
 }
 
 const ARTIFACT_SQL =
-  "SELECT s.project, s.slug, s.visibility, v.r2_key FROM skills s JOIN versions v ON v.skill_id = s.id";
+  "SELECT s.id AS skill_id, s.project, s.slug, v.version, s.visibility, v.r2_key FROM skills s JOIN versions v ON v.skill_id = s.id";
 
 export function getArtifactByVersion(
   db: D1Database,

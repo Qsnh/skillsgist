@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getSkill, getVersion, incrementDownloads, updateVersionHtml } from "../src/db/queries";
+import { getSkill, getVersion, updateVersionHtml } from "../src/db/queries";
 import { en } from "../src/i18n/en";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
@@ -328,7 +328,7 @@ describe("GET /p/:project/s/:slug", () => {
 
   it("shows the linked project and a grouped download count in the Details panel to a signed-in user", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
-    await incrementDownloads(env.DB, "default", "demo-skill");
+    await env.DB.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
 
     let html = await (await get("/p/default/s/demo-skill", cookie)).text();
     expect(details(html)).toMatch(/<dt class="cf-row-label">Downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
@@ -552,7 +552,7 @@ describe("moving a skill", () => {
     const alice = await inTwoProjects();
     await publish(alice.cookie, GOOD_MD, "private", "default");
     await publish(alice.cookie, `${GOOD_MD}\nv2\n`, "private", "default");
-    await incrementDownloads(env.DB, "default", "demo-skill");
+    await env.DB.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
 
     const res = await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" });
     expect(res.status).toBe(302);
