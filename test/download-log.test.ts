@@ -78,6 +78,20 @@ describe("recording downloads", () => {
     ]);
   });
 
+  it("puts a root download on the oldest of two public skills that share the name and the archive", async () => {
+    await seedProject("team-b", "Team B");
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [GOOD_MD, "public", "team-b"]);
+    const digest = (await getVersion(env.DB, "default", "demo-skill", 1))!.digest;
+    await env.DB.batch([
+      env.DB.prepare("UPDATE versions SET digest = ? WHERE skill_id = (SELECT id FROM skills WHERE project = 'team-b')").bind(digest),
+      env.DB.prepare("UPDATE skills SET created_at = 0 WHERE project = 'team-b'"),
+    ]);
+    expect((await settle(`/d/demo-skill/${digest.slice("sha256:".length)}.zip`)).status).toBe(200);
+    expect(await env.DB.prepare("SELECT s.project FROM download_logs l JOIN skills s ON s.id = l.skill_id").all()).toMatchObject({
+      results: [{ project: "team-b" }],
+    });
+  });
+
   it("stores the country Cloudflare reports for the request", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await settle("/p/default/s/demo-skill/download", { cf: { country: "DE" } } as RequestInit);

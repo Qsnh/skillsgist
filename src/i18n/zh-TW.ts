@@ -272,6 +272,7 @@ export const zhTW: Messages = {
     top: { version: "下載最多的版本", skill: "下載最多的技能", project: "下載最多的專案" },
     sources: { web: "網頁（已登入）", device: "CLI 登入", install_key: "安裝金鑰", anonymous: "匿名" },
     columns: { time: "時間", skill: "技能", version: "版本", source: "來源", account: "帳號", place: "來自" },
+    versionLabel: (version) => `v${version}`,
     chart: (total, peak) => `共 ${total} 次，單日最多 ${peak} 次。`,
     filters: "篩選",
     filterProject: (name) => `專案：${name}`,

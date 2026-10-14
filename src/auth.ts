@@ -227,19 +227,24 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+export async function managedSkillGuard<S extends SkillRow>(
+  c: Ctx,
+  skill: S | null,
+  refusal: string,
+): Promise<{ ok: true; skill: S } | { ok: false; response: Response }> {
+  const user = c.get("user");
+  if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
+  if (!canManage(user, skill)) return { ok: false, response: c.text(refusal, 403) };
+  return { ok: true, skill };
+}
+
 export async function requireManagedSkill(
   c: Ctx,
   project: string,
   slug: string,
   action: SkillAction,
 ): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
-  const user = c.get("user");
-  const skill = await getSkill(c.env.DB, project, slug);
-  if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
-  if (!canManage(user, skill)) {
-    return { ok: false, response: c.text(messages(c).skills.notAllowed(action), 403) };
-  }
-  return { ok: true, skill };
+  return managedSkillGuard(c, await getSkill(c.env.DB, project, slug), messages(c).skills.notAllowed(action));
 }
 
 /** `requireUser`, plus an admin-only gate. */

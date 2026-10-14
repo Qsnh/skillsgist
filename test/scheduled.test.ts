@@ -1,5 +1,6 @@
 import { createScheduledController } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PRUNE_BATCH, PRUNE_MAX_BATCHES } from "../src/db/downloads";
 import { getSkill } from "../src/db/queries";
 import worker from "../src/index";
 import { DAY_MS } from "../src/time";
@@ -8,7 +9,7 @@ import { env, envWith, GOOD_MD, resetDb, seedLog, seedLogs, seedWithSkills } fro
 const NOW = Date.UTC(2026, 9, 13, 3, 17);
 
 const runCron = (vars: Record<string, string> = {}) =>
-  worker.scheduled(createScheduledController({ scheduledTime: new Date(NOW), cron: "17 3 * * *" }), envWith(vars));
+  worker.scheduled(createScheduledController({ scheduledTime: new Date(NOW), cron: "17 * * * *" }), envWith(vars));
 
 const kept = async () =>
   (await env.DB.prepare("SELECT created_at FROM download_logs ORDER BY created_at").all<{ created_at: number }>()).results.map(
@@ -17,7 +18,7 @@ const kept = async () =>
 
 let skillId = "";
 
-describe("the daily cleanup", () => {
+describe("the hourly cleanup", () => {
   beforeEach(async () => {
     await resetDb();
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
@@ -56,6 +57,17 @@ describe("the daily cleanup", () => {
     await seedLog(skillId, { at: NOW - DAY_MS });
     await runCron();
     expect(await kept()).toEqual([1]);
+  });
+
+  it("says when a run stops at its limit and leaves the rest for the next one", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await seedLogs(skillId, PRUNE_BATCH * PRUNE_MAX_BATCHES + 1, NOW - 120 * DAY_MS);
+    await runCron();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(await kept()).toEqual([120]);
+    await runCron();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(await kept()).toEqual([]);
   });
 
   it("reports a failed run instead of swallowing it", async () => {

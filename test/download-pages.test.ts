@@ -198,6 +198,17 @@ describe("what the log shows", () => {
     expect(html).toContain("Logs are kept for 7 days.");
   });
 
+  it("lists the same UTC days that the totals count when the retention period is shorter than 30 days", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const id = await skillId("demo-skill");
+    const firstDay = (Math.floor(Date.now() / DAY_MS) - 6) * DAY_MS;
+    await seedLog(id, { at: firstDay - 1 });
+    await seedLog(id, { at: firstDay });
+    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    expect(listRows(html)).toBe(1);
+    expect(html).toMatch(/All downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
+  });
+
   it("narrows the chart and its label to the retention period when that is shorter than 30 days", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await seedLog(await skillId("demo-skill"), { at: Date.now() - 2 * DAY_MS });

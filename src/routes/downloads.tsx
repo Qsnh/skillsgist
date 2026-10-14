@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import { canManage, canView, requireAdmin, requireUser } from "../auth";
+import { managedSkillGuard, requireAdmin, requireUser } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { page } from "../csrf";
 import { DOWNLOAD_SOURCES, downloadStats, filterNames, listDownloadLogs, NO_FILTER } from "../db/downloads";
 import type { DownloadFilter } from "../db/downloads";
 import { getSkillWithAuthor } from "../db/queries";
 import { messages } from "../i18n";
-import { retentionCutoff, retentionDays } from "../retention";
+import { retentionDays } from "../retention";
 import { DAY_MS } from "../time";
 import { CHART_DAYS, DownloadsPage, downloadsView } from "../views/downloads";
 import type { DownloadsSubject } from "../views/downloads";
@@ -39,10 +39,9 @@ function readCursor(c: Ctx): number | null {
 }
 
 async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Response> {
-  const now = Date.now();
   const days = retentionDays(c.env);
-  const kept = retentionCutoff(days, now);
-  const today = Math.floor(now / DAY_MS);
+  const today = Math.floor(Date.now() / DAY_MS);
+  const since = (today - days + 1) * DAY_MS;
   const windowDays = Math.min(CHART_DAYS, days);
   const view = downloadsView(subject);
   const filter = readFilter(c, view.scope);
@@ -51,8 +50,8 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
   const before = readCursor(c);
   const [stats, log, names] = await Promise.all([
     downloadStats(c.env.DB, query, view.breakdown, today - windowDays + 1),
-    listDownloadLogs(c.env.DB, query, { since: kept, before, limit: PAGE_SIZE }),
-    filterNames(c.env.DB, filter, within, kept),
+    listDownloadLogs(c.env.DB, query, { since, before, limit: PAGE_SIZE }),
+    filterNames(c.env.DB, filter, within, since),
   ]);
   return page(
     c,
@@ -73,11 +72,10 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
 }
 
 downloadsRoutes.get("/p/:project/s/:slug/downloads", requireUser, async (c) => {
-  const user = c.get("user");
   const skill = await getSkillWithAuthor(c.env.DB, c.req.param("project"), c.req.param("slug"));
-  if (!skill || !canView(user, skill)) return c.notFound();
-  if (!canManage(user, skill)) return c.text(messages(c).downloads.managersOnly, 403);
-  return downloadsPage(c, { kind: "skill", skill });
+  const guard = await managedSkillGuard(c, skill, messages(c).downloads.managersOnly);
+  if (!guard.ok) return guard.response;
+  return downloadsPage(c, { kind: "skill", skill: guard.skill });
 });
 
 downloadsRoutes.get("/p/:project/downloads", requireUser, async (c) => {

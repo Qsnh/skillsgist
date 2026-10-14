@@ -286,6 +286,7 @@ export const ja: Messages = {
     top: { version: "ダウンロードの多いバージョン", skill: "ダウンロードの多いスキル", project: "ダウンロードの多いプロジェクト" },
     sources: { web: "Web（サインイン済み）", device: "CLI のサインイン", install_key: "インストールキー", anonymous: "匿名" },
     columns: { time: "日時", skill: "スキル", version: "バージョン", source: "経路", account: "アカウント", place: "接続元" },
+    versionLabel: (version) => `v${version}`,
     chart: (total, peak) => `合計 ${total} 件、1 日の最多は ${peak} 件です。`,
     filters: "絞り込み",
     filterProject: (name) => `プロジェクト: ${name}`,

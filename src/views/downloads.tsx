@@ -57,8 +57,6 @@ export function downloadsView(subject: DownloadsSubject): DownloadsView {
 
 const NARROWS: Record<DownloadBreakdown, "skillId" | "project" | null> = { version: null, skill: "skillId", project: "project" };
 
-const versionLabel = (version: number | string) => `v${version}`;
-
 export function filterHref(
   base: string,
   filter: DownloadFilter,
@@ -194,7 +192,7 @@ function Breakdown(props: { view: DownloadsView; filter: DownloadFilter; shares:
   const { breakdown, path } = props.view;
   const narrow = NARROWS[breakdown];
   const href = (share: DownloadShare) => (narrow ? filterHref(path, props.filter, { [narrow]: share.key }) : null);
-  const label = (share: DownloadShare) => (breakdown === "version" ? versionLabel(share.label) : share.label);
+  const label = (share: DownloadShare) => (breakdown === "version" ? t.downloads.versionLabel(share.label) : share.label);
   return (
     <Panel title={t.downloads.top[breakdown]} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>} flush>
       {props.shares.length === 0 ? (
@@ -246,7 +244,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
                   </a>
                 </td>
               ) : null}
-              <td data-label={c.version} class="cf-table-date">{versionLabel(row.version)}</td>
+              <td data-label={c.version} class="cf-table-date">{t.downloads.versionLabel(row.version)}</td>
               <td data-label={c.source}>
                 <a href={filterHref(props.base, props.filter, { source: row.source })} class="cf-link">
                   {t.downloads.sources[row.source]}

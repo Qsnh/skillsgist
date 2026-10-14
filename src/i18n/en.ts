@@ -288,6 +288,7 @@ export const en = {
     top: { version: "Top versions", skill: "Top skills", project: "Top projects" },
     sources: { web: "Web, signed in", device: "CLI sign-in", install_key: "Install key", anonymous: "Anonymous" },
     columns: { time: "Time", skill: "Skill", version: "Version", source: "Source", account: "Account", place: "From" },
+    versionLabel: (version: number | string) => `v${version}`,
     chart: (total: string, peak: string) => `${total} in total, at most ${peak} in one day.`,
     filters: "Filters",
     filterProject: (name: string) => `Project: ${name}`,

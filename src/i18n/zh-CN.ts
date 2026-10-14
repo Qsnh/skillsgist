@@ -272,6 +272,7 @@ export const zhCN: Messages = {
     top: { version: "下载最多的版本", skill: "下载最多的技能", project: "下载最多的项目" },
     sources: { web: "网页（已登录）", device: "CLI 登录", install_key: "安装密钥", anonymous: "匿名" },
     columns: { time: "时间", skill: "技能", version: "版本", source: "来源", account: "账号", place: "来自" },
+    versionLabel: (version) => `v${version}`,
     chart: (total, peak) => `共 ${total} 次，单日最多 ${peak} 次。`,
     filters: "筛选",
     filterProject: (name) => `项目：${name}`,

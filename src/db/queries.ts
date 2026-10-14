@@ -517,7 +517,7 @@ export function getArtifactByDigest(
 
 export function getPublicArtifact(db: D1Database, slug: string, digest: string): Promise<ArtifactRef | null> {
   return db
-    .prepare(`${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? LIMIT 1`)
+    .prepare(`${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? ORDER BY s.created_at, s.id LIMIT 1`)
     .bind(slug, digest)
     .first<ArtifactRef>();
 }

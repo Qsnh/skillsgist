@@ -24,6 +24,14 @@ describe("download log retention", () => {
     expect(error).toHaveBeenCalledOnce();
   });
 
+  it("logs a value it cannot use once, not on every read", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (let i = 0; i < 3; i++) expect(retentionDays({ DOWNLOAD_LOG_RETENTION_DAYS: "90d" })).toBe(90);
+    expect(error).toHaveBeenCalledOnce();
+    expect(retentionDays({ DOWNLOAD_LOG_RETENTION_DAYS: "60d" })).toBe(90);
+    expect(error).toHaveBeenCalledTimes(2);
+  });
+
   it("puts the cutoff that many whole days before now", () => {
     expect(retentionCutoff(7, 10 * DAY_MS)).toBe(3 * DAY_MS);
   });
