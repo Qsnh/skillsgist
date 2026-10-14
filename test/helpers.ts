@@ -317,3 +317,37 @@ export function putSkill(
 }
 
 export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+
+export interface LogSeed {
+  at?: number;
+  version?: number;
+  source?: string;
+  userId?: string | null;
+  username?: string | null;
+  deviceName?: string | null;
+  country?: string | null;
+}
+
+export const seedLog = (skillId: string, seed: LogSeed = {}) =>
+  env.DB.prepare(
+    "INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      skillId,
+      seed.version ?? 1,
+      seed.source ?? "anonymous",
+      seed.userId ?? null,
+      seed.username ?? null,
+      seed.deviceName ?? null,
+      seed.country ?? null,
+      seed.at ?? Date.now(),
+    )
+    .run();
+
+export const seedLogs = (skillId: string, count: number, at: number) =>
+  env.DB.prepare(
+    `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+     INSERT INTO download_logs (skill_id, version, source, created_at) SELECT ?, 1, 'anonymous', ? FROM n`,
+  )
+    .bind(count, skillId, at)
+    .run();
