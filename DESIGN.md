@@ -575,6 +575,13 @@ components:
   table-date:
     textColor: "{colors.cf-body}"
     typography: "{typography.mono-path}"
+  chart-bar:
+    backgroundColor: "{colors.cf-orange}"
+  chart-zero:
+    backgroundColor: "{colors.cf-line-strong}"
+  chart-axis:
+    textColor: "{colors.cf-muted}"
+    typography: "{typography.mono-label}"
   auth-frame:
     backgroundColor: "{colors.white}"
     rounded: "{rounded.none}"
@@ -838,8 +845,19 @@ The hero of the system: an orange field that hands over one line of shell, or on
 - **Fold:** when the body would hide at least 200px, it is clipped to 720px and fades out over its last 120px, and the frame closes with a Paper Shade footer bar padded 16px 24px (14px 18px on mobile) holding a small centered outline pill, "Show more". Opened, the pill reads "Show less", and folding again scrolls the frame back into view. The folded body clips rather than scrolls, and tabbing into its hidden part opens it. The bar is hidden until the script runs, so a page without JavaScript shows the whole document.
 
 ### Tables
-- **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. A row's name is a weight-500 link, a role is a role label, and counts and dates are Mono Path in Body Gray, with an em dash for an empty value. A table holds no actions. The Users list at `/admin/users` and the Projects list at `/projects` are the two tables.
+- **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. A row's name is a weight-500 link, a role is a role label, and counts and dates are Mono Path in Body Gray, with an em dash for an empty value. A table holds no actions. The Users list at `/admin/users`, the Projects list at `/projects` and the download logs are the tables. In a download log the account, skill and source in each row are links that narrow the list.
 - **Below 768px:** the header row is visually hidden and each row stacks into label/value pairs, padded 16px 18px with Hairline dividers. Each cell is a two-column grid (96px label, then the value, 12px apart), and the label is drawn from the cell's `data-label` in 10.5px uppercase mono at 0.1em in Warm Muted.
+
+### Charts
+- **Per-day bar chart:**
+  - An inline SVG of 30 bars, one per UTC day ending today. It sits in a panel titled "Per day", with "Last 30 days" as the panel meta.
+  - Bars are Signal Orange. A day without downloads is a 1-unit Hairline Strong stub, so the baseline stays continuous.
+  - The plot is 140px tall and stretches to the panel's width.
+  - Below the plot, the first and last dates sit at either end in 11px mono Warm Muted. Then one Body Gray hint gives the total and the busiest day's count.
+- **Accessibility:**
+  - The SVG is hidden from assistive technology. A visually hidden table lists every day and its count.
+  - Colors come from classes, never from inline styles, because the Content-Security-Policy forbids them.
+  - In forced-colors mode the bars use CanvasText and the stubs GrayText.
 
 ### Sign-in Frame
 - **Stage:** a centered frame on a field of Hairline Strong dots (0.9px on a 10px pitch). The field extends past the page body's padding toward the nav and the footer, and a radial mask fades it out from 30% of the way to its edges.
