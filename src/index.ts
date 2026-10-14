@@ -4,6 +4,7 @@ import type { AppEnv } from "./auth";
 import { API_PREFIX, csrfOrigin, csrfToken } from "./csrf";
 import { detectLocale, localeOf, messages } from "./i18n";
 import { deviceRoutes } from "./routes/device";
+import { downloadsRoutes } from "./routes/downloads";
 import { languageRoutes } from "./routes/language";
 import { oauthRoutes } from "./routes/oauth";
 import { projectsRoutes } from "./routes/projects";
@@ -40,6 +41,7 @@ app.route("/", usersRoutes);
 app.route("/", deviceRoutes);
 app.route("/", publishRoutes);
 app.route("/", projectsRoutes);
+app.route("/", downloadsRoutes);
 app.route("/", skillsRoutes);
 
 app.onError((err, c) => {

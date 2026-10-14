@@ -353,4 +353,5 @@ export const seedLogs = (skillId: string, count: number, at: number) =>
     .bind(count, skillId, at)
     .run();
 
-export const envWith = (vars: Record<string, string>): Env => Object.assign(Object.create(rawEnv), vars);
+export const envWith = (vars: Record<string, string>): Env =>
+  Object.create(rawEnv, Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, { value, enumerable: true }])));

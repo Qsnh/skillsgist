@@ -1510,6 +1510,83 @@
     overflow-wrap: anywhere;
   }
 
+  .cf-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .cf-filter {
+    gap: 6px;
+    text-decoration: none;
+  }
+
+  .cf-filter:hover {
+    border-color: var(--color-cf-ink);
+    color: var(--color-cf-ink);
+  }
+
+  .cf-downloads-summary {
+    display: grid;
+    gap: 24px;
+  }
+
+  @media (min-width: 1024px) {
+    .cf-downloads-summary {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+
+  .cf-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cf-chart-plot {
+    display: block;
+    width: 100%;
+    height: 140px;
+  }
+
+  .cf-chart-bar {
+    fill: var(--color-cf-orange);
+  }
+
+  .cf-chart-zero {
+    fill: var(--color-cf-line-strong);
+  }
+
+  .cf-chart-axis {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-cf-muted);
+  }
+
+  .cf-pager {
+    display: flex;
+    gap: 12px;
+  }
+
+  .cf-pager-older {
+    margin-left: auto;
+  }
+
+  @media (forced-colors: active) {
+    .cf-chart-bar {
+      fill: CanvasText;
+    }
+
+    .cf-chart-zero {
+      fill: GrayText;
+    }
+  }
+
   .cf-confirm[open] > summary {
     border-color: var(--color-cf-danger);
   }

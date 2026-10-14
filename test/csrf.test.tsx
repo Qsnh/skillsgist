@@ -107,6 +107,9 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/s/:slug",
   "GET /p/:project/s/:slug/download",
   "GET /p/:project/s/:slug/v/:version/download",
+  "GET /p/:project/s/:slug/downloads",
+  "GET /p/:project/downloads",
+  "GET /admin/downloads",
   "GET /api/whoami",
   "GET /.well-known/oauth-authorization-server",
 ]);
