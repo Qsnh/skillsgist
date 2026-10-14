@@ -12,10 +12,12 @@ const beforePublishing = migrations.filter((m) => m.name < "0004");
 const fromPublishing = migrations.filter((m) => m.name >= "0004");
 const beforePrefix = migrations.filter((m) => m.name < "0005");
 const fromPrefix = migrations.filter((m) => m.name >= "0005");
+const beforeLogs = migrations.filter((m) => m.name < "0008");
+const fromLogs = migrations.filter((m) => m.name >= "0008");
 
 async function wipe(): Promise<void> {
   for (const table of [
-    "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+    "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
   ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
@@ -256,5 +258,40 @@ describe("migration 0007 on an instance that already has sign-ins", () => {
 
   it("keeps the grants of current memberships, records their user, and drops the rest", async () => {
     expect(await rows("SELECT * FROM cli_login_projects")).toEqual([{ login_id: "l1", project: "default", user_id: "u1" }]);
+  });
+});
+
+describe("migration 0008 on an instance that already has downloads", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, beforeLogs);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u2', 'bob', 'h', 'member', 0)"),
+      db.prepare(
+        "INSERT INTO skills (id, project, slug, description, owner_id, latest_version, download_count, created_at, updated_at) VALUES ('s1', 'default', 'demo', 'd', 'u1', 1, 5, 0, 0)",
+      ),
+    ]);
+    await applyD1Migrations(db, fromLogs);
+  });
+
+  it("keeps every download count and starts with an empty log", async () => {
+    expect(await rows("SELECT download_count FROM skills")).toEqual([{ download_count: 5 }]);
+    expect(await rows("SELECT * FROM download_logs")).toEqual([]);
+  });
+
+  it("refuses an unknown source or skill, keeps rows when their account goes, and drops them with their skill", async () => {
+    const insert = (skill: string, source: string) =>
+      db
+        .prepare("INSERT INTO download_logs (skill_id, version, source, user_id, username, created_at) VALUES (?, 1, ?, 'u2', 'bob', 0)")
+        .bind(skill, source)
+        .run();
+    await expect(insert("s1", "ftp")).rejects.toThrow(/CHECK/);
+    await expect(insert("nope", "web")).rejects.toThrow(/FOREIGN KEY/);
+    await insert("s1", "web");
+    await db.prepare("DELETE FROM users WHERE id = 'u2'").run();
+    expect(await rows("SELECT user_id, username FROM download_logs")).toEqual([{ user_id: "u2", username: "bob" }]);
+    await db.prepare("DELETE FROM skills WHERE id = 's1'").run();
+    expect(await rows("SELECT * FROM download_logs")).toEqual([]);
   });
 });
