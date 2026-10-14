@@ -265,7 +265,7 @@ export const zhTW: Messages = {
         ? [`此儲存庫最近 ${days} 天的每一次下載。更早的紀錄會自動刪除。`]
         : [`最近 ${days} 天內 `, subject, " 的每一次下載。更早的紀錄會自動刪除。"],
     kept: (days) => `下載紀錄保留 ${days} 天。`,
-    last30: "最近 30 天",
+    lastDays: (days) => `最近 ${days} 天`,
     perDay: "每日下載",
     summary: "摘要",
     total: "全部下載",

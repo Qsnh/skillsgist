@@ -281,7 +281,7 @@ export const en = {
         ? [`Every download from this registry in the last ${days} days. Older records are deleted automatically.`]
         : ["Every download of ", subject, ` in the last ${days} days. Older records are deleted automatically.`],
     kept: (days: number) => `Logs are kept for ${days} days.`,
-    last30: "Last 30 days",
+    lastDays: (days: number) => `Last ${days} days`,
     perDay: "Per day",
     summary: "Summary",
     total: "All downloads",

@@ -850,7 +850,7 @@ The hero of the system: an orange field that hands over one line of shell, or on
 
 ### Charts
 - **Per-day bar chart:**
-  - An inline SVG of 30 bars, one per UTC day ending today. It sits in a panel titled "Per day", with "Last 30 days" as the panel meta.
+  - An inline SVG of one bar per UTC day ending today: 30 bars, or one per retained day when the retention period is shorter. It sits in a panel titled "Per day", with "Last 30 days" (or the shorter period) as the panel meta, which the summary and breakdown panels repeat.
   - Bars are Signal Orange. A day without downloads is a 1-unit Hairline Strong stub, so the baseline stays continuous.
   - The plot is 140px tall and stretches to the panel's width.
   - Below the plot, the first and last dates sit at either end in 11px mono Warm Muted. Then one Body Gray hint gives the total and the busiest day's count.

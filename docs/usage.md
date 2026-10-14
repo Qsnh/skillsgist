@@ -88,7 +88,7 @@ Every download is recorded, whether it comes from a skill's page, from `npx skil
 - **Install key**: a project's install key, for example in CI. The record names the member the key belongs to.
 - **Anonymous**: a download of a public skill with no usable credential.
 
-Three pages show the records. Each one has a chart of the last 30 days, totals by source, and the full list:
+Three pages show the records. Each one has a chart of the last 30 days (or of the whole retention period, if that is shorter), totals by source, and the full list:
 
 - **A skill's downloads**, opened from the Downloads value in its Details panel, for whoever can manage the skill.
 - **A project's downloads**, at `/p/<project>/downloads` and linked from the project's settings page, for its admins.

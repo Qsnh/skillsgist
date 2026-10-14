@@ -134,11 +134,11 @@ function DayChart(props: { days: Array<{ day: number; count: number }> }) {
   );
 }
 
-function Summary(props: { base: string; filter: DownloadFilter; stats: DownloadStats }) {
+function Summary(props: { base: string; filter: DownloadFilter; stats: DownloadStats; windowDays: number }) {
   const locale = useLocale();
   const t = useT();
   return (
-    <Panel title={t.downloads.summary} aside={<span class="cf-panel-meta">{t.downloads.last30}</span>} flush>
+    <Panel title={t.downloads.summary} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>} flush>
       <dl class="cf-rows">
         <div class="cf-row">
           <dt class="cf-row-label">{t.downloads.total}</dt>
@@ -157,7 +157,13 @@ function Summary(props: { base: string; filter: DownloadFilter; stats: DownloadS
   );
 }
 
-function Breakdown(props: { subject: DownloadsSubject; base: string; filter: DownloadFilter; shares: DownloadShare[] }) {
+function Breakdown(props: {
+  subject: DownloadsSubject;
+  base: string;
+  filter: DownloadFilter;
+  shares: DownloadShare[];
+  windowDays: number;
+}) {
   const locale = useLocale();
   const t = useT();
   const { subject } = props;
@@ -169,7 +175,7 @@ function Breakdown(props: { subject: DownloadsSubject; base: string; filter: Dow
     return null;
   };
   return (
-    <Panel title={title} aside={<span class="cf-panel-meta">{t.downloads.last30}</span>} flush>
+    <Panel title={title} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>} flush>
       {props.shares.length === 0 ? (
         <div class="cf-panel-body">
           <p class="cf-hint">—</p>
@@ -255,6 +261,7 @@ export function DownloadsPage(props: {
   more: boolean;
   paged: boolean;
   retentionDays: number;
+  windowDays: number;
   today: number;
 }) {
   const t = useT();
@@ -274,8 +281,8 @@ export function DownloadsPage(props: {
       <a href={projectPath(subject.project.slug)} class="cf-link">{name}</a>
     ) : null;
   const counts = new Map(stats.byDay.map((d) => [d.day, d.count]));
-  const days = Array.from({ length: CHART_DAYS }, (_, i) => {
-    const day = props.today - CHART_DAYS + 1 + i;
+  const days = Array.from({ length: props.windowDays }, (_, i) => {
+    const day = props.today - props.windowDays + 1 + i;
     return { day, count: counts.get(day) ?? 0 };
   });
   const last = rows[rows.length - 1];
@@ -284,7 +291,7 @@ export function DownloadsPage(props: {
     <Layout title={title} user={props.user}>
       <PageHead title={title}>{t.downloads.lede(subjectLink, props.retentionDays)}</PageHead>
       <Filters base={base} filter={filter} first={rows[0]} />
-      {rows.length === 0 && stats.total === 0 ? (
+      {!props.paged && rows.length === 0 && stats.total === 0 ? (
         <div class="cf-frame cf-empty">
           <p class="cf-empty-title">{t.downloads.empty}</p>
           <p class="cf-empty-body">{t.downloads.emptyBody(props.retentionDays)}</p>
@@ -292,11 +299,11 @@ export function DownloadsPage(props: {
       ) : (
         <div class="cf-stack-lg">
           <div class="cf-downloads-summary">
-            <Panel title={t.downloads.perDay} aside={<span class="cf-panel-meta">{t.downloads.last30}</span>}>
+            <Panel title={t.downloads.perDay} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>}>
               <DayChart days={days} />
             </Panel>
-            <Summary base={base} filter={filter} stats={stats} />
-            <Breakdown subject={subject} base={base} filter={filter} shares={stats.breakdown} />
+            <Summary base={base} filter={filter} stats={stats} windowDays={props.windowDays} />
+            <Breakdown subject={subject} base={base} filter={filter} shares={stats.breakdown} windowDays={props.windowDays} />
           </div>
           {rows.length > 0 ? <LogTable base={base} filter={filter} rows={rows} skillColumn={skillColumn} /> : null}
           {props.paged || props.more ? (

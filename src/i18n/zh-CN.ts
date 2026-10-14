@@ -265,7 +265,7 @@ export const zhCN: Messages = {
         ? [`本仓库最近 ${days} 天的每一次下载。更早的记录会自动删除。`]
         : [`最近 ${days} 天里 `, subject, " 的每一次下载。更早的记录会自动删除。"],
     kept: (days) => `下载记录保留 ${days} 天。`,
-    last30: "最近 30 天",
+    lastDays: (days) => `最近 ${days} 天`,
     perDay: "每日下载",
     summary: "汇总",
     total: "全部下载",

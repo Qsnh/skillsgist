@@ -55,7 +55,7 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
   - the country Cloudflare reports
 
   No IP address or User-Agent is stored. Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by a daily Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill deletes its records; deleting an account keeps them under its username. Each log page shows:
-  - the last 30 UTC days, per day
+  - the last 30 UTC days per day, or the retention period if it is shorter
   - totals by source and by version, skill or project
   - a paged list that can be filtered by account, skill or source
 - The discovery index drops any entry whose name, description, or digest would fail the CLI's own validation, rather than serving a half-broken index.

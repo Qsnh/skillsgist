@@ -53,11 +53,12 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
   const days = retentionDays(c.env);
   const kept = retentionCutoff(days, now);
   const today = Math.floor(now / DAY_MS);
+  const windowDays = Math.min(CHART_DAYS, days);
   const scope = scopeOf(subject);
   const filter = readFilter(c, subject);
   const before = readCursor(c);
   const [stats, log] = await Promise.all([
-    downloadStats(c.env.DB, scope, filter, Math.max(kept, (today - CHART_DAYS + 1) * DAY_MS)),
+    downloadStats(c.env.DB, scope, filter, Math.max(kept, (today - windowDays + 1) * DAY_MS)),
     listDownloadLogs(c.env.DB, scope, filter, { since: kept, before, limit: PAGE_SIZE }),
   ]);
   return page(
@@ -71,6 +72,7 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
       more={log.more}
       paged={before !== null}
       retentionDays={days}
+      windowDays={windowDays}
       today={today}
     />,
   );

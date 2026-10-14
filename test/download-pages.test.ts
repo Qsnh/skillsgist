@@ -184,6 +184,24 @@ describe("what the log shows", () => {
     expect(html).toContain("Logs are kept for 7 days.");
   });
 
+  it("narrows the chart and its label to the retention period when that is shorter than 30 days", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await seedLog(await skillId("demo-skill"), { at: Date.now() - 2 * DAY_MS });
+    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    expect((html.match(/<rect /g) ?? []).length).toBe(7);
+    expect(html).toContain("Last 7 days");
+    expect(html).not.toContain("Last 30 days");
+    expect(await text("/p/default/s/demo-skill/downloads", cookie)).toContain("Last 30 days");
+  });
+
+  it("keeps the way back to the newest page when a stale cursor lands on an empty page", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await seedLog(await skillId("demo-skill"), { at: Date.now() - 40 * DAY_MS });
+    const html = await text("/p/default/s/demo-skill/downloads?before=1", cookie);
+    expect(html).not.toContain("No downloads to show");
+    expect(html).toContain('href="/p/default/s/demo-skill/downloads" class="cf-btn cf-btn-outline cf-btn-sm">Newest</a>');
+  });
+
   it("escapes names it did not write", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await seedProject("team-b", "<b>Team</b>");
