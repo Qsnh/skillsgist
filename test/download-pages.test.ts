@@ -204,3 +204,32 @@ describe("what the log shows", () => {
     expect(html).not.toContain("<rect ");
   });
 });
+
+describe("links to the download log", () => {
+  beforeEach(resetDb);
+
+  it("links the download count to the skill's log only for those who can manage the skill", async () => {
+    const owner = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
+    const member = await seedAndLogin({ username: "bob", role: "member" });
+    expect(await text("/p/default/s/demo-skill", owner.cookie)).toContain(
+      '<a href="/p/default/s/demo-skill/downloads" class="cf-row-link">0</a>',
+    );
+    const html = await text("/p/default/s/demo-skill", member.cookie);
+    expect(html).not.toContain('/s/demo-skill/downloads"');
+    expect(html).toMatch(/<dt class="cf-row-label">Downloads<\/dt>\s*<dd class="cf-row-value">0<\/dd>/);
+  });
+
+  it("offers a project's log on its settings page to its admins only", async () => {
+    const projectAdmin = await seedAndLogin({ username: "carol", role: "member", projectRole: "admin" });
+    const member = await seedAndLogin({ username: "bob", role: "member" });
+    expect(await text("/p/default/settings", projectAdmin.cookie)).toContain('href="/p/default/downloads"');
+    expect(await text("/p/default/settings", member.cookie)).not.toContain('href="/p/default/downloads"');
+  });
+
+  it("lists the instance log in the account menu for instance admins only", async () => {
+    const root = await seedAndLogin({ username: "root", role: "admin" });
+    const member = await seedAndLogin({ username: "bob", role: "member" });
+    expect(await text("/me", root.cookie)).toContain('<a href="/admin/downloads" class="cf-menu-item">Downloads</a>');
+    expect(await text("/me", member.cookie)).not.toContain('href="/admin/downloads"');
+  });
+});

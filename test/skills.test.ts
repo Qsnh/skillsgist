@@ -331,12 +331,14 @@ describe("GET /p/:project/s/:slug", () => {
     await env.DB.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
 
     let html = await (await get("/p/default/s/demo-skill", cookie)).text();
-    expect(details(html)).toMatch(/<dt class="cf-row-label">Downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
+    expect(details(html)).toMatch(
+      /<dt class="cf-row-label">Downloads<\/dt>\s*<dd class="cf-row-value"><a href="\/p\/default\/s\/demo-skill\/downloads" class="cf-row-link">1<\/a><\/dd>/,
+    );
     expect(details(html)).toContain('<a href="/p/default" class="cf-row-link">Default</a>');
 
     await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
     html = await (await get("/p/default/s/demo-skill", cookie)).text();
-    expect(details(html)).toContain('<dd class="cf-row-value">1,234</dd>');
+    expect(details(html)).toContain('class="cf-row-link">1,234</a></dd>');
   });
 
   it("hides download counts from anonymous visitors", async () => {
