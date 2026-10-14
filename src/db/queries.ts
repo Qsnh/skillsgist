@@ -650,9 +650,14 @@ export async function moveSkill(db: D1Database, project: string, slug: string, t
   await db.prepare("UPDATE skills SET project = ? WHERE project = ? AND slug = ?").bind(target, project, slug).run();
 }
 
-export function getInstallKeyAccess(db: D1Database, key: string): Promise<{ project: string; username: string } | null> {
+export function getInstallKeyAccess(
+  db: D1Database,
+  key: string,
+): Promise<{ project: string; user_id: string; username: string } | null> {
   return db
-    .prepare("SELECT m.project, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?")
+    .prepare(
+      "SELECT m.project, m.user_id, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?",
+    )
     .bind(key)
-    .first<{ project: string; username: string }>();
+    .first<{ project: string; user_id: string; username: string }>();
 }

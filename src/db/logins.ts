@@ -24,6 +24,7 @@ export interface LoginAccess {
   id: string;
   user_id: string;
   username: string;
+  device_name: string;
   last_used_at: number | null;
   granted: string[];
 }
@@ -182,7 +183,7 @@ export async function deleteUserLogin(
 export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {
   const row = await db
     .prepare(
-      `SELECT l.id, l.user_id, l.last_used_at, u.username,
+      `SELECT l.id, l.user_id, l.device_name, l.last_used_at, u.username,
               (SELECT json_group_array(clp.project) FROM cli_login_projects clp WHERE clp.login_id = l.id) AS granted
        FROM cli_logins l JOIN users u ON u.id = l.user_id
        WHERE l.token_hash = ? AND l.status = 'active'`,

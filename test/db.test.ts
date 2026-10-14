@@ -25,6 +25,13 @@ const base = {
 describe("accounts, projects and memberships", () => {
   beforeEach(resetDb);
 
+  it("names the member an install key belongs to", async () => {
+    await seedU1();
+    await joinProject("u1", q.DEFAULT_PROJECT, "sgi_k1");
+    expect(await q.getInstallKeyAccess(env.DB, "sgi_k1")).toEqual({ project: "default", user_id: "u1", username: "alice" });
+    expect(await q.getInstallKeyAccess(env.DB, "sgi_nope")).toBeNull();
+  });
+
   it("loads a viewer with their memberships and project names, and lists projects, ordered by name", async () => {
     await seedU1();
     await q.createProject(env.DB, { slug: "aaa", name: "Zebra" });
