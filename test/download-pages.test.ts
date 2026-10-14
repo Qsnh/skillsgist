@@ -2,7 +2,7 @@ import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test"
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill } from "../src/db/queries";
 import { app } from "../src/index";
-import { DAY_MS } from "../src/retention";
+import { DAY_MS } from "../src/time";
 import {
   denyPublish, env, envWith, get, GOOD_MD, ORIGIN, OTHER_MD, publishMarkdown, resetDb, seedAndLogin, seedLog, seedLogs,
   seedProject, seedWithSkills,
@@ -81,6 +81,7 @@ describe("what the log shows", () => {
     expect(listRows(html)).toBe(3);
     expect(html.indexOf("Unnamed computer")).toBeLessThan(html.indexOf("work-laptop"));
     expect(html.indexOf("work-laptop")).toBeLessThan(html.indexOf("Germany"));
+    expect(html).toContain('<span class="cf-chip cf-user-device">work-laptop</span>');
     expect(html).toContain("Tor network");
     expect(html).toContain(`href="/p/default/s/demo-skill/downloads?user=${user.id}"`);
     expect(html).toContain("Logs are kept for 90 days.");
@@ -99,6 +100,7 @@ describe("what the log shows", () => {
     expect(html).toMatch(/All downloads<\/dt>\s*<dd class="cf-row-value">3<\/dd>/);
     expect(html).toMatch(/Web, signed in<\/a><\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
     expect(html).toMatch(/Anonymous<\/a><\/dt>\s*<dd class="cf-row-value">2<\/dd>/);
+    expect(html).toContain("Top versions");
     expect(html).toMatch(/<dt class="cf-row-label">v1<\/dt>\s*<dd class="cf-row-value">2<\/dd>/);
     expect(html).toContain("3 in total, at most 2 in one day.");
     expect(listRows(html)).toBe(4);
@@ -120,6 +122,10 @@ describe("what the log shows", () => {
     html = await text("/admin/downloads?project=team-b", cookie);
     expect(listRows(html)).toBe(1);
     expect(html).toContain("Team B/other-skill");
+    expect(html).toContain("Project: Team B");
+    html = await text(`/p/default/s/demo-skill/downloads?skill=${foreign}&project=team-b`, cookie);
+    expect(listRows(html)).toBe(1);
+    expect(html).not.toContain('class="cf-filters"');
   });
 
   it("filters by account, skill and source, and ignores values it does not know", async () => {
@@ -135,7 +141,7 @@ describe("what the log shows", () => {
     let html = await text(`${base}?user=${user.id}`, cookie);
     expect(listRows(html)).toBe(2);
     expect(html).toContain("Account: alice");
-    expect(html).toMatch(/<a href="\/p\/default\/downloads" class="cf-tag cf-filter" aria-label="Remove Account: alice">/);
+    expect(html).toMatch(/<a href="\/p\/default\/downloads" class="cf-chip cf-filter" aria-label="Remove Account: alice">/);
 
     expect(listRows(await text(`${base}?source=install_key`, cookie))).toBe(1);
 
@@ -144,6 +150,14 @@ describe("what the log shows", () => {
     expect(html).toContain("Skill: demo-skill");
     expect(html).toContain("Source: Anonymous");
     expect(html).toContain("Clear all");
+
+    html = await text(`${base}?user=${user.id}&skill=${other}`, cookie);
+    expect(html).toContain("No downloads to show");
+    expect(html).toContain("Account: alice");
+    expect(html).toContain("Skill: other-skill");
+    html = await text(`/admin/downloads?skill=${other}&before=1`, cookie);
+    expect(listRows(html)).toBe(0);
+    expect(html).toContain("Skill: Default/other-skill");
 
     for (const junk of ["?source=bogus", "?user=%27%3B%20DROP%20TABLE%20skills", "?before=abc", "?before=0"]) {
       html = await text(`${base}${junk}`, cookie);

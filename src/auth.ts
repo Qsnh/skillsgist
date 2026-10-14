@@ -7,6 +7,7 @@ import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
 import { sha256Hex, toHex } from "./hash";
 import { messages } from "./i18n";
 import type { SkillAction } from "./i18n/en";
+import { DAY_MS } from "./time";
 import type { Env } from "./types";
 
 /**
@@ -29,7 +30,7 @@ export type Ctx = Context<AppEnv>;
 export const PBKDF2_ITERATIONS = 10_000;
 export const MIN_PASSWORD_LENGTH = 12;
 export const SESSION_COOKIE = "sg_session";
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_TTL_MS = 30 * DAY_MS;
 
 /** Name of the hidden form field carrying the CSRF token. See src/csrf.tsx. */
 export const CSRF_FIELD = "_csrf";

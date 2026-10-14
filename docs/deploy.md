@@ -51,7 +51,7 @@ The Free plan allows one rule like this; Pro and above can count over a longer p
 
 ## Download logs
 
-The Worker records every download and keeps the records for 90 days. A Cron Trigger in `wrangler.jsonc` runs once a day at 03:17 UTC and deletes older ones. A Cloudflare account on the Free plan can have 5 Cron Triggers across all its Workers. If a deploy fails because they are used up, remove one from another Worker or move to Workers Paid.
+The Worker records every download and keeps the records for 90 days. A Cron Trigger in `wrangler.jsonc` runs once a day at 03:17 UTC and deletes older ones, at most 40,000 per run, so a larger backlog, such as the one left by lowering the retention, is cleared over the following days. Each download writes three rows to D1 and deleting its record later writes two more; on the Free plan they count toward the 100,000 rows written per day. A Cloudflare account on the Free plan can have 5 Cron Triggers across all its Workers. If a deploy fails because they are used up, remove one from another Worker or move to Workers Paid.
 
 To keep records for a different number of days, set `DOWNLOAD_LOG_RETENTION_DAYS` to a positive whole number. In the Cloudflare dashboard, open the Worker, go to Settings → Variables and Secrets, and add it as a Text variable. `wrangler.jsonc` sets `keep_vars`, so later deploys leave it in place, whether they come from the button or from Wrangler. If the value is not a positive whole number, the Worker logs an error and keeps 90 days. For local development, put it in `.dev.vars`.
 

@@ -56,7 +56,7 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
 
   No IP address or User-Agent is stored. Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by a daily Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill deletes its records; deleting an account keeps them under its username. Each log page shows:
   - the last 30 UTC days per day, or the retention period if it is shorter
-  - totals by source and by version, skill or project
+  - totals by source, and the ten busiest versions, skills or projects
   - a paged list that can be filtered by account, skill or source
 - The discovery index drops any entry whose name, description, or digest would fail the CLI's own validation, rather than serving a half-broken index.
 - The web UI is in English, Simplified Chinese, Traditional Chinese and Japanese. The language comes from the `sg_lang` cookie that the footer switcher sets, then the browser's `Accept-Language`, then English. Taiwan, Hong Kong, Macau and `zh-Hant` browsers get Traditional Chinese (in Taiwan wording); every other Chinese variant gets Simplified. Page addresses, install commands, the discovery index and the API, error messages included, are the same in every language. Skill content and every name are never translated.

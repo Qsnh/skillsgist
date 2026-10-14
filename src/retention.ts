@@ -1,6 +1,5 @@
+import { DAY_MS } from "./time";
 import type { Env } from "./types";
-
-export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const DEFAULT_RETENTION_DAYS = 90;
 

@@ -1,10 +1,12 @@
 import { DOWNLOAD_SOURCES } from "../db/downloads";
-import type { DownloadFilter, DownloadLogRow, DownloadShare, DownloadStats } from "../db/downloads";
+import type {
+  DownloadBreakdown, DownloadFilter, DownloadLogRow, DownloadShare, DownloadStats, FilterNames,
+} from "../db/downloads";
 import type { ListedSkill, ProjectRow, Viewer } from "../db/queries";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatDate, formatStamp } from "../i18n/format";
 import { ADMIN_DOWNLOADS_PATH, projectDownloadsPath, projectPath, skillDownloadsPath, skillPath } from "../paths";
-import { DAY_MS } from "../retention";
+import { DAY_MS } from "../time";
 import { Icon, Layout, PageHead, Panel } from "./layout";
 import { requestPlace } from "./place";
 
@@ -19,16 +21,43 @@ export type DownloadsSubject =
   | { kind: "project"; project: ProjectRow }
   | { kind: "all" };
 
-export function subjectPath(subject: DownloadsSubject): string {
+export interface DownloadsView {
+  path: string;
+  name: string | null;
+  home: string | null;
+  scope: Partial<DownloadFilter>;
+  breakdown: DownloadBreakdown;
+  skillColumn: "slug" | "full" | null;
+}
+
+export function downloadsView(subject: DownloadsSubject): DownloadsView {
   switch (subject.kind) {
     case "skill":
-      return skillDownloadsPath(subject.skill);
+      return {
+        path: skillDownloadsPath(subject.skill),
+        name: `${subject.skill.project_name}/${subject.skill.slug}`,
+        home: skillPath(subject.skill),
+        scope: { project: subject.skill.project, skillId: subject.skill.id },
+        breakdown: "version",
+        skillColumn: null,
+      };
     case "project":
-      return projectDownloadsPath(subject.project.slug);
+      return {
+        path: projectDownloadsPath(subject.project.slug),
+        name: subject.project.name,
+        home: projectPath(subject.project.slug),
+        scope: { project: subject.project.slug },
+        breakdown: "skill",
+        skillColumn: "slug",
+      };
     case "all":
-      return ADMIN_DOWNLOADS_PATH;
+      return { path: ADMIN_DOWNLOADS_PATH, name: null, home: null, scope: {}, breakdown: "project", skillColumn: "full" };
   }
 }
+
+const NARROWS: Record<DownloadBreakdown, "skillId" | "project" | null> = { version: null, skill: "skillId", project: "project" };
+
+const versionLabel = (version: number | string) => `v${version}`;
 
 export function filterHref(
   base: string,
@@ -55,18 +84,20 @@ function CloseIcon() {
   );
 }
 
-function Filters(props: { base: string; filter: DownloadFilter; first: DownloadLogRow | undefined }) {
+function Filters(props: { view: DownloadsView; filter: DownloadFilter; names: FilterNames }) {
   const t = useT();
-  const { base, filter, first } = props;
+  const { view, filter, names } = props;
+  const base = view.path;
+  const skill = names.skill && (view.skillColumn === "full" ? `${names.skill.projectName}/${names.skill.slug}` : names.skill.slug);
   const chips: Array<{ label: string; href: string }> = [];
   if (filter.project !== null) {
-    chips.push({ label: t.downloads.filterProject(first?.project_name ?? filter.project), href: filterHref(base, filter, { project: null }) });
+    chips.push({ label: t.downloads.filterProject(names.project ?? filter.project), href: filterHref(base, filter, { project: null }) });
   }
   if (filter.skillId !== null) {
-    chips.push({ label: t.downloads.filterSkill(first?.slug ?? filter.skillId), href: filterHref(base, filter, { skillId: null }) });
+    chips.push({ label: t.downloads.filterSkill(skill ?? filter.skillId), href: filterHref(base, filter, { skillId: null }) });
   }
   if (filter.userId !== null) {
-    chips.push({ label: t.downloads.filterUser(first?.username ?? filter.userId), href: filterHref(base, filter, { userId: null }) });
+    chips.push({ label: t.downloads.filterUser(names.user ?? filter.userId), href: filterHref(base, filter, { userId: null }) });
   }
   if (filter.source !== null) {
     chips.push({ label: t.downloads.filterSource(t.downloads.sources[filter.source]), href: filterHref(base, filter, { source: null }) });
@@ -76,7 +107,7 @@ function Filters(props: { base: string; filter: DownloadFilter; first: DownloadL
     <div class="cf-filters">
       <span class="cf-label">{t.downloads.filters}</span>
       {chips.map((chip) => (
-        <a href={chip.href} class="cf-tag cf-filter" aria-label={t.downloads.removeFilter(chip.label)}>
+        <a href={chip.href} class="cf-chip cf-filter" aria-label={t.downloads.removeFilter(chip.label)}>
           {chip.label}
           <CloseIcon />
         </a>
@@ -157,25 +188,15 @@ function Summary(props: { base: string; filter: DownloadFilter; stats: DownloadS
   );
 }
 
-function Breakdown(props: {
-  subject: DownloadsSubject;
-  base: string;
-  filter: DownloadFilter;
-  shares: DownloadShare[];
-  windowDays: number;
-}) {
+function Breakdown(props: { view: DownloadsView; filter: DownloadFilter; shares: DownloadShare[]; windowDays: number }) {
   const locale = useLocale();
   const t = useT();
-  const { subject } = props;
-  const title =
-    subject.kind === "skill" ? t.downloads.byVersion : subject.kind === "project" ? t.downloads.topSkills : t.downloads.byProject;
-  const href = (share: DownloadShare): string | null => {
-    if (subject.kind === "project") return filterHref(props.base, props.filter, { skillId: share.key });
-    if (subject.kind === "all") return filterHref(props.base, props.filter, { project: share.key });
-    return null;
-  };
+  const { breakdown, path } = props.view;
+  const narrow = NARROWS[breakdown];
+  const href = (share: DownloadShare) => (narrow ? filterHref(path, props.filter, { [narrow]: share.key }) : null);
+  const label = (share: DownloadShare) => (breakdown === "version" ? versionLabel(share.label) : share.label);
   return (
-    <Panel title={title} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>} flush>
+    <Panel title={t.downloads.top[breakdown]} aside={<span class="cf-panel-meta">{t.downloads.lastDays(props.windowDays)}</span>} flush>
       {props.shares.length === 0 ? (
         <div class="cf-panel-body">
           <p class="cf-hint">—</p>
@@ -186,7 +207,7 @@ function Breakdown(props: {
             const link = href(share);
             return (
               <div class="cf-row">
-                <dt class="cf-row-label">{link ? <a href={link} class="cf-link">{share.label}</a> : share.label}</dt>
+                <dt class="cf-row-label">{link ? <a href={link} class="cf-link">{label(share)}</a> : label(share)}</dt>
                 <dd class="cf-row-value">{formatCount(locale, share.count)}</dd>
               </div>
             );
@@ -225,7 +246,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
                   </a>
                 </td>
               ) : null}
-              <td data-label={c.version} class="cf-table-date">{`v${row.version}`}</td>
+              <td data-label={c.version} class="cf-table-date">{versionLabel(row.version)}</td>
               <td data-label={c.source}>
                 <a href={filterHref(props.base, props.filter, { source: row.source })} class="cf-link">
                   {t.downloads.sources[row.source]}
@@ -239,7 +260,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
                     <a href={filterHref(props.base, props.filter, { userId: row.user_id })} class="cf-link cf-user-name">
                       {row.username}
                     </a>
-                    {row.source === "device" ? <span class="cf-tag">{row.device_name || t.auth.unnamedComputer}</span> : null}
+                    {row.source === "device" ? <span class="cf-chip cf-user-device">{row.device_name || t.auth.unnamedComputer}</span> : null}
                   </span>
                 )}
               </td>
@@ -254,8 +275,9 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
 
 export function DownloadsPage(props: {
   user: Viewer;
-  subject: DownloadsSubject;
+  view: DownloadsView;
   filter: DownloadFilter;
+  names: FilterNames;
   stats: DownloadStats;
   rows: DownloadLogRow[];
   more: boolean;
@@ -265,32 +287,20 @@ export function DownloadsPage(props: {
   today: number;
 }) {
   const t = useT();
-  const { subject, filter, stats, rows } = props;
-  const base = subjectPath(subject);
-  const name =
-    subject.kind === "skill"
-      ? `${subject.skill.project_name}/${subject.skill.slug}`
-      : subject.kind === "project"
-        ? subject.project.name
-        : null;
-  const title = name === null ? t.downloads.title : t.downloads.titleOf(name);
-  const subjectLink =
-    subject.kind === "skill" ? (
-      <a href={skillPath(subject.skill)} class="cf-link">{name}</a>
-    ) : subject.kind === "project" ? (
-      <a href={projectPath(subject.project.slug)} class="cf-link">{name}</a>
-    ) : null;
+  const { view, filter, stats, rows } = props;
+  const base = view.path;
+  const title = view.name === null ? t.downloads.title : t.downloads.titleOf(view.name);
+  const subjectLink = view.home === null ? null : <a href={view.home} class="cf-link">{view.name}</a>;
   const counts = new Map(stats.byDay.map((d) => [d.day, d.count]));
   const days = Array.from({ length: props.windowDays }, (_, i) => {
     const day = props.today - props.windowDays + 1 + i;
     return { day, count: counts.get(day) ?? 0 };
   });
   const last = rows[rows.length - 1];
-  const skillColumn = subject.kind === "skill" ? null : subject.kind === "project" ? "slug" : "full";
   return (
     <Layout title={title} user={props.user}>
       <PageHead title={title}>{t.downloads.lede(subjectLink, props.retentionDays)}</PageHead>
-      <Filters base={base} filter={filter} first={rows[0]} />
+      <Filters view={view} filter={filter} names={props.names} />
       {!props.paged && rows.length === 0 && stats.total === 0 ? (
         <div class="cf-frame cf-empty">
           <p class="cf-empty-title">{t.downloads.empty}</p>
@@ -303,9 +313,9 @@ export function DownloadsPage(props: {
               <DayChart days={days} />
             </Panel>
             <Summary base={base} filter={filter} stats={stats} windowDays={props.windowDays} />
-            <Breakdown subject={subject} base={base} filter={filter} shares={stats.breakdown} windowDays={props.windowDays} />
+            <Breakdown view={view} filter={filter} shares={stats.breakdown} windowDays={props.windowDays} />
           </div>
-          {rows.length > 0 ? <LogTable base={base} filter={filter} rows={rows} skillColumn={skillColumn} /> : null}
+          {rows.length > 0 ? <LogTable base={base} filter={filter} rows={rows} skillColumn={view.skillColumn} /> : null}
           {props.paged || props.more ? (
             <nav class="cf-pager" aria-label={t.downloads.pages}>
               {props.paged ? <a href={filterHref(base, filter)} class="cf-btn cf-btn-outline cf-btn-sm">{t.downloads.newest}</a> : null}

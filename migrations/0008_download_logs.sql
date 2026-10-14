@@ -11,5 +11,3 @@ CREATE TABLE download_logs (
 );
 
 CREATE INDEX idx_download_logs_skill_time ON download_logs(skill_id, created_at);
-
-CREATE INDEX idx_download_logs_time ON download_logs(created_at);

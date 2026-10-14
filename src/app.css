@@ -1501,12 +1501,17 @@
 
   .cf-user {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 4px 8px;
   }
 
   .cf-user-name {
     font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .cf-user-device {
     overflow-wrap: anywhere;
   }
 
@@ -1519,7 +1524,10 @@
   }
 
   .cf-filter {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
+    overflow-wrap: anywhere;
     text-decoration: none;
   }
 

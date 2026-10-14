@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DAY_MS, DEFAULT_RETENTION_DAYS, retentionCutoff, retentionDays } from "../src/retention";
+import { DEFAULT_RETENTION_DAYS, retentionCutoff, retentionDays } from "../src/retention";
+import { DAY_MS } from "../src/time";
 
 describe("download log retention", () => {
   afterEach(() => {

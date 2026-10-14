@@ -2,7 +2,7 @@ import { createScheduledController } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSkill } from "../src/db/queries";
 import worker from "../src/index";
-import { DAY_MS } from "../src/retention";
+import { DAY_MS } from "../src/time";
 import { env, envWith, GOOD_MD, resetDb, seedLog, seedLogs, seedWithSkills } from "./helpers";
 
 const NOW = Date.UTC(2026, 9, 13, 3, 17);
