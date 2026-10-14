@@ -7,6 +7,7 @@ import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import type { IndexEntry } from "../src/registry";
+import type { Env } from "../src/types";
 
 /**
  * The worker's bindings, typed.
@@ -351,3 +352,5 @@ export const seedLogs = (skillId: string, count: number, at: number) =>
   )
     .bind(count, skillId, at)
     .run();
+
+export const envWith = (vars: Record<string, string>): Env => Object.assign(Object.create(rawEnv), vars);

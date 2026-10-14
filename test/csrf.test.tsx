@@ -6,7 +6,7 @@ import { SESSION_COOKIE, sessionCsrf } from "../src/auth";
 import type { Ctx } from "../src/auth";
 import { SAFE_METHODS } from "../src/csrf";
 import { getSkill, getUserById } from "../src/db/queries";
-import app from "../src/index";
+import { app } from "../src/index";
 import { Layout } from "../src/views/layout";
 import {
   csrfFor, env as bindings, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown, resetDb,

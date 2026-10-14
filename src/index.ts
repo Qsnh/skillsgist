@@ -11,8 +11,10 @@ import { publishRoutes } from "./routes/publish";
 import { registryRoutes } from "./routes/registry";
 import { skillsRoutes } from "./routes/skills";
 import { usersRoutes } from "./routes/users";
+import { scheduled } from "./scheduled";
+import type { Env } from "./types";
 
-const app = new Hono<AppEnv>();
+export const app = new Hono<AppEnv>();
 
 const CSP =
   "default-src 'self'; script-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
@@ -50,4 +52,4 @@ app.onError((err, c) => {
   return c.html(`<h1>${messages(c).errors.internal}</h1>`, 500);
 });
 
-export default app;
+export default { fetch: app.fetch, scheduled } satisfies ExportedHandler<Env>;

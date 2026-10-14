@@ -47,6 +47,9 @@
     "bindings": {
       "SESSION_SECRET": {
         "description": "Signs session cookies. Use a long random value, for example the output of `openssl rand -hex 32`. Changing it later signs everyone out."
+      },
+      "DOWNLOAD_LOG_RETENTION_DAYS": {
+        "description": "Optional. How many days of download logs to keep, as a positive whole number; unset means 90. Set it as a plain-text variable in the dashboard; deploys keep it."
       }
     }
   },

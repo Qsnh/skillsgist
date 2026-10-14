@@ -1,7 +1,7 @@
 import { createExecutionContext, SELF, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getVersion } from "../src/db/queries";
-import app from "../src/index";
+import { app } from "../src/index";
 import {
   apiToken, bearer, env, fetchWith, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish,
   resetDb, seedAndLogin, seedProject, seedWithSkills, signInDevice,

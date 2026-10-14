@@ -1,0 +1,74 @@
+import { createScheduledController } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getSkill } from "../src/db/queries";
+import worker from "../src/index";
+import { DAY_MS } from "../src/retention";
+import { env, envWith, GOOD_MD, resetDb, seedLog, seedLogs, seedWithSkills } from "./helpers";
+
+const NOW = Date.UTC(2026, 9, 13, 3, 17);
+
+const runCron = (vars: Record<string, string> = {}) =>
+  worker.scheduled(createScheduledController({ scheduledTime: new Date(NOW), cron: "17 3 * * *" }), envWith(vars));
+
+const kept = async () =>
+  (await env.DB.prepare("SELECT created_at FROM download_logs ORDER BY created_at").all<{ created_at: number }>()).results.map(
+    (r) => (NOW - r.created_at) / DAY_MS,
+  );
+
+let skillId = "";
+
+describe("the daily cleanup", () => {
+  beforeEach(async () => {
+    await resetDb();
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    skillId = (await getSkill(env.DB, "default", "demo-skill"))!.id;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("deletes downloads older than 90 days by default", async () => {
+    await seedLog(skillId, { at: NOW - 91 * DAY_MS });
+    await seedLog(skillId, { at: NOW - 89 * DAY_MS });
+    await runCron();
+    expect(await kept()).toEqual([89]);
+  });
+
+  it("uses DOWNLOAD_LOG_RETENTION_DAYS when it is a positive whole number", async () => {
+    await seedLog(skillId, { at: NOW - 8 * DAY_MS });
+    await seedLog(skillId, { at: NOW - 6 * DAY_MS });
+    await runCron({ DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    expect(await kept()).toEqual([6]);
+  });
+
+  it.each(["0", "-3", "abc", "1.5", ""])("falls back to 90 days for %j and says so", async (value) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await seedLog(skillId, { at: NOW - 91 * DAY_MS });
+    await seedLog(skillId, { at: NOW - 89 * DAY_MS });
+    await runCron({ DOWNLOAD_LOG_RETENTION_DAYS: value });
+    expect(await kept()).toEqual([89]);
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("works through a backlog larger than one batch", async () => {
+    await seedLogs(skillId, 2500, NOW - 120 * DAY_MS);
+    await seedLog(skillId, { at: NOW - DAY_MS });
+    await runCron();
+    expect(await kept()).toEqual([1]);
+  });
+
+  it("reports a failed run instead of swallowing it", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await seedLog(skillId, { at: NOW - 91 * DAY_MS });
+    await env.DB.prepare(
+      "CREATE TRIGGER reject_prune BEFORE DELETE ON download_logs BEGIN SELECT RAISE(ABORT, 'prune rejected'); END",
+    ).run();
+    try {
+      await expect(runCron()).rejects.toThrow(/prune rejected/);
+      expect(error).toHaveBeenCalledWith("download log prune failed", expect.anything());
+    } finally {
+      await env.DB.prepare("DROP TRIGGER reject_prune").run();
+    }
+  });
+});
