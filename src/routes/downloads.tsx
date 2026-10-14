@@ -50,7 +50,7 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
   const query = { ...filter, ...view.scope };
   const before = readCursor(c);
   const [stats, log, names] = await Promise.all([
-    downloadStats(c.env.DB, query, view.breakdown, Math.max(kept, (today - windowDays + 1) * DAY_MS)),
+    downloadStats(c.env.DB, query, view.breakdown, today - windowDays + 1),
     listDownloadLogs(c.env.DB, query, { since: kept, before, limit: PAGE_SIZE }),
     filterNames(c.env.DB, filter, within, kept),
   ]);

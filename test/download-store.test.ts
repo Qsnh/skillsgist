@@ -71,11 +71,29 @@ describe("recording a download", () => {
     ]);
   });
 
+  it("adds each download to the count for its skill, UTC day, version and source", async () => {
+    const record = (version: number, at: number) =>
+      recordDownload(env.DB, { skillId: "s1", version, downloader: ANONYMOUS_DOWNLOADER, country: null, at });
+    await record(1, NOW);
+    await record(1, NOW + 1);
+    await record(2, NOW);
+    await record(1, (TODAY + 1) * DAY_MS);
+    const { results } = await env.DB.prepare(
+      "SELECT skill_id, day, version, source, count FROM download_days ORDER BY day, version",
+    ).all();
+    expect(results).toEqual([
+      { skill_id: "s1", day: TODAY, version: 1, source: "anonymous", count: 2 },
+      { skill_id: "s1", day: TODAY, version: 2, source: "anonymous", count: 1 },
+      { skill_id: "s1", day: TODAY + 1, version: 1, source: "anonymous", count: 1 },
+    ]);
+  });
+
   it("ignores a skill that no longer exists and changes nothing", async () => {
     await expect(
       recordDownload(env.DB, { skillId: "gone", version: 1, downloader: ANONYMOUS_DOWNLOADER, country: null, at: NOW }),
     ).resolves.toBeUndefined();
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_days").first("n")).toBe(0);
     expect(await env.DB.prepare("SELECT SUM(download_count) AS n FROM skills").first("n")).toBe(0);
   });
 });
@@ -139,16 +157,34 @@ describe("reading the log", () => {
       { key: "s1", label: "demo", count: 2 },
       { key: "s2", label: "other", count: 1 },
     ]);
-    const one = await downloadStats(env.DB, filter({ skillId: "s1" }), "version", NOW - DAY_MS);
+    const one = await downloadStats(env.DB, filter({ skillId: "s1" }), "version", TODAY - 1);
     expect(one.total).toBe(1);
     expect(one.breakdown).toEqual([{ key: "2", label: "2", count: 1 }]);
     const none = await downloadStats(env.DB, filter({ source: "device" }), "project", 0);
     expect(none).toEqual({ total: 0, bySource: { web: 0, device: 0, install_key: 0, anonymous: 0 }, byDay: [], breakdown: [] });
   });
 
+  it("counts one account's downloads from the log itself", async () => {
+    await seedLog("s3", { at: NOW, source: "device", userId: "u1", username: "alice" });
+    const alice = await downloadStats(env.DB, filter({ userId: "u1" }), "project", 0);
+    expect(alice.total).toBe(2);
+    expect(alice.bySource).toEqual({ web: 1, device: 1, install_key: 0, anonymous: 0 });
+    expect(alice.byDay).toEqual([
+      { day: TODAY - 3, count: 1 },
+      { day: TODAY, count: 1 },
+    ]);
+    expect(alice.breakdown).toEqual([
+      { key: "default", label: "Default", count: 1 },
+      { key: "team-b", label: "Team B", count: 1 },
+    ]);
+    const inProject = await downloadStats(env.DB, filter({ userId: "u1", project: "team-b" }), "skill", TODAY - 1);
+    expect(inProject.total).toBe(1);
+    expect(inProject.breakdown).toEqual([{ key: "s3", label: "demo", count: 1 }]);
+  });
+
   it("adds up one day's sources and keeps the days in order", async () => {
     await seedLog("s2", { at: NOW, source: "web", userId: "u1", username: "alice" });
-    const stats = await downloadStats(env.DB, NO_FILTER, "project", NOW - DAY_MS);
+    const stats = await downloadStats(env.DB, NO_FILTER, "project", TODAY - 1);
     expect(stats.byDay).toEqual([
       { day: TODAY - 1, count: 1 },
       { day: TODAY, count: 2 },
@@ -235,6 +271,19 @@ describe("pruning the log", () => {
     const { results } = await env.DB.prepare("SELECT created_at FROM download_logs ORDER BY created_at").all();
     expect(results).toEqual([{ created_at: cutoff }, { created_at: NOW }]);
     expect(await pruneDownloadLogs(env.DB, cutoff)).toBe(0);
+  });
+
+  it("deletes the daily counts of days that ended before the cutoff", async () => {
+    const cutoff = (TODAY - 90) * DAY_MS + 5;
+    await seedLog("s1", { at: cutoff - 1 });
+    await seedLog("s1", { at: cutoff - DAY_MS });
+    await seedLog("s1", { at: NOW });
+    await pruneDownloadLogs(env.DB, cutoff);
+    const { results } = await env.DB.prepare("SELECT day, count FROM download_days ORDER BY day").all();
+    expect(results).toEqual([
+      { day: TODAY - 90, count: 1 },
+      { day: TODAY, count: 1 },
+    ]);
   });
 
   it("stops after a fixed number of batches and leaves the rest for the next run", async () => {

@@ -64,17 +64,17 @@ export const PRUNE_MAX_BATCHES = 40;
 
 export const TOP_SHARES = 10;
 
-function where(filter: DownloadFilter, since: number): { sql: string; binds: unknown[] } {
-  const clauses = ["l.created_at >= ?"];
+function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: string; binds: unknown[] } {
+  const clauses = [table === "l" ? "l.created_at >= ?" : "d.day >= ?"];
   const binds: unknown[] = [since];
   const add = (clause: string, value: unknown) => {
     clauses.push(clause);
     binds.push(value);
   };
-  if (filter.project !== null) add("l.skill_id IN (SELECT id FROM skills WHERE project = ?)", filter.project);
-  if (filter.skillId !== null) add("l.skill_id = ?", filter.skillId);
-  if (filter.userId !== null) add("l.user_id = ?", filter.userId);
-  if (filter.source !== null) add("l.source = ?", filter.source);
+  if (filter.project !== null) add(`${table}.skill_id IN (SELECT id FROM skills WHERE project = ?)`, filter.project);
+  if (filter.skillId !== null) add(`${table}.skill_id = ?`, filter.skillId);
+  if (filter.userId !== null) add(`${table}.user_id = ?`, filter.userId);
+  if (filter.source !== null) add(`${table}.source = ?`, filter.source);
   return { sql: clauses.join(" AND "), binds };
 }
 
@@ -100,6 +100,13 @@ export async function recordDownload(
         input.at,
         input.skillId,
       ),
+    db
+      .prepare(
+        `INSERT INTO download_days (skill_id, day, version, source, count)
+         SELECT id, ?, ?, ?, 1 FROM skills WHERE id = ?
+         ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + 1`,
+      )
+      .bind(Math.floor(input.at / DAY_MS), input.version, downloader.source, input.skillId),
   ]);
 }
 
@@ -108,7 +115,7 @@ export async function listDownloadLogs(
   filter: DownloadFilter,
   opts: { since: number; before: number | null; limit: number },
 ): Promise<{ rows: DownloadLogRow[]; more: boolean }> {
-  const { sql, binds } = where(filter, opts.since);
+  const { sql, binds } = where("l", filter, opts.since);
   const cursor = opts.before === null ? "" : " AND l.id < ?";
   const { results } = await db
     .prepare(
@@ -125,20 +132,24 @@ export async function listDownloadLogs(
   return { rows: results.slice(0, opts.limit), more: results.length > opts.limit };
 }
 
-const perSkill = (sql: string) => `SELECT l.skill_id, COUNT(*) AS n FROM download_logs l WHERE ${sql} GROUP BY l.skill_id`;
+const EACH_DOWNLOAD = `(SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, l.user_id, 1 AS count
+  FROM download_logs l) d`;
 
-const BREAKDOWNS: Record<DownloadBreakdown, (sql: string) => string> = {
-  version: (sql) =>
-    `SELECT CAST(l.version AS TEXT) AS "key", CAST(l.version AS TEXT) AS label, COUNT(*) AS count
-     FROM download_logs l WHERE ${sql}
-     GROUP BY l.version ORDER BY count DESC, l.version DESC LIMIT ${TOP_SHARES}`,
-  skill: (sql) =>
+const perSkill = (from: string, sql: string) =>
+  `SELECT d.skill_id, SUM(d.count) AS n FROM ${from} WHERE ${sql} GROUP BY d.skill_id`;
+
+const BREAKDOWNS: Record<DownloadBreakdown, (from: string, sql: string) => string> = {
+  version: (from, sql) =>
+    `SELECT CAST(d.version AS TEXT) AS "key", CAST(d.version AS TEXT) AS label, SUM(d.count) AS count
+     FROM ${from} WHERE ${sql}
+     GROUP BY d.version ORDER BY count DESC, d.version DESC LIMIT ${TOP_SHARES}`,
+  skill: (from, sql) =>
     `SELECT s.id AS "key", s.slug AS label, b.n AS count
-     FROM (${perSkill(sql)}) b JOIN skills s ON s.id = b.skill_id
+     FROM (${perSkill(from, sql)}) b JOIN skills s ON s.id = b.skill_id
      ORDER BY count DESC, s.slug LIMIT ${TOP_SHARES}`,
-  project: (sql) =>
+  project: (from, sql) =>
     `SELECT p.slug AS "key", p.name AS label, SUM(b.n) AS count
-     FROM (${perSkill(sql)}) b JOIN skills s ON s.id = b.skill_id JOIN projects p ON p.slug = s.project
+     FROM (${perSkill(from, sql)}) b JOIN skills s ON s.id = b.skill_id JOIN projects p ON p.slug = s.project
      GROUP BY p.slug ORDER BY count DESC, p.name LIMIT ${TOP_SHARES}`,
 };
 
@@ -146,18 +157,19 @@ export async function downloadStats(
   db: D1Database,
   filter: DownloadFilter,
   breakdown: DownloadBreakdown,
-  since: number,
+  firstDay: number,
 ): Promise<DownloadStats> {
-  const { sql, binds } = where(filter, since);
+  const from = filter.userId === null ? "download_days d" : EACH_DOWNLOAD;
+  const { sql, binds } = where("d", filter, firstDay);
   const [days, shares] = await db.batch([
     db
       .prepare(
-        `SELECT l.created_at / ${DAY_MS} AS day, l.source AS source, COUNT(*) AS count
-         FROM download_logs l WHERE ${sql}
-         GROUP BY day, l.source ORDER BY day`,
+        `SELECT d.day AS day, d.source AS source, SUM(d.count) AS count
+         FROM ${from} WHERE ${sql}
+         GROUP BY d.day, d.source ORDER BY d.day`,
       )
       .bind(...binds),
-    db.prepare(BREAKDOWNS[breakdown](sql)).bind(...binds),
+    db.prepare(BREAKDOWNS[breakdown](from, sql)).bind(...binds),
   ]);
   const bySource = Object.fromEntries(DOWNLOAD_SOURCES.map((source) => [source, 0])) as Record<DownloadSource, number>;
   const byDay: Array<{ day: number; count: number }> = [];
@@ -184,7 +196,7 @@ export async function filterNames(
   if (filter.project === null && filter.skillId === null && filter.userId === null) {
     return { project: null, skill: null, user: null };
   }
-  const scope = where(within, since);
+  const scope = where("l", within, since);
   const user =
     filter.userId === null
       ? { sql: "NULL", binds: [] }
@@ -210,6 +222,7 @@ export async function filterNames(
 }
 
 export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise<number> {
+  await db.prepare("DELETE FROM download_days WHERE day < ?").bind(Math.floor(cutoff / DAY_MS)).run();
   let deleted = 0;
   for (let batch = 0; batch < PRUNE_MAX_BATCHES; batch++) {
     const { meta } = await db
