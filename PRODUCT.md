@@ -48,13 +48,13 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
 - Visibility is per skill, `private` by default, flippable to `public` by whoever can manage it. A private skill is visible to its project's members and to instance admins; a public one to everyone.
 - Skill names are unique within a project. A project has a changeable name and a fixed address. A skill moves between projects with its versions, owner, visibility and download count, unless the target already has a skill with its name.
 - Search covers names, descriptions, and body text. Anonymous visitors see only public skills.
-- Every successful download is recorded with:
+- Every successful download that reaches the Worker is recorded with:
   - its time, skill and version
   - its source: web sign-in, CLI sign-in, install key or anonymous
   - its account, plus the computer for a CLI sign-in
   - the country Cloudflare reports
 
-  No IP address or User-Agent is stored. Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by an hourly Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill deletes its records; deleting an account keeps them under its username. Each log page shows:
+  No IP address or User-Agent is stored. Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by an hourly Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill hides its records at once and the hourly run deletes them; deleting an account keeps them under its username. Each log page shows:
   - the last 30 UTC days per day, or the retention period if it is shorter
   - totals by source, and the ten busiest versions, skills or projects
   - a paged list of every UTC day in the retention period, which can be filtered by account, skill or source

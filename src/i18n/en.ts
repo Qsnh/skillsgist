@@ -1,5 +1,7 @@
 type Slot = unknown;
 
+const dayCount = (days: number) => `${days} ${days === 1 ? "day" : "days"}`;
+
 export type SkillAction = "modify" | "move" | "delete" | "edit" | "update";
 
 export const en = {
@@ -278,10 +280,10 @@ export const en = {
     titleOf: (name: string) => `Downloads · ${name}`,
     lede: (subject: Slot | null, days: number) =>
       subject === null
-        ? [`Every download from this registry in the last ${days} days. Older records are deleted automatically.`]
-        : ["Every download of ", subject, ` in the last ${days} days. Older records are deleted automatically.`],
-    kept: (days: number) => `Logs are kept for ${days} days.`,
-    lastDays: (days: number) => `Last ${days} days`,
+        ? [`Every download from this registry in the last ${dayCount(days)}. Older records are deleted automatically.`]
+        : ["Every download of ", subject, ` in the last ${dayCount(days)}. Older records are deleted automatically.`],
+    kept: (days: number) => `Logs are kept for ${dayCount(days)}.`,
+    lastDays: (days: number) => `Last ${dayCount(days)}`,
     perDay: "Per day",
     summary: "Summary",
     total: "All downloads",
@@ -301,7 +303,7 @@ export const en = {
     older: "Older",
     newest: "Newest",
     empty: "No downloads to show",
-    emptyBody: (days: number) => `Downloads appear here as they happen and are kept for ${days} days.`,
+    emptyBody: (days: number) => `Downloads appear here as they happen and are kept for ${dayCount(days)}.`,
     managersOnly: "Only people who can manage this skill can see its downloads",
     panel: "Downloads",
     panelHint: "See who downloaded this project's skills, when, and from where.",

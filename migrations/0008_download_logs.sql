@@ -1,6 +1,6 @@
 CREATE TABLE download_logs (
   id          INTEGER PRIMARY KEY,
-  skill_id    TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  skill_id    TEXT NOT NULL,
   version     INTEGER NOT NULL,
   source      TEXT NOT NULL CHECK (source IN ('web', 'device', 'install_key', 'anonymous')),
   user_id     TEXT,

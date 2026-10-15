@@ -25,9 +25,10 @@ function idParam(c: Ctx, name: string): string | null {
 
 function readFilter(c: Ctx, scope: Partial<DownloadFilter>): DownloadFilter {
   const source = c.req.query("source");
+  const oneSkill = "skillId" in scope;
   return {
-    project: "project" in scope ? null : idParam(c, "project"),
-    skillId: "skillId" in scope ? null : idParam(c, "skill"),
+    project: oneSkill || "project" in scope ? null : idParam(c, "project"),
+    skillId: oneSkill ? null : idParam(c, "skill"),
     userId: idParam(c, "user"),
     source: DOWNLOAD_SOURCES.find((s) => s === source) ?? null,
   };

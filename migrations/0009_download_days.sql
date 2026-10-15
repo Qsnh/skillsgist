@@ -1,11 +1,11 @@
 DROP INDEX idx_download_logs_skill_time;
 
-CREATE INDEX idx_download_logs_skill ON download_logs(skill_id);
+CREATE INDEX idx_download_logs_skill_source ON download_logs(skill_id, source);
 
 CREATE INDEX idx_download_logs_user ON download_logs(user_id) WHERE user_id IS NOT NULL;
 
 CREATE TABLE download_days (
-  skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  skill_id TEXT NOT NULL,
   day      INTEGER NOT NULL,
   version  INTEGER NOT NULL,
   source   TEXT NOT NULL CHECK (source IN ('web', 'device', 'install_key', 'anonymous')),

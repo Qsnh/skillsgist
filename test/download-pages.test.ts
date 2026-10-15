@@ -219,6 +219,19 @@ describe("what the log shows", () => {
     expect(await text("/p/default/s/demo-skill/downloads", cookie)).toContain("Last 30 days");
   });
 
+  it("says day rather than days when the logs are kept for one day", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    let html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "1" });
+    expect(html).toContain("in the last 1 day.");
+    expect(html).toContain("are kept for 1 day.");
+    expect(html).not.toContain("1 days");
+    await seedLog(await skillId("demo-skill"));
+    html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "1" });
+    expect(html).toContain("Last 1 day<");
+    expect(html).toContain("Logs are kept for 1 day.");
+    expect(html).not.toContain("1 days");
+  });
+
   it("keeps the way back to the newest page when a stale cursor lands on an empty page", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await seedLog(await skillId("demo-skill"), { at: Date.now() - 40 * DAY_MS });

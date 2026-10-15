@@ -64,17 +64,28 @@ export const PRUNE_MAX_BATCHES = 40;
 
 export const TOP_SHARES = 10;
 
+const SKILL_EXISTS = "EXISTS (SELECT 1 FROM skills s WHERE s.id = l.skill_id)";
+
 function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: string; binds: unknown[] } {
   const clauses = [table === "l" ? "l.created_at >= ?" : "d.day >= ?"];
   const binds: unknown[] = [since];
-  const add = (clause: string, value: unknown) => {
+  const add = (clause: string, ...values: unknown[]) => {
     clauses.push(clause);
-    binds.push(value);
+    binds.push(...values);
   };
+  const scoped = filter.project !== null || filter.skillId !== null;
   if (filter.project !== null) add(`${table}.skill_id IN (SELECT id FROM skills WHERE project = ?)`, filter.project);
   if (filter.skillId !== null) add(`${table}.skill_id = ?`, filter.skillId);
   if (filter.userId !== null) add(`${table}.user_id = ?`, filter.userId);
-  if (filter.source !== null) add(`${table}.source = ?`, filter.source);
+  if (table === "d") {
+    if (filter.source !== null) add("d.source = ?", filter.source);
+  } else if (!scoped && filter.source === null) {
+    add(SKILL_EXISTS);
+  } else {
+    if (!scoped) add("l.skill_id IN (SELECT id FROM skills)");
+    const sources = filter.source === null ? DOWNLOAD_SOURCES : [filter.source];
+    add(`l.source IN (${sources.map(() => "?").join(", ")})`, ...sources);
+  }
   return { sql: clauses.join(" AND "), binds };
 }
 
@@ -133,7 +144,7 @@ export async function listDownloadLogs(
 }
 
 const EACH_DOWNLOAD = `(SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, l.user_id, 1 AS count
-  FROM download_logs l) d`;
+  FROM download_logs l WHERE ${SKILL_EXISTS}) d`;
 
 const perSkill = (from: string, sql: string) =>
   `SELECT d.skill_id, SUM(d.count) AS n FROM ${from} WHERE ${sql} GROUP BY d.skill_id`;
@@ -221,18 +232,32 @@ export async function filterNames(
   };
 }
 
-export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise<number> {
+export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise<{ deleted: number; capped: boolean }> {
   await db.prepare("DELETE FROM download_days WHERE day < ?").bind(Math.floor(cutoff / DAY_MS)).run();
-  let deleted = 0;
-  for (let batch = 0; batch < PRUNE_MAX_BATCHES; batch++) {
-    const { meta } = await db
+  const steps = [
+    db
+      .prepare("DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs ORDER BY id LIMIT ?) AND created_at < ?")
+      .bind(PRUNE_BATCH, cutoff),
+    db
       .prepare(
-        "DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs ORDER BY id LIMIT ?) AND created_at < ?",
+        `DELETE FROM download_logs WHERE id IN (
+           SELECT l.id FROM download_purges p CROSS JOIN download_logs l ON l.skill_id = p.skill_id LIMIT ?)`,
       )
-      .bind(PRUNE_BATCH, cutoff)
-      .run();
-    deleted += meta.changes;
-    if (meta.changes < PRUNE_BATCH) break;
+      .bind(PRUNE_BATCH),
+  ];
+  let deleted = 0;
+  let batches = 0;
+  for (const step of steps) {
+    let changes = PRUNE_BATCH;
+    while (changes === PRUNE_BATCH) {
+      if (batches === PRUNE_MAX_BATCHES) return { deleted, capped: true };
+      changes = (await step.run()).meta.changes;
+      deleted += changes;
+      batches++;
+    }
   }
-  return deleted;
+  await db
+    .prepare("DELETE FROM download_purges WHERE NOT EXISTS (SELECT 1 FROM download_logs l WHERE l.skill_id = download_purges.skill_id)")
+    .run();
+  return { deleted, capped: false };
 }

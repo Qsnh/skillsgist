@@ -37,7 +37,7 @@ export function downloadsView(subject: DownloadsSubject): DownloadsView {
         path: skillDownloadsPath(subject.skill),
         name: `${subject.skill.project_name}/${subject.skill.slug}`,
         home: skillPath(subject.skill),
-        scope: { project: subject.skill.project, skillId: subject.skill.id },
+        scope: { skillId: subject.skill.id },
         breakdown: "version",
         skillColumn: null,
       };

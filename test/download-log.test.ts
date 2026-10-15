@@ -1,5 +1,6 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pruneDownloadLogs } from "../src/db/downloads";
 import { getSkill, getVersion } from "../src/db/queries";
 import { app } from "../src/index";
 import {
@@ -129,7 +130,7 @@ describe("recording downloads", () => {
     expect(await logs()).toEqual([]);
   });
 
-  it("moves a skill's downloads with it, deletes them with it, and keeps them when the account goes", async () => {
+  it("moves a skill's downloads with it, deletes them after it, and keeps them when the account goes", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
     await seedProject("team-b", "Team B");
     const alice = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"], [OTHER_MD, "private"]);
@@ -143,6 +144,8 @@ describe("recording downloads", () => {
     expect(moved).toBe(1);
 
     expect((await postForm("/p/default/s/other-skill/delete", root.cookie)).status).toBe(302);
+    expect(await logs()).toHaveLength(2);
+    await pruneDownloadLogs(env.DB, 0);
     expect(await logs()).toHaveLength(1);
 
     expect((await postForm(`/admin/users/${alice.user.id}/delete`, root.cookie)).status).toBe(302);

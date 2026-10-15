@@ -1,7 +1,7 @@
 import { createScheduledController } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRUNE_BATCH, PRUNE_MAX_BATCHES } from "../src/db/downloads";
-import { getSkill } from "../src/db/queries";
+import { deleteSkill, getSkill } from "../src/db/queries";
 import worker from "../src/index";
 import { DAY_MS } from "../src/time";
 import { env, envWith, GOOD_MD, resetDb, seedLog, seedLogs, seedWithSkills } from "./helpers";
@@ -57,6 +57,14 @@ describe("the hourly cleanup", () => {
     await seedLog(skillId, { at: NOW - DAY_MS });
     await runCron();
     expect(await kept()).toEqual([1]);
+  });
+
+  it("deletes the downloads of a deleted skill", async () => {
+    await seedLogs(skillId, 1500, NOW - DAY_MS);
+    await deleteSkill(env.DB, "default", "demo-skill");
+    await runCron();
+    expect(await kept()).toEqual([]);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_purges").first("n")).toBe(0);
   });
 
   it("says when a run stops at its limit and leaves the rest for the next one", async () => {
