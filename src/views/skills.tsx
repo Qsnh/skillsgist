@@ -2,7 +2,7 @@ import { membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
 import { formatCount, formatStamp } from "../i18n/format";
-import { projectPath, skillPath } from "../paths";
+import { projectPath, skillDownloadsPath, skillPath } from "../paths";
 import { Button, CodeBlock, ConfirmDelete, GlobeIcon, Icon, Layout, Panel, Select } from "./layout";
 import type { ListedSkill, SkillRow, VersionRow, VersionSummary, Viewer } from "../db/queries";
 
@@ -443,7 +443,13 @@ export function SkillPage(props: {
                 {props.user ? (
                   <div class="cf-row">
                     <dt class="cf-row-label">{t.skills.downloadsLabel}</dt>
-                    <dd class="cf-row-value">{formatCount(locale, skill.download_count)}</dd>
+                    <dd class="cf-row-value">
+                      {props.canManage ? (
+                        <a href={skillDownloadsPath(skill)} class="cf-row-link">{formatCount(locale, skill.download_count)}</a>
+                      ) : (
+                        formatCount(locale, skill.download_count)
+                      )}
+                    </dd>
                   </div>
                 ) : null}
               </dl>

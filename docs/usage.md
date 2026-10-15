@@ -78,3 +78,20 @@ Each membership has its own role:
 - **Project admins** can also manage every skill in the project, rename the project, add, remove, promote and demote its members, and allow or block each member's publishing. Project admins can always publish.
 
 **Deleting an account reassigns its skills and the author records on its versions to the admin who deletes it**, because neither may point at a user that no longer exists. The original authorship is lost.
+
+## Download logs
+
+Every download that reaches the instance is recorded, whether it comes from a skill's page, from `npx skillsgist add` or from the stock `npx skills`. A public skill's zip may be cached for up to 5 minutes by the browser or by a proxy on the way, so the same download repeated within that time may be served from the cache, and is then neither recorded nor counted. A record holds the time, the skill and version, the source, the account and the country or region the request came from. The source is one of four values:
+
+- **Web, signed in**: the Download zip button, used by someone signed in.
+- **CLI sign-in**: a computer signed in with `skillsgist login`. The record names the computer.
+- **Install key**: a project's install key, for example in CI. The record names the member the key belongs to.
+- **Anonymous**: a download of a public skill with no usable credential.
+
+Three pages show the records. Each one has a chart of the last 30 days (or of the whole retention period, if that is shorter), totals by source, and the full list:
+
+- **A skill's downloads**, opened from the Downloads value in its Details panel, for whoever can manage the skill.
+- **A project's downloads**, at `/p/<project>/downloads` and linked from the project's settings page, for its admins.
+- **Every download**, at `/admin/downloads` and in the account menu, for instance admins.
+
+Select an account, a skill or a source in the list to narrow it down. Days are UTC days. Records are kept for 90 days unless the instance is set up otherwise; see [Deploy and run](deploy.md#download-logs). Deleting a skill takes its downloads off these pages at once, and the hourly cleanup deletes their records afterwards. The download count on a skill's page counts every recorded download since the skill was published, and is never trimmed.

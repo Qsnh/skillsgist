@@ -1,3 +1,4 @@
+import { DAY_MS, HOUR_MS } from "../time";
 import { INTL_LOCALES } from "./locales";
 import type { Locale } from "./locales";
 
@@ -12,8 +13,6 @@ const lists = new Map<Locale, Intl.ListFormat>();
 const regions = new Map<Locale, Intl.DisplayNames>();
 const relatives = new Map<Locale, Intl.RelativeTimeFormat>();
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
 const AGO_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["year", 365 * DAY_MS],
   ["month", 30 * DAY_MS],

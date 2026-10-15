@@ -24,3 +24,13 @@ export function safeNext(value: unknown): string {
   }
   return value;
 }
+
+export function skillDownloadsPath(skill: { project: string; slug: string }): string {
+  return `${skillPath(skill)}/downloads`;
+}
+
+export function projectDownloadsPath(project: string): string {
+  return `${projectPath(project)}/downloads`;
+}
+
+export const ADMIN_DOWNLOADS_PATH = "/admin/downloads";

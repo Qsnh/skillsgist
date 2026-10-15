@@ -1,7 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSkill, getVersion } from "../src/db/queries";
-import app from "../src/index";
+import { app } from "../src/index";
 import {
   bearer, env, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, resetDb, seedProject, seedWithSkills,
 } from "./helpers";
@@ -108,11 +108,12 @@ describe("download counting", () => {
       const res = await settle("/p/default/s/demo-skill/download");
       expect(res.status).toBe(200);
       expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
-      expect(error).toHaveBeenCalledWith("download count write failed", expect.anything());
+      expect(error).toHaveBeenCalledWith("download record write failed", expect.anything());
     } finally {
       error.mockRestore();
       await env.DB.prepare("DROP TRIGGER reject_count_write").run();
     }
     expect(await downloads("demo-skill")).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
   });
 });

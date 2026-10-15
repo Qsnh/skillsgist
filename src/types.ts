@@ -3,4 +3,5 @@ export interface Env {
   BUCKET: R2Bucket;
   ASSETS: Fetcher;
   SESSION_SECRET: string;
+  DOWNLOAD_LOG_RETENTION_DAYS?: string;
 }

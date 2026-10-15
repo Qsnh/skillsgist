@@ -49,6 +49,13 @@ To serve the instance on your own domain, open the Worker in the Cloudflare dash
 
 The Free plan allows one rule like this; Pro and above can count over a longer period and block for longer. `skillsgist login` calls the address once per sign-in, so a person signing in stays far below the limit. The rule covers only the custom domain, not the Worker's `workers.dev` address.
 
+## Download logs
+
+The Worker records every download and keeps the records for 90 days. A Cron Trigger in `wrangler.jsonc` runs at 17 minutes past every hour and deletes older ones, and then the records of deleted skills, at most 40,000 per run and so 960,000 a day. A larger backlog, such as the one left by lowering the retention or by deleting a busy skill, is cleared over the following runs, and each run that stops at the limit logs a warning. Each download writes four rows to D1, five when the downloader is signed in, and one more when it is the first download of that version from that source on that day; deleting its record later writes two or three more. On the Free plan they count toward the 100,000 rows written per day. The log pages add up per-day counts instead of reading every record, and the list reads at most about a page of records for each skill and source it covers, so the rows they read stay few as downloads grow; a page filtered by account reads that account's records. A Cloudflare account on the Free plan can have 5 Cron Triggers across all its Workers. If a deploy fails because they are used up, remove one from another Worker or move to Workers Paid.
+
+To keep records for a different number of days, set `DOWNLOAD_LOG_RETENTION_DAYS` to a positive whole number. In the Cloudflare dashboard, open the Worker, go to Settings → Variables and Secrets, and add it as a Text variable. `wrangler.jsonc` sets `keep_vars`, so later deploys leave it in place, whether they come from the button or from Wrangler. If the value is not a positive whole number, the Worker logs an error and keeps 90 days. For local development, put it in `.dev.vars`.
+
+
 ## Limits
 
 An upload may be at most 2 MB, unpack to at most 8 MB, and contain at most 200 files. These limits keep each request inside the Workers Free plan's 10 ms CPU budget. On Workers Paid you can raise `MAX_UPLOAD_BYTES`, `MAX_UNPACKED_BYTES` and `MAX_FILES` in `src/skills/normalize.ts`, and `PBKDF2_ITERATIONS` in `src/auth.ts`.

@@ -1,4 +1,5 @@
 import { randomHex } from "./auth";
+import { DAY_MS, HOUR_MS } from "./time";
 
 export const INSTALL_KEY_PREFIX = "sgi_";
 export const DEVICE_TOKEN_PREFIX = "sgd_";
@@ -9,8 +10,8 @@ export const DEVICE_CODE_TTL_S = 600;
 export const POLL_INTERVAL_S = 5;
 export const SLOW_DOWN_S = 5;
 export const LOGIN_IDLE_DAYS = 90;
-export const LOGIN_IDLE_MS = LOGIN_IDLE_DAYS * 24 * 60 * 60 * 1000;
-export const LAST_USED_WRITE_MS = 60 * 60 * 1000;
+export const LOGIN_IDLE_MS = LOGIN_IDLE_DAYS * DAY_MS;
+export const LAST_USED_WRITE_MS = HOUR_MS;
 export const CODE_ATTEMPT_LIMIT = 5;
 export const CODE_LOCK_MS = 10 * 60 * 1000;
 export const MAX_SCOPE_PROJECTS = 50;

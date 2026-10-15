@@ -7,6 +7,8 @@ import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import type { IndexEntry } from "../src/registry";
+import { DAY_MS } from "../src/time";
+import type { Env } from "../src/types";
 
 /**
  * The worker's bindings, typed.
@@ -58,6 +60,9 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM download_logs"),
+    env.DB.prepare("DELETE FROM download_days"),
+    env.DB.prepare("DELETE FROM download_purges"),
     env.DB.prepare("DELETE FROM cli_login_projects"),
     env.DB.prepare("DELETE FROM cli_logins"),
     env.DB.prepare("DELETE FROM device_code_attempts"),
@@ -316,3 +321,43 @@ export function putSkill(
 }
 
 export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+
+export interface LogSeed {
+  at?: number;
+  version?: number;
+  source?: string;
+  userId?: string | null;
+  username?: string | null;
+  deviceName?: string | null;
+  country?: string | null;
+}
+
+const countDay = (skillId: string, at: number, version: number, source: string, count: number) =>
+  env.DB.prepare(
+    `INSERT INTO download_days (skill_id, day, version, source, count) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + excluded.count`,
+  ).bind(skillId, Math.floor(at / DAY_MS), version, source, count);
+
+export const seedLog = (skillId: string, seed: LogSeed = {}) => {
+  const at = seed.at ?? Date.now();
+  const version = seed.version ?? 1;
+  const source = seed.source ?? "anonymous";
+  return env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(skillId, version, source, seed.userId ?? null, seed.username ?? null, seed.deviceName ?? null, seed.country ?? null, at),
+    countDay(skillId, at, version, source, 1),
+  ]);
+};
+
+export const seedLogs = (skillId: string, count: number, at: number) =>
+  env.DB.batch([
+    env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+       INSERT INTO download_logs (skill_id, version, source, created_at) SELECT ?, 1, 'anonymous', ? FROM n`,
+    ).bind(count, skillId, at),
+    countDay(skillId, at, 1, "anonymous", count),
+  ]);
+
+export const envWith = (vars: Record<string, string>): Env =>
+  Object.create(rawEnv, Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, { value, enumerable: true }])));

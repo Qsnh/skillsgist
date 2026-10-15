@@ -6,7 +6,7 @@ import { SESSION_COOKIE, sessionCsrf } from "../src/auth";
 import type { Ctx } from "../src/auth";
 import { SAFE_METHODS } from "../src/csrf";
 import { getSkill, getUserById } from "../src/db/queries";
-import app from "../src/index";
+import { app } from "../src/index";
 import { Layout } from "../src/views/layout";
 import {
   csrfFor, env as bindings, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown, resetDb,
@@ -107,6 +107,9 @@ const READ_ONLY_GETS = new Set([
   "GET /p/:project/s/:slug",
   "GET /p/:project/s/:slug/download",
   "GET /p/:project/s/:slug/v/:version/download",
+  "GET /p/:project/s/:slug/downloads",
+  "GET /p/:project/downloads",
+  "GET /admin/downloads",
   "GET /api/whoami",
   "GET /.well-known/oauth-authorization-server",
 ]);

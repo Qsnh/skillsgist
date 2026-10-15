@@ -12,6 +12,7 @@ import {
 } from "../db/logins";
 import { sha256Hex } from "../hash";
 import { PROJECT_SLUG } from "../paths";
+import { countryOf } from "../request";
 
 export const oauthRoutes = new Hono<AppEnv>();
 
@@ -53,11 +54,6 @@ function requestedScope(value: string | undefined): string | null {
     if (PROJECT_SLUG.test(slug)) projects.add(slug);
   }
   return projects.size > 0 ? [...projects].join(" ") : null;
-}
-
-function countryOf(c: Ctx): string | null {
-  const country = c.req.raw.cf?.country;
-  return typeof country === "string" ? country : null;
 }
 
 oauthRoutes.get("/.well-known/oauth-authorization-server", (c) => {
