@@ -218,17 +218,19 @@ function DayChart(props: { days: Array<{ day: number; count: number }>; peak: nu
         <span>{date(days[0].day)}</span>
         <span>{date(days[days.length - 1].day)}</span>
       </div>
-      <table class="sr-only">
-        <caption>{t.downloads.perDay}</caption>
-        <tbody>
-          {days.map((d) => (
-            <tr>
-              <th scope="row">{date(d.day)}</th>
-              <td>{formatCount(locale, d.count)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div class="sr-only">
+        <table>
+          <caption>{t.downloads.perDay}</caption>
+          <tbody>
+            {days.map((d) => (
+              <tr>
+                <th scope="row">{date(d.day)}</th>
+                <td>{formatCount(locale, d.count)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

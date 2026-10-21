@@ -125,6 +125,15 @@ describe("what the log shows", () => {
     expect(listRows(html)).toBe(4);
   });
 
+  it("hides the per-day table for screen readers inside a block, which a table cannot shrink to sr-only's one pixel", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const id = await skillId("demo-skill");
+    await seedLog(id);
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    expect(html).toContain('<div class="sr-only"><table><caption>Per day</caption>');
+    expect(html).not.toContain('<table class="sr-only">');
+  });
+
   it("keeps a project page to its own skills, whatever the query asks for", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
     await seedProject("team-b", "Team B");
