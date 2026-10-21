@@ -282,7 +282,7 @@ export const ja: Messages = {
     perDay: "日別",
     total: "すべてのダウンロード",
     bySource: "経路別のダウンロード",
-    busiest: (count, date) => `最多の日：${date}（${count} 件）`,
+    busiest: (count, date) => `最多の日: ${date}（${count} 件）`,
     latest: "最新",
     showAll: "すべての経路を表示",
     top: { version: "ダウンロードの多いバージョン", skill: "ダウンロードの多いスキル", project: "ダウンロードの多いプロジェクト" },
