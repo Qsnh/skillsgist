@@ -644,6 +644,13 @@ describe("deleting a skill", () => {
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_purges").first("n")).toBe(0);
   });
 
+  it("deletes a skill whose id is still waiting to be cleaned up", async () => {
+    await env.DB.prepare("INSERT INTO download_purges (skill_id) VALUES ('s1')").run();
+    await q.deleteSkill(env.DB, "default", "demo");
+    expect(await q.getSkill(env.DB, "default", "demo")).toBeNull();
+    expect(await env.DB.prepare("SELECT skill_id FROM download_purges").all().then((r) => r.results)).toEqual([{ skill_id: "s1" }]);
+  });
+
   it("shares a run's limit with older downloads, which go first, and finishes in a later run", async () => {
     await resetDb();
     await seedSkills();

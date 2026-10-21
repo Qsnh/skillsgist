@@ -463,7 +463,7 @@ export async function deleteSkill(db: D1Database, project: string, slug: string)
     .bind(project, slug)
     .all<{ r2_key: string }>();
   await db.batch([
-    db.prepare("INSERT INTO download_purges (skill_id) SELECT id FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
+    db.prepare("INSERT OR IGNORE INTO download_purges (skill_id) SELECT id FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
     db.prepare(`DELETE FROM download_days WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
     db.prepare(`DELETE FROM versions WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
     db.prepare("DELETE FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
