@@ -157,7 +157,7 @@ function Figures(props: { base: string; filter: DownloadFilter; stats: DownloadS
     ...DOWNLOAD_SOURCES.map((source) => ({ source, label: t.downloads.sources[source], count: stats.bySource[source] })),
   ];
   return (
-    <nav class="cf-figures" aria-label={t.downloads.bySource}>
+    <nav class="cf-frame cf-figures" aria-label={t.downloads.bySource}>
       {figures.map((figure) => {
         const current = figure.source === picked;
         const counted = picked === null || current;
@@ -268,35 +268,31 @@ function Console(props: {
   filter: DownloadFilter;
   stats: DownloadStats;
   days: Array<{ day: number; count: number }>;
-  windowDays: number;
 }) {
   const locale = useLocale();
   const t = useT();
   const { view, filter, stats, days } = props;
   const busiest = days.reduce((top, d) => (d.count > top.count ? d : top), days[0]);
   return (
-    <section class="cf-frame cf-console">
-      <Figures base={view.path} filter={filter} stats={stats} windowDays={props.windowDays} />
-      <div class="cf-console-body">
-        <section class="cf-console-pane">
-          <header class="cf-panel-head">
-            <h2 class="cf-panel-title">{t.downloads.perDay}</h2>
-            {busiest.count > 0 ? (
-              <span class="cf-panel-meta">
-                {t.downloads.busiest(formatCount(locale, busiest.count), formatDate(locale, busiest.day * DAY_MS))}
-              </span>
-            ) : null}
-          </header>
-          <DayChart days={days} peak={busiest.count} />
-        </section>
-        <section class="cf-console-pane">
-          <header class="cf-panel-head">
-            <h2 class="cf-panel-title">{t.downloads.top[view.breakdown]}</h2>
-          </header>
-          <Shares view={view} filter={filter} shares={stats.breakdown} total={stats.total} />
-        </section>
-      </div>
-    </section>
+    <div class="cf-frame cf-console">
+      <section class="cf-console-pane">
+        <header class="cf-panel-head">
+          <h2 class="cf-panel-title">{t.downloads.perDay}</h2>
+          {busiest.count > 0 ? (
+            <span class="cf-panel-meta">
+              {t.downloads.busiest(formatCount(locale, busiest.count), formatDate(locale, busiest.day * DAY_MS))}
+            </span>
+          ) : null}
+        </header>
+        <DayChart days={days} peak={busiest.count} />
+      </section>
+      <section class="cf-console-pane">
+        <header class="cf-panel-head">
+          <h2 class="cf-panel-title">{t.downloads.top[view.breakdown]}</h2>
+        </header>
+        <Shares view={view} filter={filter} shares={stats.breakdown} total={stats.total} />
+      </section>
+    </div>
   );
 }
 
@@ -436,7 +432,8 @@ export function DownloadsPage(props: {
           </div>
         ) : (
           <>
-            <Console view={view} filter={filter} stats={stats} days={days} windowDays={props.windowDays} />
+            <Figures base={view.path} filter={filter} stats={stats} windowDays={props.windowDays} />
+            <Console view={view} filter={filter} stats={stats} days={days} />
             <Log base={view.path} filter={filter} rows={rows} skillColumn={view.skillColumn} more={props.more} paged={props.paged} />
           </>
         )}

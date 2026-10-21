@@ -26,7 +26,7 @@ OWN-WORLD: DESIGN.md unchanged: paper ground, square hairline frames with regist
 
 STORY: The visitor sees the 30-day total and its split by source, picks a source to narrow everything, reads the daily trend and the top versions beside it, then scans the log.
 
-FIRST VIEWPORT: Page head; a filter bar frame showing active filter chips or how to add one; one console frame: a row of five figure links (All downloads, then each source with count, share bar and percent; the current one marked), below it a Paper Shade strip over a 2fr chart pane and a 1fr breakdown pane of share bars, the latest version tagged; the log table starts below.
+FIRST VIEWPORT: Page head; a filter bar frame showing active filter chips or how to add one; a figures frame: a row of five figure links (All downloads, then each source with count, share bar and percent; the current one marked); 32px below it a console frame: a Paper Shade strip over a 2fr chart pane and a 1fr breakdown pane of share bars, the latest version tagged; the log table starts below.
 
 FORM: Console, position 7 on the ordered structure list, dealt as the lead by surface seed bee50936. Signature move: the numbers are the filter. Motion: 200ms tints on figure and bar hover only.
 
