@@ -175,6 +175,12 @@ typography:
     fontWeight: 500
     lineHeight: 1
     letterSpacing: "0.06em"
+  mono-figure:
+    fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "28px"
+    fontWeight: 500
+    lineHeight: 1.1
+    fontFeature: "\"tnum\" 1"
   mono-editor:
     fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "13.5px"
@@ -209,6 +215,11 @@ typography:
     fontWeight: 500
     lineHeight: "20px"
     letterSpacing: "0.1em"
+  mono-axis:
+    fontFamily: "Red Hat Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.5
 rounded:
   none: "0px"
   tag: "5px"
@@ -575,13 +586,62 @@ components:
   table-date:
     textColor: "{colors.cf-body}"
     typography: "{typography.mono-path}"
+  log-cell:
+    padding: "12px 20px"
+  log-link:
+    textColor: "{colors.cf-ink}"
+  log-link-hover:
+    textColor: "{colors.cf-orange-ink}"
+  log-foot:
+    backgroundColor: "{colors.cf-paper-2}"
+    padding: "12px 20px"
+    height: "56px"
+  filter-bar:
+    backgroundColor: "{colors.white}"
+    rounded: "{rounded.none}"
+    padding: "10px 20px"
+    height: "52px"
+  filter-label:
+    textColor: "{colors.cf-muted}"
+    typography: "{typography.mono-label}"
+  figure-cell:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.cf-ink}"
+    rounded: "{rounded.none}"
+    padding: "18px 20px 16px"
+  figure-cell-hover:
+    backgroundColor: "{colors.cf-tint}"
+  figure-cell-current:
+    backgroundColor: "{colors.cf-tint}"
+  figure-label:
+    textColor: "{colors.cf-muted}"
+  figure-label-hover:
+    textColor: "{colors.cf-ink}"
+  figure-label-current:
+    textColor: "{colors.cf-orange-ink}"
+  figure-value:
+    textColor: "{colors.cf-ink}"
+    typography: "{typography.mono-figure}"
+  share-track:
+    backgroundColor: "{colors.cf-line}"
+    height: "4px"
+  share-fill:
+    backgroundColor: "{colors.cf-orange}"
+    height: "4px"
+  share-row:
+    textColor: "{colors.cf-ink}"
+    padding: "12px 20px 14px"
   chart-bar:
     backgroundColor: "{colors.cf-orange}"
+  chart-bar-hover:
+    backgroundColor: "{colors.cf-action}"
+  chart-hover:
+    backgroundColor: "{colors.cf-paper-2}"
   chart-zero:
     backgroundColor: "{colors.cf-line-strong}"
   chart-axis:
     textColor: "{colors.cf-muted}"
-    typography: "{typography.mono-label}"
+    typography: "{typography.mono-axis}"
   auth-frame:
     backgroundColor: "{colors.white}"
     rounded: "{rounded.none}"
@@ -624,10 +684,10 @@ Every page lives in this world. The project page and the skill page keep their o
 The palette has one hot orange, three deeper oranges that do the work, an ember brown for text on the orange, warm paper neutrals and one quiet danger red.
 
 ### Primary
-- **Signal Orange** (#ff5e1f): the field color. It fills the orange panel on the index and skill pages, the blinking caret block after a command, the 2px focus ring, the native radio and checkbox accent, and the 6px dot on an active status pill. Only display-size white type (the panel headline or skill name) and Ember running copy sit on it; it never sets text itself.
-- **Action Orange** (#d63c01): the fill behind every primary pill button (Publish, Sign in, Save, Create, Save as a new version, Publish the first skill), with white labels.
+- **Signal Orange** (#ff5e1f): the field color. It fills the orange panel on the index and skill pages, the blinking caret block after a command, the 2px focus ring, the native radio and checkbox accent, the 6px dot on an active status pill, and the chart bars and share-bar fills of a download log. Only display-size white type (the panel headline or skill name) and Ember running copy sit on it; it never sets text itself.
+- **Action Orange** (#d63c01): the fill behind every primary pill button (Publish, Sign in, Save, Create, Save as a new version, Publish the first skill), with white labels. It also deepens the bar of a hovered day in a download chart.
 - **Action Orange Pressed** (#b93300): the hover fill for primary buttons.
-- **Orange Ink** (#c73a02): orange as text or line on white or paper. Uses include the `$` prompt, the Public and admin labels, the hovered cell title and arrow, inline text links, the notice text, the border of a checked choice card, the current version link and the hovered download icon.
+- **Orange Ink** (#c73a02): orange as text or line on white or paper. Uses include the `$` prompt, the Public and admin labels, the hovered cell title and arrow, inline text links, the notice text, the border of a checked choice card, the current version link, the hovered download icon, a hovered log link and the label of the current figure in a download log.
 
 ### Secondary
 - **Ember** (#3c0c00): the deep brown-orange for running copy on the orange panel: the lede and its links. At alpha it is also the base of every shadow and of the translucent search field.
@@ -643,15 +703,15 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 - **Mark Violet** (#7b5cff), **Mark Rose** (#ff3d7f), **Signal Orange** (#ff5e1f) and **Mark Amber** (#ffb61e): the bands of the mark, in that order. Violet, Rose and Amber never appear outside it.
 
 ### Neutral
-- **Ink** (#171717): headings, cell titles, button, field and menu labels, input text, file paths, the wordmark, and bold text inside a rendered SKILL.md.
+- **Ink** (#171717): headings, cell titles, button, field and menu labels, input text, file paths, the wordmark, figure counts, log links, and bold text inside a rendered SKILL.md.
 - **Graphite** (#404040): secondary ink for the tags, count pill, chips, footer links, the resting cell arrow and download icon, and quoted text in a SKILL.md.
 - **Body Gray** (#525252): descriptions, page ledes, empty-state copy, rendered SKILL.md text, the status line, the file-picker text and the dates and counts in tables.
-- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers, stacked table labels and the labels in the Details panel, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the idle "Copy" button label, the resting icon of a ghost button and footer text. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
+- **Warm Muted** (#6b6560): metadata, hints and placeholders, panel meta, table column headers, stacked table labels and the labels in the Details panel, the Private and member labels, the select chevron, list markers, the idle status value, the sort note, the idle "Copy" button label, the resting icon of a ghost button, footer text, and in a download log the figure labels, percentages, the Filters label and note, the chart's peak label and the row count. It is also the hover border of the file picker and the choice cards. It measures 5.74:1 on white.
 - **Paper** (#fdfdfc): the page ground behind everything, the fill inside the registration marks, the file picker and the chips.
-- **Paper Shade** (#f9f7f6): the footer band, every header strip and form footer bar, the table header row, code and quote blocks in a SKILL.md, and the hover fill on menu items, ghost buttons, the search button and the download icon.
-- **Peach Tint** (#fff7f2): the hover wash on a skill cell, the fill of a checked choice card, the current row in the Versions list, and the notice fill.
-- **Hairline** (#efe6e1): internal dividers: between cells, between the skill toolbar's groups, under the nav and every header strip, between form sections, rows and table rows, above the footer, and around the menu panel and SKILL.md code, quotes and tables.
-- **Hairline Strong** (#dfd2cb): the outer frame of every container, the registration marks, dashed gutters and dashed rules, the resting border of outline buttons, fields, choice cards, the file picker and its button, the tag, chip and pill outlines, the fill-cell and sign-in dot fields, the version-link underline and the scrollbar thumb.
+- **Paper Shade** (#f9f7f6): the footer band, every header strip and form footer bar, the table header row, the download log's foot, code and quote blocks in a SKILL.md, and the hover fill on menu items, ghost buttons, the search button, the download icon and a day's column in a download chart.
+- **Peach Tint** (#fff7f2): the hover wash on a skill cell or figure cell, the fill of a checked choice card, the current row in the Versions list, the current figure in a download log, and the notice fill.
+- **Hairline** (#efe6e1): internal dividers: between cells, between the skill toolbar's groups, under the nav and every header strip, between form sections, rows and table rows, between figure cells, console panes and breakdown rows, above the footer, and around the menu panel and SKILL.md code, quotes and tables. It is also the track of a share bar.
+- **Hairline Strong** (#dfd2cb): the outer frame of every container, the registration marks, dashed gutters and dashed rules, a chart's dashed peak line, the resting border of outline buttons, fields, choice cards, the file picker and its button, the tag, chip and pill outlines, the fill-cell and sign-in dot fields, the version-link and log-link underlines and the scrollbar thumb.
 - **Hairline Hover** (#c9b8ae): the border of a text field or select under the pointer.
 - **Notice Line** (#f6d3c1): the border of the orange notice.
 - **White** (#ffffff): raised surfaces. The nav bar, the inside of every frame, the command box, fields, choice cards, the editor, outline and danger buttons, the search button, the status pill and the menu panel all use it.
@@ -662,7 +722,7 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 
 **The Ember Text Rule.** Running copy on the orange panel is set in Ember (5.52:1), never in white and never in gray. White on the panel is reserved for the display headline, the white command box, the white search button and the skill page's Command/Prompt switch.
 
-**The One Drench Rule.** A page carries at most one full field of orange. `/`, `/p/:project` and `/p/:project/s/:slug` each carry one. On a project's page and a skill's page it sits behind that page's install command; on `/` it holds the headline and the search field, and no command. The form, account, admin, project settings and sign-in pages carry none, and an install command there sits in a flat code block on white. Everywhere else orange is a small signal: a button fill, the prompt, the caret, the focus ring, a status dot, the Public label, a checked choice, a hovered cell title.
+**The One Drench Rule.** A page carries at most one full field of orange. `/`, `/p/:project` and `/p/:project/s/:slug` each carry one. On a project's page and a skill's page it sits behind that page's install command; on `/` it holds the headline and the search field, and no command. The form, account, admin, project settings and sign-in pages carry none, and an install command there sits in a flat code block on white. Everywhere else orange is a small signal: a button fill, the prompt, the caret, the focus ring, a status dot, the Public label, a checked choice, a hovered cell title, a chart bar or a share fill.
 
 **The Warm Neutral Rule.** Grounds, hairlines and muted text lean warm, at an OKLCH hue near 50. Text inks are true neutral gray. Cool slate and blue-gray never appear in this system.
 
@@ -699,13 +759,15 @@ The mark is the only place with more than one hue. Its four bands run top to bot
 - **Mono Command Small** (400, 14px/22px): the flat code block at every width.
 - **Mono Code** (500, 30px, 1.2, 0.06em; 26px below 640px): the `skillsgist login` code on the device confirmation, the one value a reader compares character by character with their terminal.
 - **Mono Code Field** (500, 20px, 0.06em, uppercase): the text in the code field on `/device`.
+- **Mono Figure** (500, 28px, 1.1, tabular numerals; 24px below 640px): the count in each figure cell of a download log's console.
 - **Inline command:** a command named inside a Page Lede, a Notice or an Alert, such as `skillsgist login`, is Red Hat Mono at 0.92em and never breaks across lines.
 - **Mono Editor** (400, 13.5px, 1.65): SKILL.md source in the full editor. The paste textarea on Publish uses the same size at 1.6.
-- **Mono Meta Large** (400, 13px, tabular numerals): the values in the skill page's Details panel and the version links in the Versions list.
+- **Mono Meta Large** (400, 13px, tabular numerals): the values in the skill page's Details panel, the version links in the Versions list, and the versions and counts in a download log's breakdown.
 - **Mono Path** (400, 12.5px): file paths in the Files list and dates and counts in tables.
-- **Mono Meta** (400, 12px, tabular numerals): the author handle in a cell, row sizes and timestamps, the count pill, chips and the status pill.
-- **Mono Label** (500, 11px, 0.1em, uppercase): the Public, Private, admin and member labels and table column headers.
-- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the You tag. The stacked table labels below 768px use the same size and tracking at weight 400.
+- **Mono Meta** (400, 12px, tabular numerals): the author handle in a cell, row sizes and timestamps, the count pill, chips, the status pill and the percentages in a download log.
+- **Mono Label** (500, 11px, 0.1em, uppercase): the Public, Private, admin and member labels, table column headers and the Filters label of a download log.
+- **Mono Tag** (500, 10.5px, 0.1em, uppercase): the You and Latest tags. The stacked table labels below 768px use the same size and tracking at weight 400.
+- **Mono Axis** (400, 11px, 1.5, no tracking, in its own case): the first and last dates under a per-day chart. The chart's peak label uses the same size with tabular numerals.
 
 ### Named Rules
 **The Medium Voice Rule.** Headings are set at weight 500. They get their presence from size and tight tracking, between -0.02em and -0.035em, never from bold. Weight 600 belongs only to the wordmark and to bold text inside a rendered SKILL.md.
@@ -744,7 +806,7 @@ The system is flat by default, and depth comes from line and light. Frames, pane
 
 ## Shapes
 
-The shape language has two halves. Containers that hold data are square: the registry frame, its cells, the empty state, panels, form frames, the skill toolbar, the SKILL.md frame, tables, the sign-in frame and the code and quote blocks inside a SKILL.md all have 0 corners. Each frame carries a registration mark at every corner, a 7px Hairline Strong square with a 5px Paper center, which reads like a crop mark on a plate. Pressable actions are full pills (999px): buttons, the file-picker button, the search field and its button, the count pill, the status pill and the skip link. Things you fill in or choose between take 8px corners: text fields, selects, the paste textarea, the file picker, choice cards, the Command/Prompt switch, alerts, notices, the flat code block and menu items. The orange panel takes 16px corners (12px below 640px), and the things that float take 12px: the raised command box and the menu panel. The small end of the scale is 6px for the hover plate behind a download icon and 5px for tags, chips, inline code and the selected segment of the Command/Prompt switch. The only true circle is the 6px status dot.
+The shape language has two halves. Containers that hold data are square: the registry frame, its cells, the empty state, panels, form frames, the skill toolbar, the SKILL.md frame, tables, a download log's filter bar and console, the sign-in frame and the code and quote blocks inside a SKILL.md all have 0 corners. Each frame carries a registration mark at every corner, a 7px Hairline Strong square with a 5px Paper center, which reads like a crop mark on a plate. Pressable actions are full pills (999px): buttons, the file-picker button, the search field and its button, the count pill, the status pill and the skip link. Things you fill in or choose between take 8px corners: text fields, selects, the paste textarea, the file picker, choice cards, the Command/Prompt switch, alerts, notices, the flat code block and menu items. The orange panel takes 16px corners (12px below 640px), and the things that float take 12px: the raised command box and the menu panel. The small end of the scale is 6px for the hover plate behind a download icon and 5px for tags, chips, inline code and the selected segment of the Command/Prompt switch. The only true circle is the 6px status dot.
 
 Icons are drawn inline as 16px SVG on a 16-unit grid with a 1.5 stroke and round caps and joins, in `currentColor`. The system includes a chevron, a globe, a padlock, a magnifier, an arrow, a download arrow, an alert circle, a check circle and a plain check. Visibility labels shrink their icon to 13px.
 
@@ -768,8 +830,8 @@ Quiet, compact pills. They sit beside the content rather than competing with it.
 - **Wide:** the full width of its form and 42px tall. It is used only for the single submit on sign-in and setup.
 
 ### Chips
-- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The You tag sits beside your own username in the Users list. A tag always sits beside the thing it names, never above a heading.
-- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames: the SKILL.md label in a header strip, the files carried over on Edit, and in a download log the computer beside an account and the filters above the list, each filter ending in a close icon. A chip wraps a long name onto more lines rather than overflowing. Chips wrap in a row with 6px gaps.
+- **Tag:** a 20px-tall, 5px-radius outline in Hairline Strong holding Mono Tag text in Graphite. The You tag sits beside your own username in the Users list, and the Latest tag beside the latest version in a download log's breakdown. A tag always sits beside the thing it names, never above a heading.
+- **Data chip:** a Paper fill with a 1px Hairline Strong outline, 5px corners and 2px 8px padding, holding Mono Meta text in Graphite. It is for data labels that keep their case, such as filenames: the SKILL.md label in a header strip, the files carried over on Edit, and in a download log the computer beside an account and each active filter in the filter bar. A filter chip is a link that removes its filter: it ends in a close icon, and on hover its outline and text turn Ink. A chip wraps a long name onto more lines rather than overflowing. Chips wrap in a row with 6px gaps.
 - **Count pill:** 24px tall, a white fill with a Hairline Strong outline, holding Mono Meta numerals in Graphite. It sits right after a section headline, a compact page title or a panel title. The number it shows is always the real length of the list.
 - **Status pill:** the same 24px white pill after a 14px Body Gray "Status:" line, holding Mono Meta text. When idle it reads in Warm Muted ("not generated"). When on it reads in Ink and leads with a 6px Signal Orange dot ("active").
 - **Visibility label:** Mono Label text in uppercase with a 13px icon, placed at the top-right of a cell. Public uses a globe in Orange Ink. Private uses a padlock in Warm Muted. It has no fill and no border. On the skill page it sits in the Details panel, in the same colors.
@@ -817,7 +879,7 @@ The top of every working page.
 ### Navigation
 - **Bar:** a white, 64px bar with a 1px Hairline bottom border. From left to right it holds the mark and the lowercase wordmark as one home link, a flexible spacer and the actions. The nav has no link group.
 - **Signed in:** a primary Publish pill, then the account menu. The menu is a `<details>` whose summary is an outline pill showing the username (truncated at 14ch) and a Warm Muted chevron. The chevron rotates 180° when the menu is open, and the summary border turns Ink.
-- **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Projects, Users (admins only) and Sign out, which is a form button. Escape, a press outside the menu or moving focus out of it closes it, and Escape returns focus to the trigger.
+- **Menu panel:** white, 12px radius, 6px padding and at least 180px wide. It opens 8px below the trigger, right-aligned, with a 1px Hairline outline and the Popover shadow. Items are 14px Ink text in 8px-radius rows that fill with Paper Shade on hover. The items are Account, Projects, Users and Downloads (both for admins only) and Sign out, which is a form button. Escape, a press outside the menu or moving focus out of it closes it, and Escape returns focus to the trigger.
 - **Signed out:** a single primary Sign in pill. The sign-in and setup pages hide it, so their nav carries only the mark and the wordmark.
 - **Skip link:** an Ink pill with white text that slides in from above the viewport when it receives focus.
 - **Footer:** a Paper Shade band with a 1px Hairline top border and 28px vertical padding. It holds the 18px mark and the 15px wordmark, a one-line Caption description in Warm Muted, and Graphite links that underline on hover with a 3px offset. To the left of the links sits the language menu, built like the account menu but opening upward. Its summary is a small outline pill: a Warm Muted globe, the current language written in its own language, and a Warm Muted chevron that points up while closed and turns down when the menu is open, with the summary border turning Ink. The panel opens 8px above the trigger, left-aligned so it stays inside the column when the footer stacks on a phone, and lists English, 简体中文, 繁體中文 and 日本語 in that fixed order, each in its own language. The current one is a plain Ink row at weight 500 with an Orange Ink check at its right and no hover fill; the other three are form buttons that switch the language and return to the same page. A screen reader hears the word Language before the current name.
@@ -845,17 +907,30 @@ The hero of the system: an orange field that hands over one line of shell, or on
 - **Fold:** when the body would hide at least 200px, it is clipped to 720px and fades out over its last 120px, and the frame closes with a Paper Shade footer bar padded 16px 24px (14px 18px on mobile) holding a small centered outline pill, "Show more". Opened, the pill reads "Show less", and folding again scrolls the frame back into view. The folded body clips rather than scrolls, and tabbing into its hidden part opens it. The bar is hidden until the script runs, so a page without JavaScript shows the whole document.
 
 ### Tables
-- **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. A row's name is a weight-500 link, a role is a role label, and counts and dates are Mono Path in Body Gray, with an em dash for an empty value. A table holds no actions. The Users list at `/admin/users`, the Projects list at `/projects` and the download logs are the tables. In a download log the account, skill and source in each row are links that narrow the list. Under the place the From cell adds the IP address, and under the source the Source cell adds the User-Agent, both in 12.5px mono Warm Muted. The User-Agent stays on one line, cut with an ellipsis at 200px, with the whole value in its title.
-- **Below 768px:** the header row is visually hidden and each row stacks into label/value pairs, padded 16px 18px with Hairline dividers. Each cell is a two-column grid (96px label, then the value, 12px apart), and the label is drawn from the cell's `data-label` in 10.5px uppercase mono at 0.1em in Warm Muted. A download log's User-Agent wraps in full here.
+- **Desktop:** a full-width frame holding a table. The header row is Paper Shade with Mono Label column headers in Warm Muted, padded 12px 20px. Rows are padded 18px 20px, top-aligned, with Hairline dividers. A row's name is a weight-500 link, a role is a role label, and counts and dates are Mono Path in Body Gray, with an em dash for an empty value. A table holds no actions. The Users list at `/admin/users`, the Projects list at `/projects` and the download logs are the tables.
+- **Download log rows:** padded 12px 20px. The Time (UTC) column holds a Mono Path date and 24-hour time with no zone, and the version is Mono Path too. The skill (on a project's or the instance's log), the source and the account are quiet log links that narrow the page: Ink with a 1px Hairline Strong underline at a 3px offset that turns Orange Ink on hover, the same device as the Details row links; the account link is weight 500. An anonymous row reads Anonymous, unlinked. Under the place the From cell adds the IP address, and under the source the Source cell adds the User-Agent, both in 12.5px mono Warm Muted. The User-Agent stays on one line, cut with an ellipsis at 200px, with the whole value in its title.
+- **Below 768px:** the header row is visually hidden and each row stacks into label/value pairs, padded 16px 18px with Hairline dividers. Each cell is a two-column grid (96px label, then the value, 12px apart), and the label is drawn from the cell's `data-label` in 10.5px uppercase mono at 0.1em in Warm Muted.
+- **Download log rows below 768px:** compact rows padded 14px 18px with 6px between lines, and no per-cell labels but one. The first line holds the time with its zone and, at the right, the version. Then come the skill, the source with the User-Agent inline and wrapping in full, the account (left out for an anonymous row), and the place after a FROM label, with the IP inline.
+
+### Download Log
+One template serves a skill's, a project's and the instance's log. Under the page head three square frames stack 32px apart: the filter bar, the console and the log. The figures at the top of the console are the source switch.
+- **Filter bar:** a frame at least 52px tall, padded 10px 20px (18px at the sides below 640px), that wraps with 8px 10px gaps. It leads with a Mono Label "Filters" in Warm Muted, followed either by a Caption note in Warm Muted saying how to narrow the page, or by the active filters as data chips, with a 13px "Clear all" link when more than one is set. An empty, unfiltered log leaves the bar out.
+- **Console:** one frame. A row of figure cells runs across its top above a Hairline, and below it sit two panes, each opening with a Paper Shade header strip: the per-day chart and the breakdown. The panes stack below 1024px with a Hairline between them, and from 1024px up they split 2fr to 1fr with a Hairline between.
+- **Figure cells:** five links in a `nav`: All downloads, then each source. 1px Hairline dividers come from the grid gap. All downloads takes a full row above two columns below 640px and above four from 640px; from 1024px all five share one row, All downloads at 1.4fr. Each cell is padded 18px 20px 16px (16px 18px 14px below 640px) and stacks a 13.5px Warm Muted label, the count in Mono Figure Ink, and a 20px foot. With no source chosen, the All downloads foot names the window ("Last 30 days") and each source's foot holds its share bar and its Mono Meta percentage in Warm Muted. Choosing a source narrows the whole page: the other sources then show an em dash and no foot, and All downloads shows an em dash over "Show every source".
+- **Figure states:** at rest a cell is White. On hover it washes to Peach Tint and its label turns Ink, over 200ms. The current cell, All downloads when no source is chosen, stays Peach Tint with an Orange Ink label at weight 500 and carries `aria-current`. Focus draws the ring inside the cell, and under forced colors the current cell gets a 2px Highlight outline.
+- **Share bar:** a square, 4px-tall SVG that stretches to its row: a Hairline track and a Signal Orange fill. Widths are SVG attributes, never inline styles, because the Content-Security-Policy forbids them. A non-zero share draws at least 1 of the bar's 100 units, and a zero share draws no fill. Under forced colors the fill is CanvasText and the track GrayText.
+- **Breakdown:** the right pane, titled Top versions, Top skills or Top projects, lists up to ten rows padded 12px 20px 14px (18px at the sides below 640px) with Hairline dividers. Each row holds the name, then the count in Mono Meta Large Ink and the percentage in Mono Meta Warm Muted, both right-aligned, with a share bar across the full row below. A skill or project name is a log link that narrows the page. A version is plain Mono Meta Large Ink, and the latest one carries a Latest tag beside it. An empty breakdown shows an em dash.
+- **Log frame:** the table in a frame that closes with a Paper Shade foot under a Hairline, at least 56px tall and padded 12px 20px (18px at the sides below 640px). The foot holds a Caption note in Warm Muted ("50 downloads on this page, newest first.") and, pushed to the right, the pager: small outline pills, Newest and Older, 10px apart, each shown only when it leads somewhere. A page past the end holds a 14px Body Gray line in place of the table.
 
 ### Charts
 - **Per-day bar chart:**
-  - An inline SVG of one bar per UTC day ending today: 30 bars, or one per retained day when the retention period is shorter. It sits in a panel titled "Per day", with "Last 30 days" (or the shorter period) as the panel meta, which the summary and breakdown panels repeat.
-  - Bars are Signal Orange. A day without downloads is a 1-unit Hairline Strong stub, so the baseline stays continuous.
-  - The plot is 140px tall and stretches to the panel's width.
-  - Below the plot, the first and last dates sit at either end in 11px mono Warm Muted. Then one Body Gray hint gives the total and the busiest day's count.
+  - An inline SVG of one bar per UTC day ending today: 30 bars, or one per retained day when the retention period is shorter. It fills the left pane of a download log's console, under a header strip titled "Per day" whose meta names the busiest day ("Busiest day: 74 on Oct 13, 2026"), left out when no day has a download.
+  - The plot is at least 168px tall (140px below 640px), grows with its pane, and is padded 34px 20px 16px (30px 18px 14px below 640px). Bars are scaled to the busiest day. A 1px dashed Hairline Strong line marks that height across the plot, with the peak count above its right end in 11px mono Warm Muted, tabular.
+  - Bars are Signal Orange, 8 units wide with 2-unit gaps on a 100-unit height, and a day with any download is at least 2 units tall. A day without downloads is a 1-unit Hairline Strong stub, so the baseline stays continuous.
+  - Each day is a column. On hover the column fills with Paper Shade and its bar deepens to Action Orange over 200ms, and the column's native SVG `<title>` shows the date and count as a tooltip.
+  - Below the plot, the first and last dates sit at either end in 11px mono Warm Muted.
 - **Accessibility:**
-  - The SVG is hidden from assistive technology. A visually hidden table lists every day and its count.
+  - The SVG and the peak count are hidden from assistive technology. A visually hidden table, captioned Per day, lists every day and its count.
   - Colors come from classes, never from inline styles, because the Content-Security-Policy forbids them.
   - In forced-colors mode the bars use CanvasText and the stubs GrayText.
 
@@ -880,7 +955,7 @@ The hero of the system: an orange field that hands over one line of shell, or on
 - **Do** put errors in an Alert above the form, one-time information the user must act on in an orange Notice, and the confirmation of a change the page cannot show in a Done line.
 - **Do** use a data chip for filenames that keep their case, and an uppercase mono label only for short fixed labels.
 - **Do** keep Red Hat Mono for commands, tokens, SKILL.md source, paths, versions, dates, handles, counts and short uppercase labels tracked at 0.1em.
-- **Do** stack tables into label/value rows below 768px instead of scrolling them sideways.
+- **Do** stack tables below 768px instead of scrolling them sideways: into label/value rows, or, for a download log, into compact rows that label only the place.
 - **Do** tint every shadow and scrim with Ember (`rgb(60 12 0 / a)`), with a real offset and blur.
 - **Do** theme the browser surfaces from the palette: Selection Peach (#ffd6c2) for selections, a 2px Signal Orange focus ring at a 2px offset (white inside the orange panel), an orange caret and accent color, and a Hairline Strong scrollbar on Paper.
 - **Do** limit motion to the breathing glow, the caret blink and 200–250ms state tints on `cubic-bezier(0.16, 1, 0.3, 1)`, and turn off the glow, the caret and anything that moves under `prefers-reduced-motion`.

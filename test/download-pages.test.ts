@@ -10,7 +10,11 @@ import {
 
 const skillId = async (slug: string, project = "default") => (await getSkill(env.DB, project, slug))!.id;
 
-const listRows = (html: string) => (html.match(/data-label="Time"/g) ?? []).length;
+const listRows = (html: string) => (html.match(/class="cf-table-date cf-log-time"/g) ?? []).length;
+
+const chartDays = (html: string) => (html.match(/class="cf-chart-day"/g) ?? []).length;
+
+const figure = (label: string, value: string) => new RegExp(`${label}</span><span class="cf-figure-value">${value}</span>`);
 
 const text = async (path: string, cookie?: string) => (await get(path, cookie)).text();
 
@@ -84,7 +88,8 @@ describe("what the log shows", () => {
     expect(html).toContain('<span class="cf-chip cf-user-device">work-laptop</span>');
     expect(html).toContain("Tor network");
     expect(html).toContain(`href="/p/default/s/demo-skill/downloads?user=${user.id}"`);
-    expect(html).toContain("Logs are kept for 90 days.");
+    expect(html).toContain("3 downloads on this page, newest first.");
+    expect(html).toContain('<td class="cf-log-cell cf-log-nobody">Anonymous</td>');
   });
 
   it("shows the IP address under the place and the User-Agent under the source", async () => {
@@ -107,14 +112,16 @@ describe("what the log shows", () => {
     await seedLog(id, { at: Date.now() - 3 * DAY_MS });
     await seedLog(id, { at: Date.now() - 40 * DAY_MS });
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
-    expect((html.match(/<rect /g) ?? []).length).toBe(30);
+    expect(chartDays(html)).toBe(30);
     expect((html.match(/class="cf-chart-bar"/g) ?? []).length).toBe(2);
-    expect(html).toMatch(/All downloads<\/dt>\s*<dd class="cf-row-value">3<\/dd>/);
-    expect(html).toMatch(/Web, signed in<\/a><\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
-    expect(html).toMatch(/Anonymous<\/a><\/dt>\s*<dd class="cf-row-value">2<\/dd>/);
+    expect(html).toMatch(figure("All downloads", "3"));
+    expect(html).toMatch(figure("Web, signed in", "1"));
+    expect(html).toMatch(figure("Anonymous", "2"));
+    expect(html).toContain('<span class="cf-figure-percent">67%</span>');
     expect(html).toContain("Top versions");
-    expect(html).toMatch(/<dt class="cf-row-label">v1<\/dt>\s*<dd class="cf-row-value">2<\/dd>/);
-    expect(html).toContain("3 in total, at most 2 in one day.");
+    expect(html).toContain('<span class="cf-share-label">v1</span><span class="cf-tag">Latest</span></span><span class="cf-share-count">2</span>');
+    expect(html).toContain('<span class="cf-share-label">v2</span></span><span class="cf-share-count">1</span>');
+    expect(html).toContain("Busiest day: 2 on ");
     expect(listRows(html)).toBe(4);
   });
 
@@ -137,7 +144,7 @@ describe("what the log shows", () => {
     expect(html).toContain("Project: Team B");
     html = await text(`/p/default/s/demo-skill/downloads?skill=${foreign}&project=team-b`, cookie);
     expect(listRows(html)).toBe(1);
-    expect(html).not.toContain('class="cf-filters"');
+    expect(html).not.toContain('class="cf-chip cf-filter"');
   });
 
   it("filters by account, skill and source, and ignores values it does not know", async () => {
@@ -174,7 +181,8 @@ describe("what the log shows", () => {
     for (const junk of ["?source=bogus", "?user=%27%3B%20DROP%20TABLE%20skills", "?before=abc", "?before=0"]) {
       html = await text(`${base}${junk}`, cookie);
       expect(listRows(html), junk).toBe(4);
-      expect(html, junk).not.toContain('class="cf-filters"');
+      expect(html, junk).not.toContain('class="cf-chip cf-filter"');
+      expect(html, junk).toContain("None. Select a source");
     }
   });
 
@@ -184,6 +192,11 @@ describe("what the log shows", () => {
     const base = "/p/default/s/demo-skill/downloads";
     const first = await text(`${base}?source=anonymous`, cookie);
     expect(listRows(first)).toBe(50);
+    expect(first).toContain(
+      `<a href="${base}?source=anonymous" class="cf-figure" aria-current="true"><span class="cf-figure-label">Anonymous</span><span class="cf-figure-value">55</span>`,
+    );
+    expect(first).toMatch(figure("All downloads", "—"));
+    expect(first).toContain(`<a href="${base}" class="cf-figure cf-figure-all"><span`);
     const older = /href="\/p\/default\/s\/demo-skill\/downloads\?source=anonymous&amp;before=(\d+)"/.exec(first);
     expect(older).not.toBeNull();
     const second = await text(`${base}?source=anonymous&before=${older![1]}`, cookie);
@@ -206,8 +219,8 @@ describe("what the log shows", () => {
     expect(listRows(await text("/p/default/s/demo-skill/downloads", cookie))).toBe(3);
     const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
     expect(listRows(html)).toBe(1);
-    expect(html).toMatch(/All downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
-    expect(html).toContain("Logs are kept for 7 days.");
+    expect(html).toMatch(figure("All downloads", "1"));
+    expect(html).toContain("in the last 7 days.");
   });
 
   it("lists the same UTC days that the totals count when the retention period is shorter than 30 days", async () => {
@@ -218,14 +231,14 @@ describe("what the log shows", () => {
     await seedLog(id, { at: firstDay });
     const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
     expect(listRows(html)).toBe(1);
-    expect(html).toMatch(/All downloads<\/dt>\s*<dd class="cf-row-value">1<\/dd>/);
+    expect(html).toMatch(figure("All downloads", "1"));
   });
 
   it("narrows the chart and its label to the retention period when that is shorter than 30 days", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await seedLog(await skillId("demo-skill"), { at: Date.now() - 2 * DAY_MS });
     const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
-    expect((html.match(/<rect /g) ?? []).length).toBe(7);
+    expect(chartDays(html)).toBe(7);
     expect(html).toContain("Last 7 days");
     expect(html).not.toContain("Last 30 days");
     expect(await text("/p/default/s/demo-skill/downloads", cookie)).toContain("Last 30 days");
@@ -240,7 +253,7 @@ describe("what the log shows", () => {
     await seedLog(await skillId("demo-skill"));
     html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "1" });
     expect(html).toContain("Last 1 day<");
-    expect(html).toContain("Logs are kept for 1 day.");
+    expect(html).toContain("in the last 1 day.");
     expect(html).not.toContain("1 days");
   });
 
@@ -249,6 +262,7 @@ describe("what the log shows", () => {
     await seedLog(await skillId("demo-skill"), { at: Date.now() - 40 * DAY_MS });
     const html = await text("/p/default/s/demo-skill/downloads?before=1", cookie);
     expect(html).not.toContain("No downloads to show");
+    expect(html).toContain("No downloads on this page.");
     expect(html).toContain('href="/p/default/s/demo-skill/downloads" class="cf-btn cf-btn-outline cf-btn-sm">Newest</a>');
   });
 

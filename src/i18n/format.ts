@@ -4,11 +4,15 @@ import type { Locale } from "./locales";
 
 const DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
 
-const STAMP: Intl.DateTimeFormatOptions = { ...DATE, hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" };
+const CLOCK: Intl.DateTimeFormatOptions = { ...DATE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+
+const STAMP: Intl.DateTimeFormatOptions = { ...CLOCK, timeZoneName: "short" };
 
 const dates = new Map<Locale, Intl.DateTimeFormat>();
 const stamps = new Map<Locale, Intl.DateTimeFormat>();
+const clocks = new Map<Locale, Intl.DateTimeFormat>();
 const counts = new Map<Locale, Intl.NumberFormat>();
+const percents = new Map<Locale, Intl.NumberFormat>();
 const lists = new Map<Locale, Intl.ListFormat>();
 const regions = new Map<Locale, Intl.DisplayNames>();
 const relatives = new Map<Locale, Intl.RelativeTimeFormat>();
@@ -35,8 +39,19 @@ export const formatDate = (locale: Locale, ms: number): string =>
 export const formatStamp = (locale: Locale, ms: number): string =>
   cached(stamps, locale, (tag) => new Intl.DateTimeFormat(tag, STAMP)).format(ms);
 
+export const formatZone = (locale: Locale, ms: number): string =>
+  cached(stamps, locale, (tag) => new Intl.DateTimeFormat(tag, STAMP))
+    .formatToParts(ms)
+    .find((part) => part.type === "timeZoneName")?.value ?? "";
+
+export const formatClock = (locale: Locale, ms: number): string =>
+  cached(clocks, locale, (tag) => new Intl.DateTimeFormat(tag, CLOCK)).format(ms);
+
 export const formatCount = (locale: Locale, n: number): string =>
   cached(counts, locale, (tag) => new Intl.NumberFormat(tag)).format(n);
+
+export const formatPercent = (locale: Locale, share: number): string =>
+  cached(percents, locale, (tag) => new Intl.NumberFormat(tag, { style: "percent" })).format(share);
 
 export const formatList = (locale: Locale, items: string[]): string =>
   cached(lists, locale, (tag) => new Intl.ListFormat(tag, { type: "conjunction" })).format(items);
