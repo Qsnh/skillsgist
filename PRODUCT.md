@@ -52,9 +52,10 @@ The mechanism that makes this practical: skillsgist serves the discovery protoco
   - its time, skill and version
   - its source: web sign-in, CLI sign-in, install key or anonymous
   - its account, plus the computer for a CLI sign-in
-  - the country Cloudflare reports
+  - the country and IP address Cloudflare reports
+  - the User-Agent, up to 512 characters
 
-  No IP address or User-Agent is stored. Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by an hourly Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill hides its records at once and the hourly run deletes them; deleting an account keeps them under its username. Each log page shows:
+  Records are kept for `DOWNLOAD_LOG_RETENTION_DAYS` days, 90 by default, and pruned by an hourly Cron Trigger. A skill's download count is separate and never pruned. Deleting a skill hides its records at once and the hourly run deletes them; deleting an account keeps them under its username. Each log page shows:
   - the last 30 UTC days per day, or the retention period if it is shorter
   - totals by source, and the ten busiest versions, skills or projects
   - a paged list of every UTC day in the retention period, which can be filtered by account, skill or source

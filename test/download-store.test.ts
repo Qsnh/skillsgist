@@ -37,6 +37,8 @@ async function seedSkills() {
   await addSkill("s3", "team-b", "demo");
 }
 
+const NOWHERE = { country: null, ip: null, userAgent: null };
+
 const filter = (change: Partial<DownloadFilter> = {}): DownloadFilter => ({ ...NO_FILTER, ...change });
 
 const list = (change: Partial<DownloadFilter>, opts: { since?: number; before?: number | null; limit?: number } = {}) =>
@@ -57,24 +59,32 @@ describe("recording a download", () => {
       version: 1,
       downloader: { source: "device", userId: "u1", username: "alice", deviceName: "laptop" },
       country: "NL",
+      ip: "203.0.113.7",
+      userAgent: "node",
       at: NOW,
     });
-    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, country: null, at: NOW + 1 });
+    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW + 1 });
     const after = await q.getSkill(env.DB, "default", "demo");
     expect(after?.download_count).toBe(2);
     expect(after?.updated_at).toBe(before?.updated_at);
     const { results } = await env.DB.prepare(
-      "SELECT skill_id, version, source, user_id, username, device_name, country, created_at FROM download_logs ORDER BY id",
+      "SELECT skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at FROM download_logs ORDER BY id",
     ).all();
     expect(results).toEqual([
-      { skill_id: "s1", version: 1, source: "device", user_id: "u1", username: "alice", device_name: "laptop", country: "NL", created_at: NOW },
-      { skill_id: "s1", version: 1, source: "anonymous", user_id: null, username: null, device_name: null, country: null, created_at: NOW + 1 },
+      {
+        skill_id: "s1", version: 1, source: "device", user_id: "u1", username: "alice", device_name: "laptop", country: "NL",
+        ip: "203.0.113.7", user_agent: "node", created_at: NOW,
+      },
+      {
+        skill_id: "s1", version: 1, source: "anonymous", user_id: null, username: null, device_name: null, country: null,
+        ip: null, user_agent: null, created_at: NOW + 1,
+      },
     ]);
   });
 
   it("adds each download to the count for its skill, UTC day, version and source", async () => {
     const record = (version: number, at: number) =>
-      recordDownload(env.DB, { skillId: "s1", version, downloader: ANONYMOUS_DOWNLOADER, country: null, at });
+      recordDownload(env.DB, { skillId: "s1", version, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at });
     await record(1, NOW);
     await record(1, NOW + 1);
     await record(2, NOW);
@@ -90,8 +100,8 @@ describe("recording a download", () => {
   });
 
   it("keeps the count and the log when the skill gets a new version", async () => {
-    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, country: null, at: NOW });
-    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, country: null, at: NOW + 1 });
+    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW });
+    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW + 1 });
     await q.insertVersion(env.DB, { ...skillVersion("s1", "default", "demo"), digest: `sha256:${"b".repeat(64)}` });
     expect((await q.getSkill(env.DB, "default", "demo"))?.latest_version).toBe(2);
     expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(2);
@@ -101,7 +111,7 @@ describe("recording a download", () => {
 
   it("ignores a skill that no longer exists and changes nothing", async () => {
     await expect(
-      recordDownload(env.DB, { skillId: "gone", version: 1, downloader: ANONYMOUS_DOWNLOADER, country: null, at: NOW }),
+      recordDownload(env.DB, { skillId: "gone", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW }),
     ).resolves.toBeUndefined();
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_days").first("n")).toBe(0);

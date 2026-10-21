@@ -29,6 +29,10 @@ const logs = async () =>
     ).all<{ source: string; user_id: string | null; username: string | null; device_name: string | null; country: string | null; version: number }>()
   ).results;
 
+const clients = async () =>
+  (await env.DB.prepare("SELECT ip, user_agent FROM download_logs ORDER BY id").all<{ ip: string | null; user_agent: string | null }>())
+    .results;
+
 describe("recording downloads", () => {
   beforeEach(resetDb);
 
@@ -97,6 +101,26 @@ describe("recording downloads", () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await settle("/p/default/s/demo-skill/download", { cf: { country: "DE" } } as RequestInit);
     expect((await logs())[0].country).toBe("DE");
+  });
+
+  it("stores the IP address Cloudflare reports and the User-Agent the request sent", async () => {
+    const { user } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const device = await signInDevice(user.id, ["default"]);
+    const path = await artifactPath("/p/default/.well-known/agent-skills/index.json", "demo-skill");
+    await settle("/p/default/s/demo-skill/download", { headers: { "CF-Connecting-IP": "203.0.113.7", "User-Agent": "Mozilla/5.0" } });
+    await settle(path, { headers: { ...bearer(device.token), "CF-Connecting-IP": "2001:db8::1", "User-Agent": "node" } });
+    await settle("/p/default/s/demo-skill/download");
+    expect(await clients()).toEqual([
+      { ip: "203.0.113.7", user_agent: "Mozilla/5.0" },
+      { ip: "2001:db8::1", user_agent: "node" },
+      { ip: null, user_agent: null },
+    ]);
+  });
+
+  it("keeps the first 512 characters of a longer User-Agent", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await settle("/p/default/s/demo-skill/download", { headers: { "User-Agent": `${"a".repeat(512)}tail` } });
+    expect((await clients())[0].user_agent).toBe("a".repeat(512));
   });
 
   it("records nothing for HEAD, refused requests or a missing archive", async () => {

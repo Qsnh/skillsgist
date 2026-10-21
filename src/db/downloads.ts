@@ -36,6 +36,8 @@ export interface DownloadLogRow {
   username: string | null;
   device_name: string | null;
   country: string | null;
+  ip: string | null;
+  user_agent: string | null;
   created_at: number;
 }
 
@@ -91,15 +93,23 @@ function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: 
 
 export async function recordDownload(
   db: D1Database,
-  input: { skillId: string; version: number; downloader: Downloader; country: string | null; at: number },
+  input: {
+    skillId: string;
+    version: number;
+    downloader: Downloader;
+    country: string | null;
+    ip: string | null;
+    userAgent: string | null;
+    at: number;
+  },
 ): Promise<void> {
   const { downloader } = input;
   await db.batch([
     db.prepare("UPDATE skills SET download_count = download_count + 1 WHERE id = ?").bind(input.skillId),
     db
       .prepare(
-        `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, created_at)
-         SELECT id, ?, ?, ?, ?, ?, ?, ? FROM skills WHERE id = ?`,
+        `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
+         SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM skills WHERE id = ?`,
       )
       .bind(
         input.version,
@@ -108,6 +118,8 @@ export async function recordDownload(
         downloader.username,
         downloader.deviceName,
         input.country,
+        input.ip,
+        input.userAgent,
         input.at,
         input.skillId,
       ),
@@ -131,7 +143,7 @@ export async function listDownloadLogs(
   const { results } = await db
     .prepare(
       `SELECT l.id, l.skill_id, s.project, p.name AS project_name, s.slug, l.version, l.source,
-              l.user_id, l.username, l.device_name, l.country, l.created_at
+              l.user_id, l.username, l.device_name, l.country, l.ip, l.user_agent, l.created_at
        FROM download_logs l
        JOIN skills s ON s.id = l.skill_id
        JOIN projects p ON p.slug = s.project

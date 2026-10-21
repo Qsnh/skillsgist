@@ -246,9 +246,12 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
               ) : null}
               <td data-label={c.version} class="cf-table-date">{t.downloads.versionLabel(row.version)}</td>
               <td data-label={c.source}>
-                <a href={filterHref(props.base, props.filter, { source: row.source })} class="cf-link">
-                  {t.downloads.sources[row.source]}
-                </a>
+                <span class="cf-log-source">
+                  <a href={filterHref(props.base, props.filter, { source: row.source })} class="cf-link">
+                    {t.downloads.sources[row.source]}
+                  </a>
+                  {row.user_agent ? <span class="cf-log-agent" title={row.user_agent}>{row.user_agent}</span> : null}
+                </span>
               </td>
               <td data-label={c.account}>
                 {row.user_id === null ? (
@@ -262,7 +265,12 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
                   </span>
                 )}
               </td>
-              <td data-label={c.place}>{requestPlace(t, locale, row.country)}</td>
+              <td data-label={c.place}>
+                <span class="cf-log-place">
+                  {requestPlace(t, locale, row.country)}
+                  {row.ip ? <span class="cf-log-ip">{row.ip}</span> : null}
+                </span>
+              </td>
             </tr>
           ))}
         </tbody>

@@ -81,7 +81,7 @@ Each membership has its own role:
 
 ## Download logs
 
-Every download that reaches the instance is recorded, whether it comes from a skill's page, from `npx skillsgist add` or from the stock `npx skills`. A public skill's zip may be cached for up to 5 minutes by the browser or by a proxy on the way, so the same download repeated within that time may be served from the cache, and is then neither recorded nor counted. A record holds the time, the skill and version, the source, the account and the country or region the request came from. The source is one of four values:
+Every download that reaches the instance is recorded, whether it comes from a skill's page, from `npx skillsgist add` or from the stock `npx skills`. A public skill's zip may be cached for up to 5 minutes by the browser or by a proxy on the way, so the same download repeated within that time may be served from the cache, and is then neither recorded nor counted. A record holds the time, the skill and version, the source, the account, the country or region and IP address the request came from, and its User-Agent. Whoever can open a log page sees all of these. The source is one of four values:
 
 - **Web, signed in**: the Download zip button, used by someone signed in.
 - **CLI sign-in**: a computer signed in with `skillsgist login`. The record names the computer.

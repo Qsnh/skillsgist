@@ -87,6 +87,18 @@ describe("what the log shows", () => {
     expect(html).toContain("Logs are kept for 90 days.");
   });
 
+  it("shows the IP address under the place and the User-Agent under the source", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const id = await skillId("demo-skill");
+    await seedLog(id, { at: Date.now() - DAY_MS, country: "DE", ip: "203.0.113.7", userAgent: "node" });
+    await seedLog(id);
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    expect(html).toContain('<span class="cf-log-place">Germany<span class="cf-log-ip">203.0.113.7</span></span>');
+    expect(html).toMatch(/Anonymous<\/a><span class="cf-log-agent" title="node">node<\/span><\/span><\/td>/);
+    expect((html.match(/class="cf-log-ip"/g) ?? []).length).toBe(1);
+    expect((html.match(/class="cf-log-agent"/g) ?? []).length).toBe(1);
+  });
+
   it("totals the last 30 days by source and version, draws one bar per day, and lists every retained row", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const id = await skillId("demo-skill");
@@ -244,12 +256,20 @@ describe("what the log shows", () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await seedProject("team-b", "<b>Team</b>");
     await publishMarkdown(cookie, OTHER_MD, "public", "team-b");
-    await seedLog(await skillId("other-skill", "team-b"), { source: "device", userId: user.id, username: "alice", deviceName: "<i>laptop</i>" });
+    await seedLog(await skillId("other-skill", "team-b"), {
+      source: "device",
+      userId: user.id,
+      username: "alice",
+      deviceName: "<i>laptop</i>",
+      userAgent: '"><u>agent</u>',
+    });
     const html = await text("/admin/downloads", cookie);
     expect(html).toContain("&lt;b&gt;Team&lt;/b&gt;/other-skill");
     expect(html).toContain("&lt;i&gt;laptop&lt;/i&gt;");
+    expect(html).toContain('title="&quot;&gt;&lt;u&gt;agent&lt;/u&gt;">&quot;&gt;&lt;u&gt;agent&lt;/u&gt;</span>');
     expect(html).not.toContain("<b>Team</b>");
     expect(html).not.toContain("<i>laptop</i>");
+    expect(html).not.toContain("<u>agent</u>");
   });
 
   it("shows an empty state when nothing was downloaded", async () => {

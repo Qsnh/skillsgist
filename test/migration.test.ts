@@ -344,3 +344,18 @@ describe("migration 0010", () => {
     expect(await rows("SELECT skill_id FROM download_purges")).toEqual([{ skill_id: "s1" }]);
   });
 });
+
+describe("migration 0011 on an instance that already has download logs", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations.filter((m) => m.name < "0011"));
+    await db.prepare("INSERT INTO download_logs (skill_id, version, source, country, created_at) VALUES ('s1', 1, 'anonymous', 'DE', 5)").run();
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0011"));
+  });
+
+  it("keeps the logs already kept, with no IP address or User-Agent", async () => {
+    expect(await rows("SELECT skill_id, country, ip, user_agent FROM download_logs")).toEqual([
+      { skill_id: "s1", country: "DE", ip: null, user_agent: null },
+    ]);
+  });
+});

@@ -330,6 +330,8 @@ export interface LogSeed {
   username?: string | null;
   deviceName?: string | null;
   country?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
 }
 
 const countDay = (skillId: string, at: number, version: number, source: string, count: number) =>
@@ -344,8 +346,20 @@ export const seedLog = (skillId: string, seed: LogSeed = {}) => {
   const source = seed.source ?? "anonymous";
   return env.DB.batch([
     env.DB.prepare(
-      "INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(skillId, version, source, seed.userId ?? null, seed.username ?? null, seed.deviceName ?? null, seed.country ?? null, at),
+      `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      skillId,
+      version,
+      source,
+      seed.userId ?? null,
+      seed.username ?? null,
+      seed.deviceName ?? null,
+      seed.country ?? null,
+      seed.ip ?? null,
+      seed.userAgent ?? null,
+      at,
+    ),
     countDay(skillId, at, version, source, 1),
   ]);
 };

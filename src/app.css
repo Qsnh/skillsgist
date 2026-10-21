@@ -1515,6 +1515,32 @@
     overflow-wrap: anywhere;
   }
 
+  .cf-log-place,
+  .cf-log-source {
+    display: block;
+  }
+
+  .cf-log-ip,
+  .cf-log-agent {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-cf-muted);
+  }
+
+  .cf-log-ip {
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .cf-log-agent {
+    max-width: 200px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .cf-filters {
     display: flex;
     flex-wrap: wrap;
@@ -2418,6 +2444,12 @@
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--color-cf-muted);
+    }
+
+    .cf-log-agent {
+      max-width: none;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
   }
 
