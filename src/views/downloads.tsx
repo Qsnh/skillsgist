@@ -4,7 +4,7 @@ import type {
 } from "../db/downloads";
 import type { ListedSkill, ProjectRow, Viewer } from "../db/queries";
 import { useLocale, useT } from "../i18n";
-import { formatClock, formatCount, formatDate, formatPercent, formatZone } from "../i18n/format";
+import { formatClock, formatCount, formatDate, formatPercent, formatZone, wholePercents } from "../i18n/format";
 import { ADMIN_DOWNLOADS_PATH, projectDownloadsPath, projectPath, skillDownloadsPath, skillPath } from "../paths";
 import { DAY_MS } from "../time";
 import { Icon, Layout, PageHead } from "./layout";
@@ -152,9 +152,10 @@ function Figures(props: { base: string; filter: DownloadFilter; stats: DownloadS
   const t = useT();
   const { base, filter, stats } = props;
   const picked = filter.source;
-  const figures: Array<{ source: DownloadSource | null; label: string; count: number }> = [
-    { source: null, label: t.downloads.total, count: stats.total },
-    ...DOWNLOAD_SOURCES.map((source) => ({ source, label: t.downloads.sources[source], count: stats.bySource[source] })),
+  const shares = wholePercents(DOWNLOAD_SOURCES.map((source) => stats.bySource[source]));
+  const figures: Array<{ source: DownloadSource | null; label: string; count: number; percent: number }> = [
+    { source: null, label: t.downloads.total, count: stats.total, percent: 100 },
+    ...DOWNLOAD_SOURCES.map((source, i) => ({ source, label: t.downloads.sources[source], count: stats.bySource[source], percent: shares[i] })),
   ];
   return (
     <nav class="cf-frame cf-figures" aria-label={t.downloads.bySource}>
@@ -175,7 +176,7 @@ function Figures(props: { base: string; filter: DownloadFilter; stats: DownloadS
               ) : picked === null ? (
                 <>
                   <ShareBar part={figure.count} whole={stats.total} />
-                  <span class="cf-figure-percent">{formatPercent(locale, stats.total === 0 ? 0 : figure.count / stats.total)}</span>
+                  <span class="cf-figure-percent">{formatPercent(locale, figure.count, stats.total, figure.percent)}</span>
                 </>
               ) : null}
             </span>
@@ -254,7 +255,7 @@ function Shares(props: { view: DownloadsView; filter: DownloadFilter; shares: Do
               {latest !== null && share.key === String(latest) ? <span class="cf-tag">{t.downloads.latest}</span> : null}
             </span>
             <span class="cf-share-count">{formatCount(locale, share.count)}</span>
-            <span class="cf-share-percent">{formatPercent(locale, props.total === 0 ? 0 : share.count / props.total)}</span>
+            <span class="cf-share-percent">{formatPercent(locale, share.count, props.total)}</span>
             <ShareBar part={share.count} whole={props.total} />
           </li>
         );

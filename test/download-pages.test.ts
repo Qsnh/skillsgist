@@ -133,6 +133,28 @@ describe("what the log shows", () => {
     expect(listRows(html)).toBe(4);
   });
 
+  it("never rounds a real share of downloads to 0% or 100%", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const id = await skillId("demo-skill");
+    await seedLogs(id, 299, Date.now());
+    await seedLog(id, { source: "web", userId: "u", username: "alice" });
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    expect(html).toMatch(/Web, signed in<\/span>.*?<span class="cf-figure-percent">&lt;1%<\/span>/);
+    expect(html).toMatch(/Anonymous<\/span>.*?<span class="cf-figure-percent">&gt;99%<\/span>/);
+    expect(html).toContain('<span class="cf-share-percent">100%</span>');
+  });
+
+  it("splits the sources into whole percents that add up to 100", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const id = await skillId("demo-skill");
+    await seedLog(id, { source: "web", userId: "u", username: "alice" });
+    await seedLog(id, { source: "device", userId: "u", username: "alice", deviceName: "mac" });
+    await seedLog(id, { source: "install_key", userId: "u", username: "alice" });
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    const percents = [...html.matchAll(/<span class="cf-figure-percent">([^<]*)<\/span>/g)].map((m) => m[1]);
+    expect(percents).toEqual(["34%", "33%", "33%", "0%"]);
+  });
+
   it("hides the per-day table for screen readers inside a block, which a table cannot shrink to sr-only's one pixel", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const id = await skillId("demo-skill");

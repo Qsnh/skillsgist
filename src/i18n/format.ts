@@ -50,8 +50,28 @@ export const formatClock = (locale: Locale, ms: number): string =>
 export const formatCount = (locale: Locale, n: number): string =>
   cached(counts, locale, (tag) => new Intl.NumberFormat(tag)).format(n);
 
-export const formatPercent = (locale: Locale, share: number): string =>
-  cached(percents, locale, (tag) => new Intl.NumberFormat(tag, { style: "percent" })).format(share);
+export function formatPercent(
+  locale: Locale,
+  part: number,
+  whole: number,
+  percent = whole === 0 ? 0 : Math.round((part / whole) * 100),
+): string {
+  const format = cached(percents, locale, (tag) => new Intl.NumberFormat(tag, { style: "percent" }));
+  if (part > 0 && percent === 0) return `<${format.format(0.01)}`;
+  if (part < whole && percent === 100) return `>${format.format(0.99)}`;
+  return format.format(percent / 100);
+}
+
+export function wholePercents(parts: number[]): number[] {
+  const whole = parts.reduce((sum, n) => sum + n, 0);
+  if (whole === 0) return parts.map(() => 0);
+  const exact = parts.map((n) => (n * 100) / whole);
+  const percents = exact.map(Math.floor);
+  const short = 100 - percents.reduce((sum, n) => sum + n, 0);
+  const order = exact.map((_, i) => i).sort((a, b) => exact[b] - percents[b] - (exact[a] - percents[a]));
+  for (const i of order.slice(0, short)) percents[i] += 1;
+  return percents;
+}
 
 export const formatList = (locale: Locale, items: string[]): string =>
   cached(lists, locale, (tag) => new Intl.ListFormat(tag, { type: "conjunction" })).format(items);
