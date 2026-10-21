@@ -1,5 +1,6 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { rollupDownloads } from "../src/db/downloads";
 import { getSkill, getVersion } from "../src/db/queries";
 import { app } from "../src/index";
 import {
@@ -20,7 +21,12 @@ async function artifactPath(indexPath: string, slug: string, init: RequestInit =
   return new URL(entry.url).pathname;
 }
 
-const downloads = async (slug: string) => (await getSkill(env.DB, "default", slug))?.download_count;
+const countNow = async (slug: string) => (await getSkill(env.DB, "default", slug))?.download_count;
+
+const downloads = async (slug: string) => {
+  await rollupDownloads(env.DB);
+  return countNow(slug);
+};
 
 describe("download counting", () => {
   beforeEach(resetDb);
@@ -97,7 +103,7 @@ describe("download counting", () => {
     expect(await downloads("demo-skill")).toBe(0);
   });
 
-  it("still serves the archive when the count cannot be written", async () => {
+  it("counts a download in the next hourly roll-up, not while serving it", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await env.DB.prepare(
       "CREATE TRIGGER reject_count_write BEFORE UPDATE OF download_count ON skills BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
@@ -105,15 +111,13 @@ describe("download counting", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     try {
-      const res = await settle("/p/default/s/demo-skill/download");
-      expect(res.status).toBe(200);
-      expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
-      expect(error).toHaveBeenCalledWith("download record write failed", expect.anything());
+      expect((await settle("/p/default/s/demo-skill/download")).status).toBe(200);
+      expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
       await env.DB.prepare("DROP TRIGGER reject_count_write").run();
     }
-    expect(await downloads("demo-skill")).toBe(0);
-    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
+    expect(await countNow("demo-skill")).toBe(0);
+    expect(await downloads("demo-skill")).toBe(1);
   });
 });

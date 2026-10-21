@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ANONYMOUS_DOWNLOADER, downloadStats, filterNames, listDownloadLogs, NO_FILTER, PRUNE_BATCH, PRUNE_MAX_BATCHES,
-  pruneDownloadLogs, recordDownload,
+  pruneDownloadLogs, recordDownload, ROLLUP_BATCH, ROLLUP_MAX_BATCHES, rollupDownloads,
 } from "../src/db/downloads";
 import type { DownloadFilter } from "../src/db/downloads";
 import * as q from "../src/db/queries";
@@ -52,7 +52,7 @@ describe("recording a download", () => {
     await seedSkills();
   });
 
-  it("counts it and logs who made it in one write that leaves updated_at alone", async () => {
+  it("logs who made it in one write, and leaves the counts to the hourly roll-up", async () => {
     const before = await q.getSkill(env.DB, "default", "demo");
     await recordDownload(env.DB, {
       skillId: "s1",
@@ -64,6 +64,9 @@ describe("recording a download", () => {
       at: NOW,
     });
     await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW + 1 });
+    expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_days").first("n")).toBe(0);
+    await rollupDownloads(env.DB);
     const after = await q.getSkill(env.DB, "default", "demo");
     expect(after?.download_count).toBe(2);
     expect(after?.updated_at).toBe(before?.updated_at);
@@ -89,6 +92,7 @@ describe("recording a download", () => {
     await record(1, NOW + 1);
     await record(2, NOW);
     await record(1, (TODAY + 1) * DAY_MS);
+    await rollupDownloads(env.DB);
     const { results } = await env.DB.prepare(
       "SELECT skill_id, day, version, source, count FROM download_days ORDER BY day, version",
     ).all();
@@ -103,6 +107,7 @@ describe("recording a download", () => {
     await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW });
     await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW + 1 });
     await q.insertVersion(env.DB, { ...skillVersion("s1", "default", "demo"), digest: `sha256:${"b".repeat(64)}` });
+    await rollupDownloads(env.DB);
     expect((await q.getSkill(env.DB, "default", "demo"))?.latest_version).toBe(2);
     expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(2);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(2);
@@ -113,9 +118,124 @@ describe("recording a download", () => {
     await expect(
       recordDownload(env.DB, { skillId: "gone", version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at: NOW }),
     ).resolves.toBeUndefined();
+    await rollupDownloads(env.DB);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_days").first("n")).toBe(0);
     expect(await env.DB.prepare("SELECT SUM(download_count) AS n FROM skills").first("n")).toBe(0);
+  });
+});
+
+const record = (skillId: string, at = NOW) =>
+  recordDownload(env.DB, { skillId, version: 1, downloader: ANONYMOUS_DOWNLOADER, ...NOWHERE, at });
+
+const countOf = async (slug: string) => (await q.getSkill(env.DB, "default", slug))?.download_count;
+
+const dayTotal = async () => env.DB.prepare("SELECT COALESCE(SUM(count), 0) AS n FROM download_days").first("n");
+
+describe("rolling up downloads", () => {
+  beforeEach(async () => {
+    await resetDb();
+    await seedSkills();
+  });
+
+  it("adds each download once, however often it runs", async () => {
+    await record("s1");
+    await record("s1", NOW + 1);
+    expect(await rollupDownloads(env.DB)).toEqual({ capped: false });
+    expect(await rollupDownloads(env.DB)).toEqual({ capped: false });
+    await record("s2", NOW + 2);
+    await rollupDownloads(env.DB);
+    expect(await countOf("demo")).toBe(2);
+    expect(await countOf("other")).toBe(1);
+    expect(await dayTotal()).toBe(3);
+  });
+
+  it("leaves out the downloads of a skill deleted before they were rolled up", async () => {
+    await record("s1");
+    await record("s2");
+    await q.deleteSkill(env.DB, "default", "demo");
+    await rollupDownloads(env.DB);
+    expect(await env.DB.prepare("SELECT skill_id, count FROM download_days").all().then((r) => r.results)).toEqual([
+      { skill_id: "s2", count: 1 },
+    ]);
+    expect(await countOf("other")).toBe(1);
+  });
+
+  it("counts a download that takes the id of a deleted one", async () => {
+    await record("s2");
+    await record("s1", NOW + 1);
+    await rollupDownloads(env.DB);
+    await q.deleteSkill(env.DB, "default", "demo");
+    await pruneDownloadLogs(env.DB, 0);
+    await record("s2", NOW + 2);
+    await rollupDownloads(env.DB);
+    expect(await countOf("other")).toBe(2);
+  });
+
+  it("counts a download that follows a cleanup of every older one", async () => {
+    await record("s1", NOW - 100 * DAY_MS);
+    await rollupDownloads(env.DB);
+    await pruneDownloadLogs(env.DB, NOW - 90 * DAY_MS);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(0);
+    await record("s1");
+    await rollupDownloads(env.DB);
+    expect(await countOf("demo")).toBe(2);
+  });
+
+  it("counts later downloads when a cleanup removes the newest rows during a roll-up", async () => {
+    await record("s2");
+    await record("s1", NOW + 1);
+    await q.deleteSkill(env.DB, "default", "demo");
+    let raced = false;
+    const racing = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (raced || !sql.startsWith("SELECT last_id")) return statement;
+            raced = true;
+            return {
+              first: async () => {
+                const mark = await statement.first();
+                await pruneDownloadLogs(env.DB, 0);
+                return mark;
+              },
+            };
+          };
+        }
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await rollupDownloads(racing);
+    await record("s2", NOW + 2);
+    await rollupDownloads(env.DB);
+    expect(await countOf("other")).toBe(2);
+  });
+
+  it("works through a backlog in batches, stops at its limit, and finishes in a later run", async () => {
+    await seedLogs("s1", ROLLUP_BATCH * ROLLUP_MAX_BATCHES + 5, NOW);
+    expect(await rollupDownloads(env.DB)).toEqual({ capped: true });
+    expect(await countOf("demo")).toBe(ROLLUP_BATCH * ROLLUP_MAX_BATCHES);
+    expect(await rollupDownloads(env.DB)).toEqual({ capped: false });
+    expect(await countOf("demo")).toBe(ROLLUP_BATCH * ROLLUP_MAX_BATCHES + 5);
+    expect(await dayTotal()).toBe(ROLLUP_BATCH * ROLLUP_MAX_BATCHES + 5);
+  });
+
+  it("rolls back a batch it cannot finish, and adds it in the next run", async () => {
+    await record("s1");
+    await env.DB.prepare(
+      "CREATE TRIGGER reject_count BEFORE UPDATE OF download_count ON skills BEGIN SELECT RAISE(ABORT, 'count rejected'); END",
+    ).run();
+    try {
+      await expect(rollupDownloads(env.DB)).rejects.toThrow(/count rejected/);
+    } finally {
+      await env.DB.prepare("DROP TRIGGER reject_count").run();
+    }
+    expect(await dayTotal()).toBe(0);
+    await rollupDownloads(env.DB);
+    expect(await countOf("demo")).toBe(1);
+    expect(await dayTotal()).toBe(1);
   });
 });
 
@@ -183,6 +303,25 @@ describe("reading the log", () => {
     expect(one.breakdown).toEqual([{ key: "2", label: "2", count: 1 }]);
     const none = await downloadStats(env.DB, filter({ source: "device" }), "project", 0);
     expect(none).toEqual({ total: 0, bySource: { web: 0, device: 0, install_key: 0, anonymous: 0 }, byDay: [], breakdown: [] });
+  });
+
+  it("totals the same before, during and after the roll-up", async () => {
+    const totals = async () =>
+      Promise.all([
+        downloadStats(env.DB, NO_FILTER, "project", 0),
+        downloadStats(env.DB, filter({ project: "default" }), "skill", 0),
+        downloadStats(env.DB, filter({ skillId: "s1", source: "anonymous" }), "version", 0),
+      ]);
+    const before = await totals();
+    await rollupDownloads(env.DB);
+    expect(await totals()).toEqual(before);
+    await seedLog("s1", { at: NOW + 1 });
+    const during = await totals();
+    expect(during[0].total).toBe(5);
+    expect(during[1].breakdown[0]).toEqual({ key: "s1", label: "demo", count: 3 });
+    expect(during[2].bySource.anonymous).toBe(2);
+    await rollupDownloads(env.DB);
+    expect(await totals()).toEqual(during);
   });
 
   it("counts one account's downloads from the log itself", async () => {
@@ -288,6 +427,7 @@ describe("pruning the log", () => {
     await seedLogs("s1", 2500, cutoff - 1);
     await seedLog("s1", { at: cutoff });
     await seedLog("s2", { at: NOW });
+    await rollupDownloads(env.DB);
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 2500, capped: false });
     const { results } = await env.DB.prepare("SELECT created_at FROM download_logs ORDER BY created_at").all();
     expect(results).toEqual([{ created_at: cutoff }, { created_at: NOW }]);
@@ -299,6 +439,7 @@ describe("pruning the log", () => {
     await seedLog("s1", { at: cutoff - 1 });
     await seedLog("s1", { at: cutoff - DAY_MS });
     await seedLog("s1", { at: NOW });
+    await rollupDownloads(env.DB);
     await pruneDownloadLogs(env.DB, cutoff);
     const { results } = await env.DB.prepare("SELECT day, count FROM download_days ORDER BY day").all();
     expect(results).toEqual([
@@ -311,9 +452,62 @@ describe("pruning the log", () => {
     const cutoff = NOW - 90 * DAY_MS;
     await seedLogs("s1", PRUNE_BATCH * PRUNE_MAX_BATCHES + 5, cutoff - 1);
     await seedLog("s2", { at: NOW });
+    await rollupDownloads(env.DB);
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: PRUNE_BATCH * PRUNE_MAX_BATCHES, capped: true });
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 5, capped: false });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(1);
+  });
+
+  it("keeps the downloads it has not rolled up yet", async () => {
+    const cutoff = NOW - 90 * DAY_MS;
+    await seedLog("s1", { at: cutoff - 1 });
+    expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 0, capped: false });
+    await rollupDownloads(env.DB);
+    expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 1, capped: false });
+    expect(await countOf("demo")).toBe(1);
+  });
+});
+
+describe("reading the totals", () => {
+  beforeEach(async () => {
+    await resetDb();
+    await seedSkills();
+    await env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 3000)
+       INSERT INTO download_days (skill_id, day, version, source, count) SELECT 's2', ? - i, 1, 'anonymous', 1 FROM n`,
+    )
+      .bind(TODAY)
+      .run();
+    await seedLogs("s2", 3000, NOW - DAY_MS);
+    await rollupDownloads(env.DB);
+    await seedLog("s1", { at: NOW, source: "web", userId: "u1", username: "alice" });
+    await seedLog("s2", { at: NOW });
+  });
+
+  async function rowsRead(change: Partial<DownloadFilter>, breakdown: "version" | "skill" | "project"): Promise<number> {
+    let read = 0;
+    const db = {
+      prepare: (sql: string) => env.DB.prepare(sql),
+      batch: async (statements: D1PreparedStatement[]) => {
+        const results = await env.DB.batch(statements);
+        for (const result of results) read += result.meta.rows_read;
+        return results;
+      },
+    } as unknown as D1Database;
+    const stats = await downloadStats(db, filter(change), breakdown, TODAY - 29);
+    expect(stats.total).toBeGreaterThan(0);
+    return read;
+  }
+
+  it.each<[string, Partial<DownloadFilter>, "version" | "skill" | "project"]>([
+    ["everything", {}, "project"],
+    ["a source", { source: "web" }, "project"],
+    ["a project", { project: "default" }, "skill"],
+    ["a busy skill", { skillId: "s2" }, "version"],
+    ["a quiet skill", { skillId: "s1" }, "version"],
+    ["an account", { userId: "u1" }, "project"],
+  ])("reads the window's daily counts and the downloads not rolled up yet, not every row, for %s", async (_, change, breakdown) => {
+    expect(await rowsRead(change, breakdown)).toBeLessThan(300);
   });
 });
 
@@ -367,6 +561,7 @@ describe("deleting a skill", () => {
     await seedLog("s1", { at: NOW - DAY_MS, source: "web", userId: "u1", username: "alice" });
     await seedLog("s2", { at: NOW - DAY_MS, source: "web", userId: "u1", username: "alice" });
     await seedLog("s1", { at: NOW, source: "web", userId: "u1", username: "alice" });
+    await rollupDownloads(env.DB);
   });
 
   it("drops its downloads from every list and total at once", async () => {
@@ -396,6 +591,7 @@ describe("deleting a skill", () => {
     await seedLogs("s2", PRUNE_BATCH * (PRUNE_MAX_BATCHES - 1), NOW - 100 * DAY_MS);
     await seedLog("s2", { at: NOW });
     await seedLogs("s1", PRUNE_BATCH + 500, NOW);
+    await rollupDownloads(env.DB);
     await q.deleteSkill(env.DB, "default", "demo");
     const cutoff = NOW - 90 * DAY_MS;
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: PRUNE_BATCH * (PRUNE_MAX_BATCHES - 1), capped: true });

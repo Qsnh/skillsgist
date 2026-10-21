@@ -66,6 +66,10 @@ export const PRUNE_MAX_BATCHES = 40;
 
 export const TOP_SHARES = 10;
 
+export const ROLLUP_BATCH = 2000;
+
+export const ROLLUP_MAX_BATCHES = 25;
+
 const SKILL_EXISTS = "EXISTS (SELECT 1 FROM skills s WHERE s.id = l.skill_id)";
 
 function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: string; binds: unknown[] } {
@@ -104,33 +108,60 @@ export async function recordDownload(
   },
 ): Promise<void> {
   const { downloader } = input;
-  await db.batch([
-    db.prepare("UPDATE skills SET download_count = download_count + 1 WHERE id = ?").bind(input.skillId),
-    db
-      .prepare(
-        `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
-         SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM skills WHERE id = ?`,
-      )
-      .bind(
-        input.version,
-        downloader.source,
-        downloader.userId,
-        downloader.username,
-        downloader.deviceName,
-        input.country,
-        input.ip,
-        input.userAgent,
-        input.at,
-        input.skillId,
-      ),
-    db
-      .prepare(
-        `INSERT INTO download_days (skill_id, day, version, source, count)
-         SELECT id, ?, ?, ?, 1 FROM skills WHERE id = ?
-         ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + 1`,
-      )
-      .bind(Math.floor(input.at / DAY_MS), input.version, downloader.source, input.skillId),
-  ]);
+  await db
+    .prepare(
+      `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
+       SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM skills WHERE id = ?`,
+    )
+    .bind(
+      input.version,
+      downloader.source,
+      downloader.userId,
+      downloader.username,
+      downloader.deviceName,
+      input.country,
+      input.ip,
+      input.userAgent,
+      input.at,
+      input.skillId,
+    )
+    .run();
+}
+
+const UNROLLED = "l.id > (SELECT last_id FROM download_rollup)";
+
+export async function rollupDownloads(db: D1Database): Promise<{ capped: boolean }> {
+  const range = `download_logs l WHERE ${UNROLLED} AND l.id <= ?`;
+  for (let batches = 0; ; batches++) {
+    const mark = await db
+      .prepare("SELECT last_id, (SELECT MAX(id) FROM download_logs) AS max_id FROM download_rollup")
+      .first<{ last_id: number; max_id: number | null }>();
+    if (!mark || mark.max_id === null || mark.max_id <= mark.last_id) return { capped: false };
+    if (batches === ROLLUP_MAX_BATCHES) return { capped: true };
+    const upTo = Math.min(mark.max_id, mark.last_id + ROLLUP_BATCH);
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO download_days (skill_id, day, version, source, count)
+           SELECT g.skill_id, g.day, g.version, g.source, g.n
+           FROM (SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
+                 FROM ${range} GROUP BY 1, 2, 3, 4) g
+           WHERE g.skill_id IN (SELECT id FROM skills)
+           ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + excluded.count`,
+        )
+        .bind(upTo),
+      db
+        .prepare(
+          `UPDATE skills SET download_count = download_count + g.n
+           FROM (SELECT l.skill_id, COUNT(*) AS n FROM ${range} GROUP BY l.skill_id) g
+           WHERE skills.id = g.skill_id`,
+        )
+        .bind(upTo),
+      db
+        .prepare("UPDATE download_rollup SET last_id = MAX(last_id, MIN(?, COALESCE((SELECT MAX(id) FROM download_logs), 0)))")
+        .bind(upTo),
+    ]);
+  }
 }
 
 export async function listDownloadLogs(
@@ -158,6 +189,13 @@ export async function listDownloadLogs(
 const EACH_DOWNLOAD = `(SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, l.user_id, 1 AS count
   FROM download_logs l WHERE ${SKILL_EXISTS}) d`;
 
+const DAILY_COUNTS = `(SELECT skill_id, day, version, source, count FROM download_days
+  UNION ALL
+  SELECT g.skill_id, g.day, g.version, g.source, g.n
+  FROM (SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
+        FROM download_logs l NOT INDEXED WHERE ${UNROLLED} GROUP BY 1, 2, 3, 4) g
+  WHERE g.skill_id IN (SELECT id FROM skills)) d`;
+
 const perSkill = (from: string, sql: string) =>
   `SELECT d.skill_id, SUM(d.count) AS n FROM ${from} WHERE ${sql} GROUP BY d.skill_id`;
 
@@ -182,7 +220,7 @@ export async function downloadStats(
   breakdown: DownloadBreakdown,
   firstDay: number,
 ): Promise<DownloadStats> {
-  const from = filter.userId === null ? "download_days d" : EACH_DOWNLOAD;
+  const from = filter.userId === null ? DAILY_COUNTS : EACH_DOWNLOAD;
   const { sql, binds } = where("d", filter, firstDay);
   const [days, shares] = await db.batch([
     db
@@ -248,7 +286,10 @@ export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise
   await db.prepare("DELETE FROM download_days WHERE day < ?").bind(Math.floor(cutoff / DAY_MS)).run();
   const steps = [
     db
-      .prepare("DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs ORDER BY id LIMIT ?) AND created_at < ?")
+      .prepare(
+        `DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs ORDER BY id LIMIT ?) AND created_at < ?
+         AND id <= (SELECT last_id FROM download_rollup)`,
+      )
       .bind(PRUNE_BATCH, cutoff),
     db
       .prepare(
@@ -257,13 +298,16 @@ export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise
       )
       .bind(PRUNE_BATCH),
   ];
+  const settle = db.prepare(
+    "UPDATE download_rollup SET last_id = MIN(last_id, COALESCE((SELECT MAX(id) FROM download_logs), 0))",
+  );
   let deleted = 0;
   let batches = 0;
   for (const step of steps) {
     let changes = PRUNE_BATCH;
     while (changes === PRUNE_BATCH) {
       if (batches === PRUNE_MAX_BATCHES) return { deleted, capped: true };
-      changes = (await step.run()).meta.changes;
+      changes = (await db.batch([step, settle]))[0].meta.changes;
       deleted += changes;
       batches++;
     }

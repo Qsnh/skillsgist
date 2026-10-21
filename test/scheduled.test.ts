@@ -1,6 +1,6 @@
 import { createScheduledController } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PRUNE_BATCH, PRUNE_MAX_BATCHES } from "../src/db/downloads";
+import { PRUNE_BATCH, PRUNE_MAX_BATCHES, ROLLUP_BATCH, ROLLUP_MAX_BATCHES, rollupDownloads } from "../src/db/downloads";
 import { deleteSkill, getSkill } from "../src/db/queries";
 import worker from "../src/index";
 import { DAY_MS } from "../src/time";
@@ -27,6 +27,42 @@ describe("the hourly cleanup", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("adds new downloads to the download count and the daily counts", async () => {
+    await seedLog(skillId, { at: NOW - DAY_MS });
+    await seedLog(skillId, { at: NOW - 1 });
+    await runCron();
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.download_count).toBe(2);
+    expect(await env.DB.prepare("SELECT SUM(count) AS n FROM download_days").first("n")).toBe(2);
+  });
+
+  it("says when the roll-up stops at its limit and leaves the rest for the next run", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await seedLogs(skillId, ROLLUP_BATCH * ROLLUP_MAX_BATCHES + 1, NOW - DAY_MS);
+    await runCron();
+    expect(warn).toHaveBeenCalledOnce();
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.download_count).toBe(ROLLUP_BATCH * ROLLUP_MAX_BATCHES);
+    await runCron();
+    expect(warn).toHaveBeenCalledOnce();
+    expect((await getSkill(env.DB, "default", "demo-skill"))?.download_count).toBe(ROLLUP_BATCH * ROLLUP_MAX_BATCHES + 1);
+  });
+
+  it("still deletes expired downloads when the roll-up fails, and reports the failure", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await seedLog(skillId, { at: NOW - 91 * DAY_MS });
+    await rollupDownloads(env.DB);
+    await seedLog(skillId, { at: NOW - 1 });
+    await env.DB.prepare(
+      "CREATE TRIGGER reject_count BEFORE UPDATE OF download_count ON skills BEGIN SELECT RAISE(ABORT, 'count rejected'); END",
+    ).run();
+    try {
+      await expect(runCron()).rejects.toThrow(/count rejected/);
+      expect(error).toHaveBeenCalledWith("download roll-up failed", expect.anything());
+    } finally {
+      await env.DB.prepare("DROP TRIGGER reject_count").run();
+    }
+    expect(await kept()).toEqual([1 / DAY_MS]);
   });
 
   it("deletes downloads older than 90 days by default", async () => {

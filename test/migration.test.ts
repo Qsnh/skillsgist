@@ -17,7 +17,7 @@ const fromLogs = migrations.filter((m) => m.name >= "0008");
 
 async function wipe(): Promise<void> {
   for (const table of [
-    "download_purges", "download_days", "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+    "download_rollup", "download_purges", "download_days", "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
   ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
@@ -357,5 +357,23 @@ describe("migration 0011 on an instance that already has download logs", () => {
     expect(await rows("SELECT skill_id, country, ip, user_agent FROM download_logs")).toEqual([
       { skill_id: "s1", country: "DE", ip: null, user_agent: null },
     ]);
+  });
+});
+
+describe("migration 0012 on an instance that already has download logs", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations.filter((m) => m.name < "0012"));
+    const log = db.prepare("INSERT INTO download_logs (skill_id, version, source, created_at) VALUES ('s1', 1, 'anonymous', ?)");
+    await db.batch([log.bind(1), log.bind(2), log.bind(3)]);
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0012"));
+  });
+
+  it("starts the roll-up after the logs that were already counted", async () => {
+    expect(await rows("SELECT last_id FROM download_rollup")).toEqual([{ last_id: 3 }]);
+  });
+
+  it("keeps a single watermark", async () => {
+    await expect(db.prepare("INSERT INTO download_rollup (id, last_id) VALUES (2, 0)").run()).rejects.toThrow(/CHECK/);
   });
 });

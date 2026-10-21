@@ -1,6 +1,6 @@
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pruneDownloadLogs } from "../src/db/downloads";
+import { pruneDownloadLogs, rollupDownloads } from "../src/db/downloads";
 import { getSkill, getVersion } from "../src/db/queries";
 import { app } from "../src/index";
 import {
@@ -135,7 +135,7 @@ describe("recording downloads", () => {
     expect(await logs()).toEqual([]);
   });
 
-  it("serves the archive and writes neither the count nor the log when the log write fails", async () => {
+  it("serves the archive and counts nothing when the log write fails", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     await env.DB.prepare(
       "CREATE TRIGGER reject_log_write BEFORE INSERT ON download_logs BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
@@ -150,6 +150,7 @@ describe("recording downloads", () => {
       error.mockRestore();
       await env.DB.prepare("DROP TRIGGER reject_log_write").run();
     }
+    await rollupDownloads(env.DB);
     expect((await getSkill(env.DB, "default", "demo-skill"))?.download_count).toBe(0);
     expect(await logs()).toEqual([]);
   });

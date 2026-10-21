@@ -277,7 +277,7 @@ if (!terminalArgs) {
 
 const server = spawn(
   "npx",
-  ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--var", `SESSION_SECRET:${SESSION_SECRET}`],
+  ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--test-scheduled", "--var", `SESSION_SECRET:${SESSION_SECRET}`],
   { stdio: ["ignore", "pipe", "pipe"] },
 );
 for (const [from, to] of [[server.stdout, process.stdout], [server.stderr, process.stderr]]) {
@@ -357,10 +357,17 @@ try {
     );
   };
 
+  const rollUpDownloads = async () => {
+    const res = await fetch(`${ORIGIN}/cdn-cgi/local/scheduled?cron=17+*+*+*+*`);
+    if (!res.ok) throw new Error(`the hourly run answered ${res.status}: ${await res.text()}`);
+  };
+
   const settledDownloadCounts = async () => {
+    await rollUpDownloads();
     let last = await downloadCounts();
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 300));
+      await rollUpDownloads();
       const now = await downloadCounts();
       if (JSON.stringify(now) === JSON.stringify(last)) return now;
       last = now;
