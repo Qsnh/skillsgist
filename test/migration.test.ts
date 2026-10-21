@@ -275,132 +275,59 @@ describe("migration 0008 on an instance that already has downloads", () => {
     await applyD1Migrations(db, fromLogs);
   });
 
-  it("keeps every download count and starts with an empty log", async () => {
+  it("keeps every download count, and starts with an empty log, no daily counts and the roll-up at zero", async () => {
     expect(await rows("SELECT download_count FROM skills")).toEqual([{ download_count: 5 }]);
-    expect(await rows("SELECT * FROM download_logs")).toEqual([]);
+    for (const table of ["download_logs", "download_days", "download_user_days", "download_purges"]) {
+      expect(await rows(`SELECT * FROM ${table}`)).toEqual([]);
+    }
+    expect(await rows("SELECT id, last_id FROM download_rollup")).toEqual([{ id: 1, last_id: 0 }]);
+  });
+
+  it("indexes the log by skill and source and by account, with no foreign keys", async () => {
+    expect(
+      await rows("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'download_logs' AND sql IS NOT NULL ORDER BY name"),
+    ).toEqual([{ name: "idx_download_logs_skill_source" }, { name: "idx_download_logs_user" }]);
+    for (const table of ["download_logs", "download_days", "download_user_days"]) {
+      expect(await rows(`SELECT * FROM pragma_foreign_key_list('${table}')`)).toEqual([]);
+    }
   });
 
   it("refuses an unknown source, and keeps rows when their account or their skill goes", async () => {
     const insert = (source: string) =>
       db
-        .prepare("INSERT INTO download_logs (skill_id, version, source, user_id, username, created_at) VALUES ('s1', 1, ?, 'u2', 'bob', 0)")
+        .prepare(
+          "INSERT INTO download_logs (skill_id, version, source, user_id, username, ip, user_agent, created_at) VALUES ('s1', 1, ?, 'u2', 'bob', '203.0.113.7', 'node', 0)",
+        )
+        .bind(source)
+        .run();
+    const count = (table: string, source: string) =>
+      db
+        .prepare(
+          table === "download_days"
+            ? "INSERT INTO download_days (skill_id, day, version, source, count) VALUES ('s1', 0, 1, ?, 1)"
+            : "INSERT INTO download_user_days (user_id, day, skill_id, version, source, count) VALUES ('u2', 0, 's1', 1, ?, 1)",
+        )
         .bind(source)
         .run();
     await expect(insert("ftp")).rejects.toThrow(/CHECK/);
+    await expect(count("download_days", "ftp")).rejects.toThrow(/CHECK/);
+    await expect(count("download_user_days", "ftp")).rejects.toThrow(/CHECK/);
     await insert("web");
+    await count("download_days", "web");
+    await count("download_user_days", "web");
     await db.prepare("DELETE FROM users WHERE id = 'u2'").run();
     await db.prepare("DELETE FROM skills WHERE id = 's1'").run();
-    expect(await rows("SELECT skill_id, user_id, username FROM download_logs")).toEqual([{ skill_id: "s1", user_id: "u2", username: "bob" }]);
-  });
-});
-
-describe("migration 0009 on an instance that already has download logs", () => {
-  beforeAll(async () => {
-    await wipe();
-    await applyD1Migrations(db, migrations.filter((m) => m.name < "0009"));
-    const log = db.prepare("INSERT INTO download_logs (skill_id, version, source, user_id, created_at) VALUES ('s1', ?, ?, ?, ?)");
-    await db.batch([
-      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
-      db.prepare(
-        "INSERT INTO skills (id, project, slug, description, owner_id, latest_version, created_at, updated_at) VALUES ('s1', 'default', 'demo', 'd', 'u1', 2, 0, 0)",
-      ),
-      log.bind(1, "web", "u1", 5),
-      log.bind(1, "web", "u1", 86_400_000 - 1),
-      log.bind(2, "web", "u1", 86_400_000),
-      log.bind(2, "anonymous", null, 86_400_000 + 1),
-      log.bind(2, "anonymous", null, 86_400_000 + 2),
+    expect(await rows("SELECT skill_id, user_id, username, ip, user_agent FROM download_logs")).toEqual([
+      { skill_id: "s1", user_id: "u2", username: "bob", ip: "203.0.113.7", user_agent: "node" },
     ]);
-    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0009"));
+    expect(await rows("SELECT COUNT(*) AS n FROM download_days")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT COUNT(*) AS n FROM download_user_days")).toEqual([{ n: 1 }]);
   });
 
-  it("counts the logs already kept by UTC day, version and source", async () => {
-    expect(await rows("SELECT skill_id, day, version, source, count FROM download_days ORDER BY day, version, source")).toEqual([
-      { skill_id: "s1", day: 0, version: 1, source: "web", count: 2 },
-      { skill_id: "s1", day: 1, version: 2, source: "anonymous", count: 2 },
-      { skill_id: "s1", day: 1, version: 2, source: "web", count: 1 },
-    ]);
-  });
-
-  it("refuses an unknown source, and keeps the counts and the logs when their skill goes", async () => {
-    const insert = (source: string) =>
-      db.prepare("INSERT INTO download_days (skill_id, day, version, source, count) VALUES ('s1', 9, 1, ?, 1)").bind(source).run();
-    await expect(insert("ftp")).rejects.toThrow(/CHECK/);
-    await db.prepare("DELETE FROM skills WHERE id = 's1'").run();
-    expect(await rows("SELECT COUNT(*) AS n FROM download_days")).toEqual([{ n: 3 }]);
-    expect(await rows("SELECT COUNT(*) AS n FROM download_logs")).toEqual([{ n: 5 }]);
-  });
-});
-
-describe("migration 0010", () => {
-  beforeAll(async () => {
-    await wipe();
-    await applyD1Migrations(db, migrations);
-  });
-
-  it("queues each deleted skill once", async () => {
+  it("queues each deleted skill once, and keeps a single roll-up mark", async () => {
     const queue = () => db.prepare("INSERT INTO download_purges (skill_id) VALUES ('s1')").run();
     await queue();
     await expect(queue()).rejects.toThrow(/UNIQUE/);
-    expect(await rows("SELECT skill_id FROM download_purges")).toEqual([{ skill_id: "s1" }]);
-  });
-});
-
-describe("migration 0011 on an instance that already has download logs", () => {
-  beforeAll(async () => {
-    await wipe();
-    await applyD1Migrations(db, migrations.filter((m) => m.name < "0011"));
-    await db.prepare("INSERT INTO download_logs (skill_id, version, source, country, created_at) VALUES ('s1', 1, 'anonymous', 'DE', 5)").run();
-    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0011"));
-  });
-
-  it("keeps the logs already kept, with no IP address or User-Agent", async () => {
-    expect(await rows("SELECT skill_id, country, ip, user_agent FROM download_logs")).toEqual([
-      { skill_id: "s1", country: "DE", ip: null, user_agent: null },
-    ]);
-  });
-});
-
-describe("migration 0012 on an instance that already has download logs", () => {
-  beforeAll(async () => {
-    await wipe();
-    await applyD1Migrations(db, migrations.filter((m) => m.name < "0012"));
-    const log = db.prepare("INSERT INTO download_logs (skill_id, version, source, created_at) VALUES ('s1', 1, 'anonymous', ?)");
-    await db.batch([log.bind(1), log.bind(2), log.bind(3)]);
-    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0012"));
-  });
-
-  it("starts the roll-up after the logs that were already counted", async () => {
-    expect(await rows("SELECT last_id FROM download_rollup")).toEqual([{ last_id: 3 }]);
-  });
-
-  it("keeps a single watermark", async () => {
     await expect(db.prepare("INSERT INTO download_rollup (id, last_id) VALUES (2, 0)").run()).rejects.toThrow(/CHECK/);
-  });
-});
-
-describe("migration 0013 on an instance that already has download logs", () => {
-  beforeAll(async () => {
-    await wipe();
-    await applyD1Migrations(db, migrations.filter((m) => m.name < "0012"));
-    const log = db.prepare(
-      "INSERT INTO download_logs (skill_id, version, source, user_id, created_at) VALUES (?, 1, ?, ?, ?)",
-    );
-    await db.batch([
-      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
-      db.prepare(`INSERT INTO skills (${SKILL_COLUMNS}) VALUES ('s1', 'default', 'demo', 'd', 'u1', 1, 0, 0)`),
-      log.bind("s1", "web", "u1", 5),
-      log.bind("s1", "web", "u1", 6),
-      log.bind("s1", "anonymous", null, 7),
-      log.bind("gone", "web", "u1", 8),
-    ]);
-    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0012" && m.name < "0013"));
-    await log.bind("s1", "web", "u1", 9).run();
-    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0013"));
-  });
-
-  it("counts the downloads already rolled up by account, for skills that still exist", async () => {
-    expect(await rows("SELECT user_id, day, skill_id, version, source, count FROM download_user_days")).toEqual([
-      { user_id: "u1", day: 0, skill_id: "s1", version: 1, source: "web", count: 2 },
-    ]);
   });
 });
