@@ -6,40 +6,49 @@ Issues and pull requests are welcome. [PRODUCT.md](PRODUCT.md) and [DESIGN.md](D
 
 ```mermaid
 flowchart LR
-  cli["npx skillsgist add"] -- "GET /p/:project/.well-known/agent-skills/index.json\nAuthorization: Bearer" --> worker
-  login["npx skillsgist login"] -- "/api/oauth/*" --> worker
-  browser["Browser"] -- "HTML pages and forms" --> worker
-  ci["CI / curl"] -- "PUT /api/projects/:project/skills/:name" --> worker
-  worker["Cloudflare Worker<br/>(Hono)"] --> d1[("D1<br/>accounts, projects, skills, versions")]
-  worker --> r2[("R2<br/>one zip per version")]
+  cli["npx skillsgist add"] -- "GET /p/:project/.well-known/agent-skills/index.json\nAuthorization: Bearer" --> server
+  login["npx skillsgist login"] -- "/api/oauth/*" --> server
+  browser["Browser"] -- "HTML pages and forms" --> server
+  ci["CI / curl"] -- "PUT /api/projects/:project/skills/:name" --> server
+  server["Node.js server<br/>(Hono)"] --> sqlite[("SQLite<br/>accounts, projects, skills, versions, downloads")]
+  server --> s3[("S3-compatible storage<br/>one zip per version")]
 ```
 
-The Worker renders every page on the server and serves the discovery index the CLI reads. D1 holds accounts, projects and their members, skills, versions and the search text. R2 holds one zip per version, addressed by the digest the index hands to the CLI.
+The server renders every page and serves the discovery index the CLI reads. SQLite holds accounts, projects and their members, skills, versions, the search text and the download log. The bucket holds one zip per version, keyed by its digest. Every download goes through the server, which checks access, records it and streams the zip from the bucket.
 
 ```
 src/
-  index.ts        app entry and middleware
-  routes/         registry, publishing, skill pages, accounts
+  server.ts       Node entry: settings, database, storage, GeoIP, hourly maintenance
+  app.ts          the Hono app and its middleware
+  config.ts       environment settings
+  routes/         registry, publishing, skill pages, accounts, downloads
   views/          server-rendered pages (hono/jsx)
   skills/         archive reading and normalization
-  db/queries.ts   D1 access
+  db/             schema, migrations and queries (better-sqlite3)
+  storage.ts      S3 client
+  geoip.ts        country lookup and the DB-IP database download
   render/         SKILL.md to HTML
-migrations/       D1 schema
 public/           static assets and fonts
-scripts/          verify-cli, reset-password, logo export and test fixture tools
+scripts/          verify-cli, screenshots, logo export and test fixture tools
 test/             unit and integration tests
 ```
 
+The schema lives in `src/db/schema.ts` as a list of migrations; the server applies the ones a database has not seen when it starts and records the count in `PRAGMA user_version`. To change the schema, append a migration; never edit one that has shipped.
+
 ## Development
+
+You need Node.js 22.12 or later and Docker for a local S3 store.
 
 ```bash
 npm install
-echo "SESSION_SECRET=$(openssl rand -hex 32)" > .dev.vars
-npm run db:migrate:local
+docker run -d --name skillsgist-s3 -p 8333:8333 \
+  -e AWS_ACCESS_KEY_ID=skillsgist -e AWS_SECRET_ACCESS_KEY=skillsgist-dev-secret \
+  chrislusf/seaweedfs:4.48 mini -dir=/data -master.telemetry=false
+cp .env.example .env    # set SESSION_SECRET and S3_SECRET_ACCESS_KEY=skillsgist-dev-secret
 npm run dev
 ```
 
-Open `http://localhost:8787/setup` to create a local admin.
+Open `http://localhost:3000/setup` to create a local admin. `npm run dev` rebuilds the CSS and restarts the server when a file changes; the database lives in `./data`.
 
 ```bash
 npm test
@@ -47,7 +56,9 @@ npm run typecheck
 npm run verify:cli
 ```
 
-`npm run verify:cli` uses the published CLI; set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build, and quote a path that has spaces, as in `SKILLSGIST_CLI='node "../my cli/dist/cli.js"'`.
+The tests use an in-memory database and storage. Set `S3_TEST_ENDPOINT`, `S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_ACCESS_KEY` to also run the storage tests against a real S3 store, as CI does.
+
+`npm run verify:cli` builds the server, starts it against a throwaway SeaweedFS container and runs the published CLI against it; set `VERIFY_S3_ENDPOINT`, `VERIFY_S3_ACCESS_KEY_ID` and `VERIFY_S3_SECRET_ACCESS_KEY` to use another S3 store instead of Docker. Set `SKILLSGIST_CLI="node ../skillsgist-cli/dist/cli.js"` to test a local build of the CLI, and quote a path that has spaces, as in `SKILLSGIST_CLI='node "../my cli/dist/cli.js"'`.
 
 ## Logo and images
 
@@ -55,4 +66,4 @@ npm run verify:cli
 
 ## Pull requests
 
-Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry or publishing code.
+Before opening a pull request, run `npm run typecheck` and `npm test`, and run `npm run verify:cli` as well if you touched the registry, publishing or storage code.

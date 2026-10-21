@@ -8,7 +8,7 @@ import { getArtifactByDigest, getPublicArtifact, listPublishedForIndex } from ".
 import type { ArtifactRef, IndexFilter } from "../db/queries";
 import { projectPath } from "../paths";
 import { buildIndex } from "../registry";
-import { bearerDownloader, serveDownload } from "./download";
+import { bearerDownloader, openArchive, serveDownload } from "./download";
 
 export const registryRoutes = new Hono<AppEnv>();
 
@@ -28,14 +28,14 @@ const ANONYMOUS_GATE: ProjectGate = { kind: "public", refusal: null };
 async function sendArtifact(
   c: Ctx,
   file: string,
-  lookup: (digest: string) => Promise<ArtifactRef | null>,
+  lookup: (digest: string) => ArtifactRef | null,
   gate: ProjectGate,
   downloader: Downloader,
 ): Promise<Response> {
   const digest = digestFromArtifactFile(file);
-  const artifact = digest ? await lookup(digest) : null;
+  const artifact = digest ? lookup(digest) : null;
   if (!artifact || (artifact.visibility !== "public" && gate.kind !== "all")) return unavailable(gate);
-  const object = await c.env.BUCKET.get(artifact.r2_key);
+  const object = await openArchive(c, artifact.object_key);
   if (!object) return privateNotFound();
   const cacheable = artifact.visibility === "public";
   const res = serveDownload(c, object, artifact, cacheable, downloader);
@@ -65,14 +65,14 @@ function indexRequest(path: string): IndexRequest | null {
   };
 }
 
-async function serveIndex(c: Ctx, req: IndexRequest): Promise<Response> {
+function serveIndex(c: Ctx, req: IndexRequest): Response {
   const origin = new URL(c.req.url).origin;
   if (req.scope.kind === "root") {
-    return indexResponse(buildIndex(await listPublishedForIndex(c.env.DB, { kind: "root" }, req.only), origin));
+    return indexResponse(buildIndex(listPublishedForIndex(c.env.db, { kind: "root" }, req.only), origin));
   }
-  const gate = await projectGate(c, req.scope.project, await bearerAccess(c));
+  const gate = projectGate(c, req.scope.project, bearerAccess(c));
   const filter: IndexFilter = { kind: "project", project: req.scope.project, publicOnly: gate.kind === "public" };
-  const rows = await listPublishedForIndex(c.env.DB, filter, req.only);
+  const rows = listPublishedForIndex(c.env.db, filter, req.only);
   if (rows.length === 0 && gate.kind === "public" && gate.refusal) return gate.refusal;
   return indexResponse(buildIndex(rows, `${origin}${projectPath(req.scope.project)}`), PRIVATE_HEADERS);
 }
@@ -88,24 +88,24 @@ for (const suffix of INDEX_SUFFIXES) {
   registryRoutes.get(`/p/:project${suffix}`, indexRoute);
 }
 
-registryRoutes.get("/d/:slug/:file", async (c) =>
+registryRoutes.get("/d/:slug/:file", (c) =>
   sendArtifact(
     c,
     c.req.param("file"),
-    (digest) => getPublicArtifact(c.env.DB, c.req.param("slug"), digest),
+    (digest) => getPublicArtifact(c.env.db, c.req.param("slug"), digest),
     ANONYMOUS_GATE,
-    bearerDownloader(await bearerAccess(c)),
+    bearerDownloader(bearerAccess(c)),
   ),
 );
 
-registryRoutes.get("/p/:project/d/:slug/:file", async (c) => {
+registryRoutes.get("/p/:project/d/:slug/:file", (c) => {
   const project = c.req.param("project");
-  const access = await bearerAccess(c);
+  const access = bearerAccess(c);
   return sendArtifact(
     c,
     c.req.param("file"),
-    (digest) => getArtifactByDigest(c.env.DB, project, c.req.param("slug"), digest),
-    await projectGate(c, project, access),
+    (digest) => getArtifactByDigest(c.env.db, project, c.req.param("slug"), digest),
+    projectGate(c, project, access),
     bearerDownloader(access),
   );
 });

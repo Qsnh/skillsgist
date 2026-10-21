@@ -1,9 +1,16 @@
+import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { ArchiveError, readZip, writeZip } from "../src/skills/zip";
+import { ArchiveError, ArchiveTooLargeError, readZip, writeZip } from "../src/skills/zip";
 import { gzipRetryLengths, readTarGz } from "../src/skills/tar";
 import { fixture } from "./helpers";
 
+const enc = new TextEncoder();
 const dec = new TextDecoder();
+const failureOf = (result: Promise<unknown>) =>
+  result.then(
+    () => null,
+    (err: unknown) => err,
+  );
 const flatZip = fixture("FLAT_ZIP");
 const wrappedZip = fixture("WRAPPED_ZIP");
 const flatDotTarGz = fixture("FLAT_DOT_TAR_GZ");
@@ -29,7 +36,6 @@ describe("readZip", () => {
   });
 
   it("reads back a deflated writeZip entry, and wraps a corrupt deflate stream as ArchiveError", async () => {
-    const enc = new TextEncoder();
     const name = "data.txt";
     const nameLen = enc.encode(name).length;
     const compressible = enc.encode("a".repeat(500));
@@ -41,6 +47,18 @@ describe("readZip", () => {
     const corrupted = new Uint8Array(bytes);
     corrupted.fill(0xff, localHeaderLen, localHeaderLen + bodyLen);
     await expect(readZip(corrupted)).rejects.toBeInstanceOf(ArchiveError);
+  });
+
+  it("refuses an archive whose declared sizes add up past maxUnpacked, and reads one that adds up to exactly it", async () => {
+    const bytes = await writeZip([
+      { path: "a.txt", data: enc.encode("a".repeat(600)) },
+      { path: "b.txt", data: enc.encode("b".repeat(600)) },
+    ]);
+    const err = await failureOf(readZip(bytes, 1199));
+    expect(err).toBeInstanceOf(ArchiveTooLargeError);
+    expect(err).toBeInstanceOf(ArchiveError);
+    expect(err).toMatchObject({ size: 1200, limit: 1199 });
+    expect([...(await readZip(bytes, 1200)).keys()]).toEqual(["a.txt", "b.txt"]);
   });
 });
 
@@ -69,6 +87,15 @@ describe("readTarGz", () => {
     bad[1] = 0x8b;
     for (let i = 2; i < bad.length; i++) bad[i] = ((i * 37) % 256) || 1;
     await expect(readTarGz(bad)).rejects.toBeInstanceOf(ArchiveError);
+  });
+
+  it("stops inflating once the output outgrows what maxUnpacked allows", async () => {
+    const bomb = new Uint8Array(gzipSync(new Uint8Array(8 * 1024 * 1024)));
+    const err = await failureOf(readTarGz(bomb, 1024, 10));
+    expect(err).toBeInstanceOf(ArchiveTooLargeError);
+    expect(err).toMatchObject({ limit: 1024 });
+    expect((err as ArchiveTooLargeError).size).toBeLessThan(64 * 1024);
+    expect((await readTarGz(bomb)).size).toBe(0);
   });
 });
 

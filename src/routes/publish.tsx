@@ -49,10 +49,10 @@ function chosenProject(user: Viewer, value: unknown): string {
   throw new UploadError(user.memberships.length === 0 ? issue("noProjectToPublish") : issue("chooseProject"));
 }
 
-const projectsFor = (c: Ctx) => publishableProjects(c.env.DB, c.get("user"));
+const projectsFor = (c: Ctx) => publishableProjects(c.env.db, c.get("user"));
 
-publishRoutes.get("/new", requireUser, async (c) => {
-  const projects = await projectsFor(c);
+publishRoutes.get("/new", requireUser, (c) => {
+  const projects = projectsFor(c);
   const wanted = c.req.query("project");
   const project = projects.some((p) => p.slug === wanted) ? wanted : undefined;
   return page(c, <NewSkillPage user={c.get("user")} projects={projects} project={project} />);
@@ -78,7 +78,7 @@ publishRoutes.post("/new", requireUser, async (c) => {
       c,
       <NewSkillPage
         user={user}
-        projects={await projectsFor(c)}
+        projects={projectsFor(c)}
         project={selected}
         error={issueText(messages(c), failure.issue)}
         markdown={markdown}
@@ -92,7 +92,7 @@ publishRoutes.get("/p/:project/s/:slug/edit", requireUser, async (c) => {
   const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "edit");
   if (!guard.ok) return guard.response;
   const { skill } = guard;
-  const latest = await getVersion(c.env.DB, skill.project, skill.slug, skill.latest_version);
+  const latest = getVersion(c.env.db, skill.project, skill.slug, skill.latest_version);
   if (!latest) return c.notFound();
   return page(
     c,
@@ -105,7 +105,7 @@ publishRoutes.post("/p/:project/s/:slug/edit", requireUser, async (c) => {
   const guard = await requireManagedSkill(c, c.req.param("project"), c.req.param("slug"), "edit");
   if (!guard.ok) return guard.response;
   const { skill } = guard;
-  const latest = await getVersion(c.env.DB, skill.project, skill.slug, skill.latest_version);
+  const latest = getVersion(c.env.db, skill.project, skill.slug, skill.latest_version);
   if (!latest) return c.notFound();
   const body = await c.req.parseBody();
   const markdown = typeof body.markdown === "string" ? body.markdown : "";
@@ -162,7 +162,7 @@ publishRoutes.post("/p/:project/s/:slug/upload", requireUser, async (c) => {
 });
 
 async function publishFromApi(c: Ctx, project: string, slug: string): Promise<Response> {
-  const user = await userFromApiToken(c);
+  const user = userFromApiToken(c);
   if (!user) return c.notFound();
   const bytes = new Uint8Array(await c.req.arrayBuffer());
   try {

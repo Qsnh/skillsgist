@@ -1,53 +1,86 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import * as auth from "../src/auth";
-import * as users from "../src/routes/users";
-import {
-  hashPassword, MIN_PASSWORD_LENGTH, resetPasswordSql, revokeCliLoginsSql, USERNAME,
-} from "../scripts/reset-password-lib.mjs";
+import { hashPassword, verifyPassword } from "../src/auth";
+import { openDatabase } from "../src/db/database";
+import { createUser, getUserByUsername } from "../src/db/queries";
+import { resetPassword, ResetError } from "../src/password-reset";
 import { bearer, env, fetchWith, login, postForm, resetDb, seedUser, signInDevice } from "./helpers";
 
 const NEW_PASSWORD = "a-brand-new-password";
 
-const reset = async (username: string, password: string) =>
-  (await env.DB.prepare(resetPasswordSql(username, await hashPassword(password))).all()).results;
-
-describe("reset-password script", () => {
+describe("resetPassword", () => {
   beforeEach(resetDb);
-
-  it("uses the app's username and password rules", () => {
-    expect(MIN_PASSWORD_LENGTH).toBe(auth.MIN_PASSWORD_LENGTH);
-    expect(USERNAME.source).toBe(users.USERNAME.source);
-  });
-
-  it("writes a hash the app accepts", async () => {
-    const hash = await hashPassword(NEW_PASSWORD);
-    expect(await auth.verifyPassword(NEW_PASSWORD, hash)).toBe(true);
-    expect(await auth.verifyPassword("not-the-new-password", hash)).toBe(false);
-  });
 
   it("replaces the password so only the new one signs in", async () => {
     const { user, password } = await seedUser();
-    expect(await reset(user.username, NEW_PASSWORD)).toEqual([{ username: user.username }]);
+    await resetPassword(env.db, user.username, NEW_PASSWORD);
     expect(await login(user.username, NEW_PASSWORD)).toMatch(/^sg_session=/);
-    const old = await postForm("/login", null, { username: user.username, password });
-    expect(old.status).toBe(401);
+    expect((await postForm("/login", null, { username: user.username, password })).status).toBe(401);
   });
 
-  it("returns no rows for an unknown user", async () => {
-    await seedUser();
-    expect(await reset("nobody", NEW_PASSWORD)).toEqual([]);
-  });
-
-  it("rejects usernames that could break out of the SQL string", () => {
-    expect(() => resetPasswordSql("alice' OR '1'='1", "pbkdf2$10000$c2FsdA==$aGFzaA==")).toThrow();
-    expect(() => resetPasswordSql("alice", "pbkdf2$10000$x'$y")).toThrow();
-  });
-
-  it("has a statement that signs the account's computers out", async () => {
+  it("signs out every computer signed in to the account with the CLI", async () => {
     const { user } = await seedUser({ username: "alice" });
     const { token } = await signInDevice(user.id, ["default"]);
-    await env.DB.prepare(revokeCliLoginsSql("alice")).run();
+    await resetPassword(env.db, "alice", NEW_PASSWORD);
     expect((await fetchWith("/api/whoami", bearer(token))).status).toBe(401);
-    expect(() => revokeCliLoginsSql("Alice'; --")).toThrow();
+  });
+
+  it.each([
+    ["an unknown account", "nobody", NEW_PASSWORD, /No user named "nobody"/],
+    ["an invalid username", "Alice'; --", NEW_PASSWORD, /not a valid username/],
+    ["a short password", "alice", "short", /at least 12 characters/],
+  ])("refuses %s and changes nothing", async (_label, username, password, message) => {
+    const { user } = await seedUser({ username: "alice" });
+    await expect(resetPassword(env.db, username, password)).rejects.toThrow(ResetError);
+    await expect(resetPassword(env.db, username, password)).rejects.toThrow(message);
+    expect(getUserByUsername(env.db, "alice")?.password_hash).toBe(user.password_hash);
+  });
+});
+
+describe("npm run reset-password", () => {
+  it("reads the username and the new password twice from piped input and writes a hash the app accepts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "skillsgist-reset-"));
+    const db = openDatabase(join(dir, "skillsgist.db"));
+    createUser(db, { id: "u1", username: "alice", passwordHash: await hashPassword("the-old-password"), role: "admin" });
+    db.close();
+
+    const run = spawnSync("npx", ["tsx", "src/reset-password.ts"], {
+      input: `alice\n${NEW_PASSWORD}\n${NEW_PASSWORD}\n`,
+      env: { ...process.env, DATA_DIR: dir, DATABASE_PATH: "" },
+      encoding: "utf8",
+    });
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain('Reset the password of "alice"');
+
+    const after = openDatabase(join(dir, "skillsgist.db"));
+    expect(await verifyPassword(NEW_PASSWORD, getUserByUsername(after, "alice")!.password_hash)).toBe(true);
+    after.close();
+  });
+
+  it("refuses passwords that do not match", () => {
+    const dir = mkdtempSync(join(tmpdir(), "skillsgist-reset-"));
+    openDatabase(join(dir, "skillsgist.db")).close();
+    const run = spawnSync("npx", ["tsx", "src/reset-password.ts", "alice"], {
+      input: `${NEW_PASSWORD}\nsomething-else-entirely\n`,
+      env: { ...process.env, DATA_DIR: dir, DATABASE_PATH: "" },
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("The passwords do not match.");
+  });
+
+  it("refuses to create a database that is not there", () => {
+    const dir = mkdtempSync(join(tmpdir(), "skillsgist-reset-"));
+    const run = spawnSync("npx", ["tsx", "src/reset-password.ts", "alice"], {
+      input: "",
+      env: { ...process.env, DATA_DIR: dir, DATABASE_PATH: "" },
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(`No database at ${join(dir, "skillsgist.db")}`);
   });
 });

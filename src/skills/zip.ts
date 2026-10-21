@@ -1,3 +1,6 @@
+import { promisify } from "node:util";
+import { deflateRaw as deflateRawCallback, inflateRaw as inflateRawCallback } from "node:zlib";
+
 export interface ArchiveEntry {
   path: string;
   data: Uint8Array;
@@ -9,6 +12,19 @@ export class ArchiveError extends Error {
     this.name = "ArchiveError";
   }
 }
+
+export class ArchiveTooLargeError extends ArchiveError {
+  constructor(
+    readonly size: number,
+    readonly limit: number,
+  ) {
+    super(`Archive unpacks to more than ${limit} bytes`);
+    this.name = "ArchiveTooLargeError";
+  }
+}
+
+const deflateRawAsync = promisify(deflateRawCallback);
+const inflateRawAsync = promisify(inflateRawCallback);
 
 let CRC_TABLE: Uint32Array | null = null;
 
@@ -31,17 +47,8 @@ export function crc32(data: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** Shared by the deflate/inflate paths here and by tar.ts's gunzip. */
-export async function pipeBytes(
-  data: Uint8Array,
-  transform: CompressionStream | DecompressionStream,
-): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(transform);
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  return pipeBytes(data, new CompressionStream("deflate-raw"));
+async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await deflateRawAsync(data));
 }
 
 // 1980-01-01, the earliest date the zip spec allows. Pinning it makes identical content produce identical bytes.
@@ -130,8 +137,20 @@ export async function writeZip(entries: ArchiveEntry[]): Promise<Uint8Array> {
   return out;
 }
 
-function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
-  return pipeBytes(data, new DecompressionStream("deflate-raw"));
+async function inflateRaw(data: Uint8Array, size: number): Promise<Uint8Array> {
+  return new Uint8Array(await inflateRawAsync(data, { maxOutputLength: Math.max(size, 1) }));
+}
+
+function declaredSize(view: DataView, eocd: number): number {
+  const count = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("Corrupt zip central directory");
+    total += view.getUint32(offset + 24, true);
+    offset += 46 + view.getUint16(offset + 28, true) + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true);
+  }
+  return total;
 }
 
 function findEocd(view: DataView, length: number): number {
@@ -142,7 +161,7 @@ function findEocd(view: DataView, length: number): number {
   return -1;
 }
 
-export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+export async function readZip(bytes: Uint8Array, maxUnpacked: number = Infinity): Promise<Map<string, Uint8Array>> {
   if (bytes.length < 22) throw new ArchiveError("Not a valid zip: file too short");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const eocd = findEocd(view, bytes.length);
@@ -156,10 +175,12 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
   // The whole read is wrapped once rather than per iteration: every failure
   // mode here aborts the read anyway, and callers rely on only ArchiveError
   // coming out (see archive-read.test.ts). A truncated/corrupt deflate stream
-  // makes DecompressionStream throw its own exception type, and a corrupt
+  // makes zlib throw its own exception type, and a corrupt
   // central directory can send DataView offsets out of bounds, throwing a raw
   // RangeError — normalize both so the contract holds for every path.
   try {
+    const declared = declaredSize(view, eocd);
+    if (declared > maxUnpacked) throw new ArchiveTooLargeError(declared, maxUnpacked);
     for (let i = 0; i < count; i++) {
       if (view.getUint32(offset, true) !== 0x02014b50) throw new ArchiveError("Corrupt zip central directory");
       const flags = view.getUint16(offset + 8, true);
@@ -187,7 +208,7 @@ export async function readZip(bytes: Uint8Array): Promise<Map<string, Uint8Array
 
       let content: Uint8Array;
       if (method === 0) content = raw;
-      else if (method === 8) content = await inflateRaw(raw);
+      else if (method === 8) content = await inflateRaw(raw, uncompressedSize);
       else throw new ArchiveError(`Unsupported zip compression method: ${method}`);
 
       if (content.byteLength !== uncompressedSize) throw new ArchiveError(`Zip entry size mismatch: ${name}`);

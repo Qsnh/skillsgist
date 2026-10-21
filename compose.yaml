@@ -1,0 +1,45 @@
+services:
+  skillsgist:
+    image: ghcr.io/qsnh/skillsgist:${SKILLSGIST_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${SKILLSGIST_PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      S3_ENDPOINT: http://s3:8333
+      S3_BUCKET: skillsgist
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+      DATA_DIR: /data
+      DATABASE_PATH: /data/skillsgist.db
+      GEOIP_DB_PATH: /data/dbip-country-lite.mmdb
+      PORT: "3000"
+      HOST: 0.0.0.0
+    volumes:
+      - skillsgist-data:/data
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - s3
+
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    command: ["mini", "-dir=/data", "-master.telemetry=false", "-admin.ui=false", "-webdav=false"]
+    restart: unless-stopped
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+      S3_BUCKET: skillsgist
+    volumes:
+      - s3-data:/data
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  skillsgist-data:
+  s3-data:

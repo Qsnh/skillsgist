@@ -76,6 +76,7 @@ export function DeviceConfirmPage(props: {
               <dd class="cf-row-value">{requestPlace(t, locale, login.request_country)}</dd>
             </div>
           </dl>
+          <p class="cf-hint">{t.common.geoCredit(<a href="https://db-ip.com" class="cf-link">DB-IP</a>)}</p>
           {user.memberships.length === 0 ? (
             <div class="cf-form-section cf-field">
               <p class="cf-label">{t.device.projects}</p>

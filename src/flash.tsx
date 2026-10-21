@@ -10,13 +10,13 @@ export const FlashContext = createContext<string | undefined>(undefined);
 export async function flash(c: Ctx, message: string): Promise<void> {
   const csrf = await sessionCsrf(c);
   if (!csrf) return;
-  await setSignedCookie(c, FLASH_COOKIE, `${csrf}:${message}`, c.env.SESSION_SECRET, cookieOptions(c, 60));
+  await setSignedCookie(c, FLASH_COOKIE, `${csrf}:${message}`, c.env.config.sessionSecret, cookieOptions(c, 60));
 }
 
 export async function takeFlash(c: Ctx): Promise<string | undefined> {
   if (getCookie(c, FLASH_COOKIE) === undefined) return undefined;
   const [value, csrf] = await Promise.all([
-    getSignedCookie(c, c.env.SESSION_SECRET, FLASH_COOKIE),
+    getSignedCookie(c, c.env.config.sessionSecret, FLASH_COOKIE),
     sessionCsrf(c),
   ]);
   deleteCookie(c, FLASH_COOKIE, { path: "/" });

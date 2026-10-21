@@ -1,4 +1,6 @@
 import { DAY_MS } from "../time";
+import { all, get, run, transaction } from "./database";
+import type { Db } from "./database";
 
 export const DOWNLOAD_SOURCES = ["web", "device", "install_key", "anonymous"] as const;
 
@@ -60,43 +62,26 @@ export interface FilterNames {
   user: string | null;
 }
 
-export const PRUNE_BATCH = 1000;
-
-export const PRUNE_MAX_BATCHES = 40;
+export const PRUNE_BATCH = 5000;
 
 export const TOP_SHARES = 10;
 
-export const ROLLUP_BATCH = 2000;
-
-export const ROLLUP_MAX_BATCHES = 25;
-
-const SKILL_EXISTS = "EXISTS (SELECT 1 FROM skills s WHERE s.id = l.skill_id)";
-
-function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: string; binds: unknown[] } {
+function where(table: "l" | "d", filter: DownloadFilter, since: number): { sql: string; params: unknown[] } {
   const clauses = [table === "l" ? "l.created_at >= ?" : "d.day >= ?"];
-  const binds: unknown[] = [since];
-  const add = (clause: string, ...values: unknown[]) => {
+  const params: unknown[] = [since];
+  const add = (clause: string, value: unknown) => {
     clauses.push(clause);
-    binds.push(...values);
+    params.push(value);
   };
-  const scoped = filter.project !== null || filter.skillId !== null;
   if (filter.project !== null) add(`${table}.skill_id IN (SELECT id FROM skills WHERE project = ?)`, filter.project);
   if (filter.skillId !== null) add(`${table}.skill_id = ?`, filter.skillId);
   if (filter.userId !== null) add(`${table}.user_id = ?`, filter.userId);
-  if (table === "d") {
-    if (filter.source !== null) add("d.source = ?", filter.source);
-  } else if (!scoped && filter.source === null) {
-    add(SKILL_EXISTS);
-  } else {
-    if (!scoped) add("l.skill_id IN (SELECT id FROM skills)");
-    const sources = filter.source === null ? DOWNLOAD_SOURCES : [filter.source];
-    add(`l.source IN (${sources.map(() => "?").join(", ")})`, ...sources);
-  }
-  return { sql: clauses.join(" AND "), binds };
+  if (filter.source !== null) add(`${table}.source = ?`, filter.source);
+  return { sql: clauses.join(" AND "), params };
 }
 
-export async function recordDownload(
-  db: D1Database,
+export function recordDownload(
+  db: Db,
   input: {
     skillId: string;
     version: number;
@@ -106,118 +91,66 @@ export async function recordDownload(
     userAgent: string | null;
     at: number;
   },
-): Promise<void> {
+): boolean {
   const { downloader } = input;
-  await db
-    .prepare(
+  const day = Math.floor(input.at / DAY_MS);
+  return transaction(db, () => {
+    const logged = run(
+      db,
       `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
        SELECT id, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM skills WHERE id = ?`,
-    )
-    .bind(
-      input.version,
-      downloader.source,
-      downloader.userId,
-      downloader.username,
-      downloader.deviceName,
-      input.country,
-      input.ip,
-      input.userAgent,
-      input.at,
-      input.skillId,
-    )
-    .run();
+      input.version, downloader.source, downloader.userId, downloader.username, downloader.deviceName,
+      input.country, input.ip, input.userAgent, input.at, input.skillId,
+    );
+    if (logged === 0) return false;
+    run(
+      db,
+      `INSERT INTO download_days (skill_id, day, version, source, count) VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + 1`,
+      input.skillId, day, input.version, downloader.source,
+    );
+    if (downloader.userId !== null) {
+      run(
+        db,
+        `INSERT INTO download_user_days (user_id, day, skill_id, version, source, count) VALUES (?, ?, ?, ?, ?, 1)
+         ON CONFLICT (user_id, day, skill_id, version, source) DO UPDATE SET count = count + 1`,
+        downloader.userId, day, input.skillId, input.version, downloader.source,
+      );
+    }
+    run(db, "UPDATE skills SET download_count = download_count + 1 WHERE id = ?", input.skillId);
+    return true;
+  });
 }
 
-const UNROLLED = "l.id > (SELECT last_id FROM download_rollup)";
-
-export async function rollupDownloads(db: D1Database): Promise<{ capped: boolean }> {
-  const range = `download_logs l WHERE ${UNROLLED} AND l.id <= ?`;
-  for (let batches = 0; ; batches++) {
-    const mark = await db
-      .prepare("SELECT last_id, (SELECT MAX(id) FROM download_logs) AS max_id FROM download_rollup")
-      .first<{ last_id: number; max_id: number | null }>();
-    if (!mark || mark.max_id === null || mark.max_id <= mark.last_id) return { capped: false };
-    if (batches === ROLLUP_MAX_BATCHES) return { capped: true };
-    const upTo = Math.min(mark.max_id, mark.last_id + ROLLUP_BATCH);
-    await db.batch([
-      db
-        .prepare(
-          `INSERT INTO download_days (skill_id, day, version, source, count)
-           SELECT g.skill_id, g.day, g.version, g.source, g.n
-           FROM (SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
-                 FROM ${range} GROUP BY 1, 2, 3, 4) g
-           WHERE g.skill_id IN (SELECT id FROM skills)
-           ON CONFLICT (skill_id, day, version, source) DO UPDATE SET count = count + excluded.count`,
-        )
-        .bind(upTo),
-      db
-        .prepare(
-          `INSERT INTO download_user_days (user_id, day, skill_id, version, source, count)
-           SELECT g.user_id, g.day, g.skill_id, g.version, g.source, g.n
-           FROM (SELECT l.user_id, l.created_at / ${DAY_MS} AS day, l.skill_id, l.version, l.source, COUNT(*) AS n
-                 FROM ${range} AND l.user_id IS NOT NULL GROUP BY 1, 2, 3, 4, 5) g
-           WHERE g.skill_id IN (SELECT id FROM skills)
-           ON CONFLICT (user_id, day, skill_id, version, source) DO UPDATE SET count = count + excluded.count`,
-        )
-        .bind(upTo),
-      db
-        .prepare(
-          `UPDATE skills SET download_count = download_count + g.n
-           FROM (SELECT l.skill_id, COUNT(*) AS n FROM ${range} GROUP BY l.skill_id) g
-           WHERE skills.id = g.skill_id`,
-        )
-        .bind(upTo),
-      db
-        .prepare("UPDATE download_rollup SET last_id = MAX(last_id, MIN(?, COALESCE((SELECT MAX(id) FROM download_logs), 0)))")
-        .bind(upTo),
-    ]);
-  }
-}
-
-export async function listDownloadLogs(
-  db: D1Database,
+export function listDownloadLogs(
+  db: Db,
   filter: DownloadFilter,
   opts: { since: number; before: number | null; limit: number },
-): Promise<{ rows: DownloadLogRow[]; more: boolean }> {
-  const { sql, binds } = where("l", filter, opts.since);
+): { rows: DownloadLogRow[]; more: boolean } {
+  const { sql, params } = where("l", filter, opts.since);
   const cursor = opts.before === null ? "" : " AND l.id < ?";
-  const { results } = await db
-    .prepare(
-      `SELECT l.id, l.skill_id, s.project, p.name AS project_name, s.slug, l.version, l.source,
-              l.user_id, l.username, l.device_name, l.country, l.ip, l.user_agent, l.created_at
-       FROM download_logs l
-       JOIN skills s ON s.id = l.skill_id
-       JOIN projects p ON p.slug = s.project
-       WHERE l.id IN (SELECT l.id FROM download_logs l WHERE ${sql}${cursor} ORDER BY l.id DESC LIMIT ?)
-       ORDER BY l.id DESC`,
-    )
-    .bind(...binds, ...(opts.before === null ? [] : [opts.before]), opts.limit + 1)
-    .all<DownloadLogRow>();
-  return { rows: results.slice(0, opts.limit), more: results.length > opts.limit };
+  const rows = all<DownloadLogRow>(
+    db,
+    `SELECT l.id, l.skill_id, s.project, p.name AS project_name, s.slug, l.version, l.source,
+            l.user_id, l.username, l.device_name, l.country, l.ip, l.user_agent, l.created_at
+     FROM download_logs l
+     JOIN skills s ON s.id = l.skill_id
+     JOIN projects p ON p.slug = s.project
+     WHERE ${sql}${cursor}
+     ORDER BY l.id DESC
+     LIMIT ?`,
+    ...params, ...(opts.before === null ? [] : [opts.before]), opts.limit + 1,
+  );
+  return { rows: rows.slice(0, opts.limit), more: rows.length > opts.limit };
 }
 
-const ACCOUNT_DAILY_COUNTS = `(SELECT user_id, skill_id, day, version, source, count FROM download_user_days
-  WHERE skill_id IN (SELECT id FROM skills)
-  UNION ALL
-  SELECT g.user_id, g.skill_id, g.day, g.version, g.source, g.n
-  FROM (SELECT l.user_id, l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
-        FROM download_logs l NOT INDEXED WHERE ${UNROLLED} AND l.user_id IS NOT NULL GROUP BY 1, 2, 3, 4, 5) g
-  WHERE g.skill_id IN (SELECT id FROM skills)) d`;
-
-const DAILY_COUNTS = `(SELECT skill_id, day, version, source, count FROM download_days
-  UNION ALL
-  SELECT g.skill_id, g.day, g.version, g.source, g.n
-  FROM (SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
-        FROM download_logs l NOT INDEXED WHERE ${UNROLLED} GROUP BY 1, 2, 3, 4) g
-  WHERE g.skill_id IN (SELECT id FROM skills)) d`;
-
 const perSkill = (from: string, sql: string) =>
-  `SELECT d.skill_id, SUM(d.count) AS n FROM ${from} WHERE ${sql} GROUP BY d.skill_id`;
+  `SELECT d.skill_id, SUM(d.count) AS n FROM ${from} d WHERE ${sql} GROUP BY d.skill_id`;
 
 const BREAKDOWNS: Record<DownloadBreakdown, (from: string, sql: string) => string> = {
   version: (from, sql) =>
     `SELECT CAST(d.version AS TEXT) AS "key", CAST(d.version AS TEXT) AS label, SUM(d.count) AS count
-     FROM ${from} WHERE ${sql}
+     FROM ${from} d WHERE ${sql}
      GROUP BY d.version ORDER BY count DESC, d.version DESC LIMIT ${TOP_SHARES}`,
   skill: (from, sql) =>
     `SELECT s.id AS "key", s.slug AS label, b.n AS count
@@ -229,27 +162,25 @@ const BREAKDOWNS: Record<DownloadBreakdown, (from: string, sql: string) => strin
      GROUP BY p.slug ORDER BY count DESC, p.name LIMIT ${TOP_SHARES}`,
 };
 
-export async function downloadStats(
-  db: D1Database,
+export function downloadStats(
+  db: Db,
   filter: DownloadFilter,
   breakdown: DownloadBreakdown,
   firstDay: number,
-): Promise<DownloadStats> {
-  const from = filter.userId === null ? DAILY_COUNTS : ACCOUNT_DAILY_COUNTS;
-  const { sql, binds } = where("d", filter, firstDay);
-  const [days, shares] = await db.batch([
-    db
-      .prepare(
-        `SELECT d.day AS day, d.source AS source, SUM(d.count) AS count
-         FROM ${from} WHERE ${sql}
-         GROUP BY d.day, d.source ORDER BY d.day`,
-      )
-      .bind(...binds),
-    db.prepare(BREAKDOWNS[breakdown](from, sql)).bind(...binds),
-  ]);
+): DownloadStats {
+  const from = filter.userId === null ? "download_days" : "download_user_days";
+  const { sql, params } = where("d", filter, firstDay);
+  const days = all<{ day: number; source: DownloadSource; count: number }>(
+    db,
+    `SELECT d.day AS day, d.source AS source, SUM(d.count) AS count
+     FROM ${from} d WHERE ${sql}
+     GROUP BY d.day, d.source ORDER BY d.day`,
+    ...params,
+  );
+  const shares = all<DownloadShare>(db, BREAKDOWNS[breakdown](from, sql), ...params);
   const bySource = Object.fromEntries(DOWNLOAD_SOURCES.map((source) => [source, 0])) as Record<DownloadSource, number>;
   const byDay: Array<{ day: number; count: number }> = [];
-  for (const row of days.results as Array<{ day: number; source: DownloadSource; count: number }>) {
+  for (const row of days) {
     bySource[row.source] += row.count;
     const last = byDay[byDay.length - 1];
     if (last?.day === row.day) last.count += row.count;
@@ -259,37 +190,31 @@ export async function downloadStats(
     total: DOWNLOAD_SOURCES.reduce((sum, source) => sum + bySource[source], 0),
     bySource,
     byDay,
-    breakdown: shares.results as DownloadShare[],
+    breakdown: shares,
   };
 }
 
-export async function filterNames(
-  db: D1Database,
-  filter: DownloadFilter,
-  within: DownloadFilter,
-  since: number,
-): Promise<FilterNames> {
+export function filterNames(db: Db, filter: DownloadFilter, within: DownloadFilter, since: number): FilterNames {
   if (filter.project === null && filter.skillId === null && filter.userId === null) {
     return { project: null, skill: null, user: null };
   }
   const scope = where("l", within, since);
   const user =
     filter.userId === null
-      ? { sql: "NULL", binds: [] }
+      ? { sql: "NULL", params: [] }
       : {
           sql: `(SELECT l.username FROM download_logs l WHERE l.user_id = ? AND ${scope.sql} ORDER BY l.id DESC LIMIT 1)`,
-          binds: [filter.userId, ...scope.binds],
+          params: [filter.userId, ...scope.params],
         };
-  const row = await db
-    .prepare(
-      `SELECT fp.name AS project, s.slug AS skill_slug, sp.name AS skill_project, ${user.sql} AS username
-       FROM (SELECT 1)
-       LEFT JOIN projects fp ON fp.slug = ?
-       LEFT JOIN skills s ON s.id = ? AND s.project = coalesce(?, s.project)
-       LEFT JOIN projects sp ON sp.slug = s.project`,
-    )
-    .bind(...user.binds, filter.project, filter.skillId, within.project)
-    .first<{ project: string | null; skill_slug: string | null; skill_project: string | null; username: string | null }>();
+  const row = get<{ project: string | null; skill_slug: string | null; skill_project: string | null; username: string | null }>(
+    db,
+    `SELECT fp.name AS project, s.slug AS skill_slug, sp.name AS skill_project, ${user.sql} AS username
+     FROM (SELECT 1)
+     LEFT JOIN projects fp ON fp.slug = ?
+     LEFT JOIN skills s ON s.id = ? AND s.project = coalesce(?, s.project)
+     LEFT JOIN projects sp ON sp.slug = s.project`,
+    ...user.params, filter.project, filter.skillId, within.project,
+  );
   return {
     project: row?.project ?? null,
     skill: row?.skill_slug && row.skill_project ? { slug: row.skill_slug, projectName: row.skill_project } : null,
@@ -297,45 +222,28 @@ export async function filterNames(
   };
 }
 
-export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise<{ deleted: number; capped: boolean }> {
+export function pruneDownloadDays(db: Db, cutoff: number): void {
   const firstDay = Math.floor(cutoff / DAY_MS);
-  await db.batch([
-    db.prepare("DELETE FROM download_days WHERE day < ?").bind(firstDay),
-    db.prepare("DELETE FROM download_user_days WHERE day < ?").bind(firstDay),
-  ]);
-  const steps = [
-    db
-      .prepare(
-        `DELETE FROM download_logs
-         WHERE id < COALESCE(
-           (SELECT id FROM (SELECT id, created_at FROM download_logs ORDER BY id LIMIT ?1) WHERE created_at >= ?2 LIMIT 1),
-           (SELECT MAX(id) + 1 FROM (SELECT id FROM download_logs ORDER BY id LIMIT ?1)))
-         AND id <= (SELECT last_id FROM download_rollup)`,
-      )
-      .bind(PRUNE_BATCH, cutoff),
-    db
-      .prepare(
-        `DELETE FROM download_logs WHERE id IN (
-           SELECT l.id FROM download_purges p CROSS JOIN download_logs l ON l.skill_id = p.skill_id LIMIT ?)`,
-      )
-      .bind(PRUNE_BATCH),
-  ];
-  const settle = db.prepare(
-    "UPDATE download_rollup SET last_id = MIN(last_id, COALESCE((SELECT MAX(id) FROM download_logs), 0))",
+  transaction(db, () => {
+    run(db, "DELETE FROM download_days WHERE day < ?", firstDay);
+    run(db, "DELETE FROM download_user_days WHERE day < ?", firstDay);
+  });
+}
+
+export function pruneDownloadLogBatch(db: Db, cutoff: number): number {
+  return run(
+    db,
+    "DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs WHERE created_at < ? LIMIT ?)",
+    cutoff, PRUNE_BATCH,
   );
+}
+
+export function pruneDownloadLogs(db: Db, cutoff: number): number {
+  pruneDownloadDays(db, cutoff);
   let deleted = 0;
-  let batches = 0;
-  for (const step of steps) {
-    let changes = PRUNE_BATCH;
-    while (changes === PRUNE_BATCH) {
-      if (batches === PRUNE_MAX_BATCHES) return { deleted, capped: true };
-      changes = (await db.batch([step, settle]))[0].meta.changes;
-      deleted += changes;
-      batches++;
-    }
+  for (;;) {
+    const changes = pruneDownloadLogBatch(db, cutoff);
+    deleted += changes;
+    if (changes < PRUNE_BATCH) return deleted;
   }
-  await db
-    .prepare("DELETE FROM download_purges WHERE NOT EXISTS (SELECT 1 FROM download_logs l WHERE l.skill_id = download_purges.skill_id)")
-    .run();
-  return { deleted, capped: false };
 }

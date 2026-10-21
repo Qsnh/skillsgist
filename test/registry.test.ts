@@ -1,10 +1,10 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getVersion, setVisibility } from "../src/db/queries";
+import { sha256Hex } from "../src/hash";
 import { buildIndex } from "../src/registry";
 import type { IndexSource } from "../src/registry";
 import {
-  env, get, GOOD_MD, indexAt, indexNames, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb,
+  appFetch, env, get, GOOD_MD, indexAt, indexNames, installKey, ORIGIN, OTHER_MD, publishMarkdown as publish, resetDb,
   seedWithSkills, twoProjects,
 } from "./helpers";
 
@@ -64,10 +64,10 @@ describe("registry index", () => {
   it("lists only public skills at the root", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
 
-    const res = await SELF.fetch(`${ORIGIN}/.well-known/agent-skills/index.json`);
+    const res = await appFetch(`${ORIGIN}/.well-known/agent-skills/index.json`);
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-cache");
-    const body = await res.json<{ $schema: string; skills: Record<string, unknown>[] }>();
+    const body = (await res.json()) as { $schema: string; skills: Record<string, unknown>[] };
     expect(body.$schema).toBe("https://schemas.agentskills.io/discovery/0.2.0/schema.json");
     expect(body.skills.map((s) => s.name)).toEqual(["demo-skill"]);
     for (const entry of body.skills) assertValidEntry(entry);
@@ -125,16 +125,28 @@ describe("artifact download", () => {
 
     const [entry] = await indexAt("");
 
-    const res = await SELF.fetch(entry.url);
+    const res = await appFetch(entry.url);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/zip");
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=300");
 
     const bytes = new Uint8Array(await res.arrayBuffer());
-    const hash = await crypto.subtle.digest("SHA-256", bytes);
-    const hex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    expect(`sha256:${hex}`).toBe(entry.digest);
+    expect(`sha256:${sha256Hex(bytes)}`).toBe(entry.digest);
+    expect(res.headers.get("Content-Length")).toBe(String(bytes.byteLength));
     expect((await get(`/d/demo-skill/${"0".repeat(64)}.zip`)).status).toBe(404);
+  });
+
+  it("answers HEAD with the archive's headers, without reading it or counting a download", async () => {
+    await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    const [entry] = await indexAt("");
+    const read = vi.spyOn(env.storage, "get");
+    const res = await appFetch(entry.url, { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/zip");
+    expect(Number(res.headers.get("Content-Length"))).toBeGreaterThan(0);
+    expect(read).not.toHaveBeenCalled();
+    expect(env.db.prepare("SELECT COUNT(*) FROM download_logs").pluck().get()).toBe(0);
+    read.mockRestore();
   });
 });
 
@@ -159,11 +171,11 @@ describe("project install addresses", () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     const entry = (await indexAt("/p/default"))[0];
     expect(entry.url).toBe(`${ORIGIN}/p/default/d/demo-skill/${entry.digest.slice("sha256:".length)}.zip`);
-    const res = await SELF.fetch(entry.url);
+    const res = await appFetch(entry.url);
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=300");
 
-    const digest = (await getVersion(env.DB, "default", "other-skill", 1))!.digest;
+    const digest = getVersion(env.db, "default", "other-skill", 1)!.digest;
     const hex = digest.slice("sha256:".length);
     expect((await get(`/p/default/d/other-skill/${hex}.zip`)).status).toBe(404);
   });
@@ -187,7 +199,7 @@ describe("project install addresses", () => {
     expect(await indexNames("")).toEqual(["other-skill"]);
     expect(await indexNames("/.well-known/agent-skills/demo-skill")).toEqual([]);
 
-    await setVisibility(env.DB, "team-b", "demo-skill", "private");
+    setVisibility(env.db, "team-b", "demo-skill", "private");
     expect(await indexNames("")).toEqual(["demo-skill", "other-skill"]);
   });
 });

@@ -12,10 +12,10 @@ async function expectHrefDropped(href: string) {
   expect(html).toContain("click");
 }
 
-/** An href the sanitizer must leave exactly as written. */
+/** An href the sanitizer must leave exactly as written, give or take the `&amp;` serialization of `&`. */
 async function expectHrefKept(href: string) {
   const html = await renderMarkdown(`<a href="${href}">link</a>`);
-  expect(html).toContain(`href="${href}"`);
+  expect(html).toContain(`href="${href.replaceAll("&", "&amp;")}"`);
 }
 
 describe("renderMarkdown", () => {
@@ -130,7 +130,7 @@ describe("renderMarkdown", () => {
 
       for (const fragment of [
         "<h1>H1</h1>", "<h2>H2</h2>", "<strong>bold</strong>", "<em>em</em>", "<code>inline code</code>", "<pre>",
-        "const a = 1;", 'href="https://example.com/x"', '<img src="https://example.com/img.png" alt="alt text">',
+        "const a = 1;", 'href="https://example.com/x"', '<img src="https://example.com/img.png" alt="alt text" />',
         "<blockquote>", "<p>a blockquote</p>", "<ul>", "<li>one</li>", "<ol>", "<li>first</li>", "<table>", "<thead>",
         "<tbody>", "<th>A</th>", "<td>1</td>", 'type="checkbox"', "todo item", "done item",
       ]) expect(html).toContain(fragment);
@@ -158,7 +158,7 @@ describe("renderSkillMd", () => {
     ["drops the frontmatter and renders the body", `${FM}\n# Demo\n\nBody.\n`, ["<h1>Demo</h1>", "<p>Body.</p>"], ["name: demo-skill", "<hr"]],
     ["drops CRLF frontmatter", "---\r\nname: demo-skill\r\ndescription: A demo skill.\r\n---\r\n\r\n# Demo\r\n", ["<h1>Demo</h1>"], ["name: demo-skill"]],
     ["keeps a body that starts right after the closing fence", `${FM}First line.\n`, ["<p>First line.</p>"], []],
-    ["keeps thematic breaks inside the body", `${FM}\nAbove\n\n---\n\nBelow\n`, ["<hr>", "<p>Above</p>", "<p>Below</p>"], []],
+    ["keeps thematic breaks inside the body", `${FM}\nAbove\n\n---\n\nBelow\n`, ["<hr />", "<p>Above</p>", "<p>Below</p>"], []],
     ["still sanitizes the body", `${FM}\n<script>alert(1)</script>\n`, [], ["<script"]],
   ])("%s", async (_label, md, present, absent) => {
     const html = await renderSkillMd(md);

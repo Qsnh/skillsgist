@@ -1,6 +1,5 @@
-import { SELF } from "cloudflare:test";
+import { verify } from "@node-rs/argon2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as auth from "../src/auth";
 import { countUsers, getSkill, getUserByUsername, getVersion } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
@@ -9,6 +8,11 @@ import {
   login, membership, ORIGIN, postForm, publishMarkdown, putSkill, resetDb, seedAndLogin, seedProject, seedUser,
   signInDevice,
 } from "./helpers";
+
+vi.mock("@node-rs/argon2", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@node-rs/argon2")>();
+  return { ...actual, verify: vi.fn(actual.verify) };
+});
 
 const anon = (path: string, data: Record<string, string>) => postForm(path, null, data);
 
@@ -33,9 +37,9 @@ describe("/setup", () => {
     const res = await anon("/setup", { username: "root", password: "a-very-long-password" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Set-Cookie")).toContain("sg_session=");
-    const user = await getUserByUsername(env.DB, "root");
+    const user = getUserByUsername(env.db, "root");
     expect(user?.role).toBe("admin");
-    const joined = await membership(user!.id);
+    const joined = membership(user!.id);
     expect(joined?.role).toBe("member");
     expect(joined?.install_key).toMatch(/^sgi_[a-f0-9]{64}$/);
     expect(joined?.can_publish).toBe(1);
@@ -43,13 +47,13 @@ describe("/setup", () => {
     const second = await anon("/setup", { username: "intruder", password: "another-long-password" });
     expect(second.status).toBe(404);
     expect(second.headers.get("Set-Cookie")).toBeNull();
-    expect(await countUsers(env.DB)).toBe(1);
+    expect(countUsers(env.db)).toBe(1);
   });
 
   it("rejects passwords shorter than 12 characters", async () => {
     const res = await anon("/setup", { username: "root", password: "short" });
     expect(res.status).toBe(400);
-    expect(await countUsers(env.DB)).toBe(0);
+    expect(countUsers(env.db)).toBe(0);
   });
 });
 
@@ -62,17 +66,13 @@ describe("/login", () => {
     expect(ok.status).toBe(302);
     expect(ok.headers.get("Set-Cookie")).toContain("sg_session=");
     const bad = await anon("/login", { username: "alice", password: "wrong-password-x" });
-    const spy = vi.spyOn(auth, "verifyPassword");
-    try {
-      const missing = await anon("/login", { username: "nobody", password: "wrong-password-x" });
-      expect(spy).toHaveBeenCalledTimes(1);
-      expect(bad.status).toBe(401);
-      expect(missing.status).toBe(401);
-      expect(await bad.text()).toContain("Incorrect username or password");
-      expect(await missing.text()).toContain("Incorrect username or password");
-    } finally {
-      spy.mockRestore();
-    }
+    vi.mocked(verify).mockClear();
+    const missing = await anon("/login", { username: "nobody", password: "wrong-password-x" });
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(bad.status).toBe(401);
+    expect(missing.status).toBe(401);
+    expect(await bad.text()).toContain("Incorrect username or password");
+    expect(await missing.text()).toContain("Incorrect username or password");
   });
 });
 
@@ -80,9 +80,9 @@ describe("/me", () => {
   beforeEach(resetDb);
 
   it("shows only the Account title, no install key and no flash", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await joinProject(user.id, "team-b", "b".repeat(32));
+    joinProject(user.id, "team-b", "b".repeat(32));
     const res = await get("/me", cookie);
     expect(res.status).toBe(200);
     expect(flashCookie(res)).toBeUndefined();
@@ -104,7 +104,7 @@ describe("/me", () => {
     const html = await (await postForm("/me/api-token", cookie)).text();
     const token = /<code class="cf-command-text">(sgt_[a-f0-9]{32})<\/code><button type="button" class="cf-command-copy"/.exec(html)?.[1];
     expect(token).toBeDefined();
-    expect((await getUserByUsername(env.DB, "alice"))?.api_token_hash).toBe(await sha256Hex(token!));
+    expect(getUserByUsername(env.db, "alice")?.api_token_hash).toBe(sha256Hex(token!));
   });
 
   it("puts token revocation behind a confirm step, and offers none without a token", async () => {
@@ -206,7 +206,7 @@ describe("CLI sign-ins on /me", () => {
   it("marks a computer with no usable project, and one unused for 90 days, each on its own row, and counts only live ones", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const orphan = await signInDevice(user.id, ["default"], Date.now(), "no-projects");
-    await env.DB.prepare("DELETE FROM cli_login_projects WHERE login_id = ?").bind(orphan.id).run();
+    env.db.prepare("DELETE FROM cli_login_projects WHERE login_id = ?").run(orphan.id);
     await signInDevice(user.id, ["default"], Date.now() - 91 * 24 * 60 * 60 * 1000, "stale");
     await signInDevice(user.id, ["default"], Date.now(), "healthy");
     const html = await (await get("/me", cookie)).text();
@@ -273,20 +273,18 @@ describe("/admin/users", () => {
     const res = await postForm("/admin/users/new", cookie, { username: "carol", password: "carols-long-password", role: "member" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/admin/users");
-    const carol = await getUserByUsername(env.DB, "carol");
+    const carol = getUserByUsername(env.db, "carol");
     expect(carol?.role).toBe("member");
-    expect(await membership(carol!.id)).toBeNull();
+    expect(membership(carol!.id)).toBeNull();
   });
 
   it("lists each account's role, projects, created skills, join date and last sign-in, linked to its settings", async () => {
     const root = await seedAndLogin({ username: "root", role: "admin" });
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const carol = await seedAndLogin({ username: "carol", role: "member" });
-    await joinProject(carol.user.id, "team-b", "c".repeat(32));
+    joinProject(carol.user.id, "team-b", "c".repeat(32));
     await publishMarkdown(carol.cookie, GOOD_MD, "private", "default");
-    await env.DB.prepare("UPDATE users SET created_at = ?, last_login_at = NULL WHERE id = ?")
-      .bind(Date.UTC(2026, 8, 1), carol.user.id)
-      .run();
+    env.db.prepare("UPDATE users SET created_at = ?, last_login_at = NULL WHERE id = ?").run(Date.UTC(2026, 8, 1), carol.user.id);
 
     const html = await (await get("/admin/users", root.cookie)).text();
     const row = (name: string) => html.split("<tr>").find((r) => r.includes(`>${name}</a>`));
@@ -347,8 +345,8 @@ describe("/admin/users/new", () => {
     expect(html).toContain(`value="${username}"`);
     expect(html).toContain('<option value="admin" selected="">admin</option>');
     expect(html).not.toContain(`value="${password}"`);
-    expect(await countUsers(env.DB)).toBe(2);
-    const after = await getUserByUsername(env.DB, "taken");
+    expect(countUsers(env.db)).toBe(2);
+    const after = getUserByUsername(env.db, "taken");
     expect(after?.role).toBe("member");
     expect(after?.password_hash).toBe(taken.password_hash);
   });
@@ -406,7 +404,7 @@ describe("/admin/users/:id", () => {
     const res = await postForm(`/admin/users/${id}/api-token`, root.cookie);
     expect(res.status).toBe(200);
     const token = /sgt_[a-f0-9]{32}/.exec(await res.text())?.[0];
-    expect((await getUserByUsername(env.DB, "root"))?.api_token_hash).toBe(await sha256Hex(token!));
+    expect(getUserByUsername(env.db, "root")?.api_token_hash).toBe(sha256Hex(token!));
     const after = await (await get(`/admin/users/${id}`, root.cookie)).text();
     expect(after.split(`/admin/users/${id}/api-token/revoke`)).toHaveLength(2);
     const own = confirmBlocks(after, "revoke-api-token");
@@ -449,7 +447,7 @@ describe("/admin/users/:id", () => {
 
     expect((await putSkill(old, GOOD_MD, { project: "default" })).status).toBe(404);
     expect((await putSkill(token!, GOOD_MD, { project: "default" })).status).toBe(201);
-    expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(carol.user.id);
+    expect(getSkill(env.db, "default", "demo-skill")?.owner_id).toBe(carol.user.id);
 
     const again = await (await get(`/admin/users/${carol.user.id}`, cookie)).text();
     expect(again).not.toContain(token!);
@@ -477,7 +475,7 @@ describe("/admin/users/:id/*", () => {
     }
     const create = await postForm("/admin/users/new", cookie, { username: "dave", password: "daves-long-password" });
     expect(create.status).toBe(403);
-    expect(await getUserByUsername(env.DB, "dave")).toBeNull();
+    expect(getUserByUsername(env.db, "dave")).toBeNull();
     for (const { path, body } of endpoints) {
       const res = await postForm(`/admin/users/${target.user.id}/${path}`, cookie, body);
       expect(res.status).toBe(403);
@@ -502,7 +500,7 @@ describe("/admin/users/:id/*", () => {
       const res = await postForm(`/admin/users/${target.user.id}/role`, cookie, { role });
       expect(res.status).toBe(302);
       expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
-      expect((await getUserByUsername(env.DB, "carol"))?.role).toBe(role);
+      expect(getUserByUsername(env.db, "carol")?.role).toBe(role);
     }
   });
 
@@ -532,12 +530,12 @@ describe("/admin/users/:id/*", () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedAndLogin({ username: "carol", role: "member" });
     await postForm("/me/api-token", target.cookie);
-    expect((await getUserByUsername(env.DB, "carol"))?.api_token_hash).not.toBeNull();
+    expect(getUserByUsername(env.db, "carol")?.api_token_hash).not.toBeNull();
 
     const res = await postForm(`/admin/users/${target.user.id}/api-token/revoke`, cookie);
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe(`/admin/users/${target.user.id}`);
-    expect((await getUserByUsername(env.DB, "carol"))?.api_token_hash).toBeNull();
+    expect(getUserByUsername(env.db, "carol")?.api_token_hash).toBeNull();
   });
 
   // The last-admin guard only checks the *count* of admins, so on its own it
@@ -561,19 +559,19 @@ describe("/admin/users/:id/*", () => {
     const del = await postForm(`/admin/users/${root.id}/delete`, cookie);
     expect(del.status).toBe(400);
     expect(await del.text()).toContain("You cannot delete your own account. Ask another admin.");
-    expect((await getUserByUsername(env.DB, "root"))?.role).toBe("admin");
-    expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(root.id);
+    expect(getUserByUsername(env.db, "root")?.role).toBe("admin");
+    expect(getSkill(env.db, "default", "demo-skill")?.owner_id).toBe(root.id);
   });
 
   it("rotating a member's install keys revokes every old one and enables the new ones", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     const target = await seedUser({ username: "dave", role: "member" });
-    await joinProject(target.user.id, "team-b");
+    joinProject(target.user.id, "team-b");
     const keys = () => Promise.all([installKey(target.user.id), installKey(target.user.id, "team-b")]);
     const whoami = async (key: string) => {
       const res = await fetchWith("/api/whoami", bearer(key));
-      return res.status === 200 ? (await res.json<{ projects: string[] }>()).projects : res.status;
+      return res.status === 200 ? ((await res.json()) as { projects: string[] }).projects : res.status;
     };
     const oldKeys = await keys();
     expect(await Promise.all(oldKeys.map(whoami))).toEqual([["default"], ["team-b"]]);
@@ -622,9 +620,9 @@ describe("/admin/users/:id/*", () => {
       const listed = await (await follow(res, cookie)).text();
       expect(listed).toMatch(/<p class="cf-done" role="status">[\s\S]*?Deleted erin\.<\/span><\/p>/);
 
-      expect(await getUserByUsername(env.DB, "erin")).toBeNull();
-      expect((await getSkill(env.DB, "default", "demo-skill"))?.owner_id).toBe(root.id);
-      expect((await getVersion(env.DB, "default", "demo-skill", 1))?.author_id).toBe(root.id);
+      expect(getUserByUsername(env.db, "erin")).toBeNull();
+      expect(getSkill(env.db, "default", "demo-skill")?.owner_id).toBe(root.id);
+      expect(getVersion(env.db, "default", "demo-skill", 1)?.author_id).toBe(root.id);
       expect((await get("/p/default/s/demo-skill/download", cookie)).status).toBe(200);
     },
   );

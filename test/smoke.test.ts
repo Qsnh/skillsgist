@@ -9,7 +9,7 @@ it("responds on /healthz", async () => {
 
 // Pins the exact policy, `img-src` included: without its own directive it
 // falls back to `default-src 'self'` and a real browser refuses the external
-// images the sanitizer deliberately preserves. Rationale: src/index.ts.
+// images the sanitizer deliberately preserves. Rationale: src/app.ts.
 it("sets a restrictive CSP header on HTML page responses", async () => {
   const res = await get("/login");
   expect(res.headers.get("Content-Type")).toContain("text/html");

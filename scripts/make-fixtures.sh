@@ -29,11 +29,11 @@ echo 'echo hi' > "$TMP/flat/scripts/run.sh"
 # explicitly.
 #
 # `tar czf` makes bsdtar do the compression itself, which block-aligns the output (10240
-# bytes) and pads with zeros after the real gzip stream ends. workerd's native
-# DecompressionStream("gzip") has zero tolerance for those trailing bytes and
-# throws "Trailing bytes after end of compressed data" (Node's zlib and the gzip
-# command both ignore them silently, which is why verifying locally with gzip -t
-# or zlib finds nothing). Having tar only pack and piping to a separate gzip
+# bytes) and pads with zeros after the real gzip stream ends. Some gzip decoders,
+# such as the Web DecompressionStream("gzip") in Cloudflare's workerd, have zero
+# tolerance for those trailing bytes and throw "Trailing bytes after end of
+# compressed data" (Node's zlib and the gzip command both ignore them silently,
+# which is why verifying locally with gzip -t or zlib finds nothing). Having tar only pack and piping to a separate gzip
 # produces a clean single gzip stream with no block alignment involved.
 TAR_NO_META=(--no-xattrs --no-mac-metadata --no-acls --no-fflags)
 ( cd "$TMP/flat" && COPYFILE_DISABLE=1 tar cf - "${TAR_NO_META[@]}" . | gzip -n ) > "$OUT/flat-dot.tar.gz"

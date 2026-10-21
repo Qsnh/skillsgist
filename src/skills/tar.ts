@@ -1,12 +1,26 @@
-import { ArchiveError, pipeBytes } from "./zip";
+import { promisify } from "node:util";
+import { gunzip as gunzipCallback } from "node:zlib";
+import { ArchiveError, ArchiveTooLargeError } from "./zip";
+
+const gunzipAsync = promisify(gunzipCallback);
+
+const TAR_BYTES_PER_ENTRY = 4096;
+const TAR_DEFAULT_HEADROOM = 8 * 1024 * 1024;
 
 /** The only place the gzip format is recognised. */
 export function isGzip(b: Uint8Array): boolean {
   return b.length > 1 && b[0] === 0x1f && b[1] === 0x8b;
 }
 
-function inflateGzipMember(data: Uint8Array): Promise<Uint8Array> {
-  return pipeBytes(data, new DecompressionStream("gzip"));
+async function inflateGzipMember(data: Uint8Array, maxOutput: number | undefined): Promise<Uint8Array> {
+  try {
+    return new Uint8Array(await gunzipAsync(data, maxOutput === undefined ? {} : { maxOutputLength: maxOutput }));
+  } catch (err) {
+    if (maxOutput !== undefined && (err as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE") {
+      throw new ArchiveTooLargeError(maxOutput, maxOutput);
+    }
+    throw err;
+  }
 }
 
 function indexAfterLastNonZero(data: Uint8Array): number {
@@ -25,7 +39,7 @@ function indexAfterLastNonZero(data: Uint8Array): number {
 // ends at byte 335, but scanning backward for the last non-zero byte lands
 // on 333, two bytes short (verified with Python's `zlib.decompressobj`,
 // whose `unused_data` gives the exact boundary, and re-confirmed against
-// workerd's own `DecompressionStream` directly: byte-for-byte probing shows
+// a gzip decompressor directly: byte-for-byte probing shows
 // length 335 is the *only* length that succeeds — 334 fails as truncated,
 // 336 fails as "trailing bytes"). So a single blind retry does not reliably
 // work; probe forward a handful of bytes from the fully-trimmed point
@@ -52,14 +66,16 @@ export function gzipRetryLengths(data: Uint8Array): number[] {
   return lengths;
 }
 
-async function gunzip(data: Uint8Array): Promise<Uint8Array> {
+async function gunzip(data: Uint8Array, maxOutput: number | undefined): Promise<Uint8Array> {
   try {
-    return await inflateGzipMember(data);
-  } catch {
+    return await inflateGzipMember(data, maxOutput);
+  } catch (err) {
+    if (err instanceof ArchiveTooLargeError) throw err;
     for (const end of gzipRetryLengths(data)) {
       try {
-        return await inflateGzipMember(data.subarray(0, end));
-      } catch {
+        return await inflateGzipMember(data.subarray(0, end), maxOutput);
+      } catch (retryErr) {
+        if (retryErr instanceof ArchiveTooLargeError) throw retryErr;
         // Either still short of the real trailer boundary, or genuinely
         // corrupt — keep probing the remaining candidates.
       }
@@ -74,12 +90,24 @@ function readString(buf: Uint8Array, offset: number, length: number): string {
   return new TextDecoder().decode(nul >= 0 ? slice.subarray(0, nul) : slice);
 }
 
-export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+function gunzipCap(maxUnpacked: number, maxFiles: number): number | undefined {
+  if (!Number.isFinite(maxUnpacked)) return undefined;
+  const headroom = Number.isFinite(maxFiles) ? (maxFiles + 2) * TAR_BYTES_PER_ENTRY : TAR_DEFAULT_HEADROOM;
+  return maxUnpacked + headroom;
+}
+
+export async function readTarGz(
+  bytes: Uint8Array,
+  maxUnpacked: number = Infinity,
+  maxFiles: number = Infinity,
+): Promise<Map<string, Uint8Array>> {
   if (!isGzip(bytes)) throw new ArchiveError("Not a valid gzip archive");
+  const maxOutput = gunzipCap(maxUnpacked, maxFiles);
   let tar: Uint8Array;
   try {
-    tar = await gunzip(bytes);
-  } catch {
+    tar = await gunzip(bytes, maxOutput);
+  } catch (err) {
+    if (err instanceof ArchiveTooLargeError) throw new ArchiveTooLargeError(err.size, maxUnpacked);
     throw new ArchiveError("gzip decompression failed");
   }
 
@@ -104,7 +132,7 @@ export async function readTarGz(bytes: Uint8Array): Promise<Map<string, Uint8Arr
     if (typeFlag === 0x31 || typeFlag === 0x32) throw new ArchiveError("Link entries in archives are not supported");
     // '\0' and '0' = regular file; everything else (directory '5', pax headers 'x'/'g', ...) is skipped
     if (typeFlag === 0 || typeFlag === 0x30) {
-      files.set(path, tar.slice(offset, offset + size));
+      files.set(path, tar.subarray(offset, offset + size));
     }
 
     offset += Math.ceil(size / 512) * 512;

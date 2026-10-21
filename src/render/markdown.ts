@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
 import { stripFrontmatter } from "../skills/frontmatter";
 
 const ALLOWED_TAGS = new Set([
@@ -36,30 +37,28 @@ function isSafeUrlValue(value: string): boolean {
   return value.split(",").every(isSafeUrlSegment);
 }
 
+function safeAttributes(attribs: sanitizeHtml.Attributes): sanitizeHtml.Attributes {
+  const kept: sanitizeHtml.Attributes = {};
+  for (const [name, value] of Object.entries(attribs)) {
+    if (name === "style" || name.startsWith("on")) continue;
+    if (URL_ATTRS.has(name) && !isSafeUrlValue(value)) continue;
+    kept[name] = value;
+  }
+  return kept;
+}
+
+const SANITIZE: sanitizeHtml.IOptions = {
+  allowedTags: false,
+  allowedAttributes: false,
+  allowVulnerableTags: true,
+  allowedSchemes: [...SAFE_SCHEMES],
+  exclusiveFilter: (frame) => !ALLOWED_TAGS.has(frame.tag),
+  transformTags: { "*": (tagName, attribs) => ({ tagName, attribs: safeAttributes(attribs) }) },
+};
+
 export async function renderMarkdown(md: string): Promise<string> {
   const html = marked.parse(md, { async: false, gfm: true, breaks: false }) as string;
-
-  const rewritten = new HTMLRewriter()
-    .on("*", {
-      element(el) {
-        if (!ALLOWED_TAGS.has(el.tagName)) {
-          el.remove();
-          return;
-        }
-        for (const [name, value] of [...el.attributes]) {
-          if (name === "style" || name.startsWith("on")) {
-            el.removeAttribute(name);
-            continue;
-          }
-          if (URL_ATTRS.has(name) && !isSafeUrlValue(value)) {
-            el.removeAttribute(name);
-          }
-        }
-      },
-    })
-    .transform(new Response(html));
-
-  return await rewritten.text();
+  return sanitizeHtml(html, SANITIZE);
 }
 
 export const RENDER_REVISION = 1;

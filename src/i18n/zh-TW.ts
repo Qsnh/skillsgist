@@ -4,7 +4,7 @@ const ACTIONS: Record<SkillAction, string> = { modify: "修改", move: "移動",
 
 export const zhTW: Messages = {
   layout: {
-    tagline: "在 Cloudflare Workers 上執行的私有 Agent Skills 儲存庫。",
+    tagline: "自行架設的私有 Agent Skills 儲存庫。",
     ogImageAlt: "skillsgist：你的私有 Agent Skills 儲存庫",
     skip: "跳至主要內容",
     mainNav: "主要導覽",
@@ -25,6 +25,7 @@ export const zhTW: Messages = {
     showLess: "收合",
   },
   common: {
+    geoCredit: (dbip) => ["IP 地理位置資料來自 ", dbip],
     create: "建立",
     cancel: "取消",
     save: "儲存",
@@ -55,6 +56,7 @@ export const zhTW: Messages = {
     passwordTooShort: (min) => `密碼至少需要 ${min} 個字元`,
     newPasswordTooShort: (min) => `新密碼至少需要 ${min} 個字元`,
     badCredentials: "使用者名稱或密碼不正確",
+    tooManySignIns: "你所在網路的登入嘗試過於頻繁，請等一分鐘後再試。",
     currentPasswordWrong: "目前的密碼不正確",
     passwordChanged: "你的密碼已變更，所有用 CLI 登入的電腦都已登出。",
     cliLoginsPanel: "CLI 登入",
@@ -396,5 +398,7 @@ export const zhTW: Messages = {
   errors: {
     requestValidation: "請求驗證失敗，請重新整理頁面後再試一次。",
     internal: "伺服器內部錯誤",
+    payloadTooLarge: (limitMb) => `請求超過了 ${limitMb} MB 的上傳上限。`,
+    requestTooLarge: "請求內容過大。",
   },
 };

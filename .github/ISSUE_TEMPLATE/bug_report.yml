@@ -37,7 +37,7 @@ body:
     id: version
     attributes:
       label: skillsgist version or commit
-      placeholder: v2.0.0 or a commit SHA
+      placeholder: v3.0.0 or a commit SHA
     validations:
       required: true
   - type: input
@@ -49,5 +49,5 @@ body:
     id: logs
     attributes:
       label: Logs and error output
-      description: CLI output, `wrangler tail` output, or the error shown in the browser. Remove install keys, sign-in codes and API tokens first.
+      description: CLI output, server logs (`docker compose logs skillsgist`), or the error shown in the browser. Remove install keys, sign-in codes and API tokens first.
       render: shell

@@ -58,15 +58,15 @@ deviceRoutes.post("/device", signedIn, async (c) => {
   const raw = values(body.code)[0] ?? "";
   const now = Date.now();
   const code = normalizeUserCode(raw);
-  const login = code ? await getLoginByUserCode(c.env.DB, code) : null;
+  const login = code ? getLoginByUserCode(c.env.db, code) : null;
   if (login && login.user_id === user.id) return c.redirect(`/device/${login.id}`, 302);
-  if (!(await claimCodeAttempt(c.env.DB, user.id, now))) {
+  if (!claimCodeAttempt(c.env.db, user.id, now)) {
     return page(c, <DeviceCodePage user={user} code={raw} error={t.device.locked} />, 429);
   }
   if (!code || !login || login.status !== "pending") {
     return page(c, <DeviceCodePage user={user} code={raw} error={t.device.badCode(<LoginCommand />)} />, 400);
   }
-  await refundCodeAttempt(c.env.DB, user.id);
+  refundCodeAttempt(c.env.db, user.id);
   if (login.expires_at <= now) {
     return page(c, <DeviceCodePage user={user} code="" error={t.device.expired(<LoginCommand />)} />, 400);
   }
@@ -78,22 +78,22 @@ deviceRoutes.post("/device", signedIn, async (c) => {
       codePage(code),
     );
   const lost = async () => {
-    const current = await getLoginByUserCode(c.env.DB, code);
+    const current = getLoginByUserCode(c.env.db, code);
     if (current?.user_id === user.id) return c.redirect(`/device/${login.id}`, 302);
     if (current?.status === "pending" && current.expires_at > Date.now()) {
-      return confirm((await getViewer(c.env.DB, user.id)) ?? user, [], t.device.projectsGone);
+      return confirm(getViewer(c.env.db, user.id) ?? user, [], t.device.projectsGone);
     }
     return page(c, <DeviceCodePage user={user} code="" error={t.device.badCode(<LoginCommand />)} />, 400);
   };
   const decision = values(body.decision)[0];
   if (decision === "deny") {
-    if (!(await denyLogin(c.env.DB, login.id, user.id, now))) return lost();
+    if (!denyLogin(c.env.db, login.id, user.id, now)) return lost();
     return c.redirect(`/device/${login.id}`, 302);
   }
   if (decision === "approve") {
     const chosen = ownProjects(user, values(body.project));
     if (chosen.length === 0) return confirm(user, [], t.device.chooseProject);
-    if (!(await approveLogin(c.env.DB, login.id, user.id, chosen, now))) return lost();
+    if (!approveLogin(c.env.db, login.id, user.id, chosen, now)) return lost();
     return c.redirect(`/device/${login.id}`, 302);
   }
   return confirm(user, preselected(user, login.requested_scope));
@@ -101,7 +101,7 @@ deviceRoutes.post("/device", signedIn, async (c) => {
 
 deviceRoutes.get("/device/:id", signedIn, async (c) => {
   const user = c.get("user");
-  const login = await getDecidedLogin(c.env.DB, c.req.param("id"), user.id);
+  const login = getDecidedLogin(c.env.db, c.req.param("id"), user.id);
   if (login?.status === "denied") return page(c, <DeviceDonePage user={user} projects={null} />);
   if (!login || login.projects.length === 0) return c.redirect("/device", 302);
   return page(c, <DeviceDonePage user={user} projects={formatList(localeOf(c), login.projects)} />);

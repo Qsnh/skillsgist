@@ -1,0 +1,14 @@
+.git
+.github
+.impeccable
+.superpowers
+.wrangler
+.env
+.env.*
+data
+dist
+docs
+node_modules
+public/app.css
+test
+*.log

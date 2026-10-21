@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  canAccessProject, canManage, canManageProject, canPublishIn, canView, hashPassword, PBKDF2_ITERATIONS, randomHex,
+  canAccessProject, canManage, canManageProject, canPublishIn, canView, hashPassword, randomHex, SESSION_COOKIE,
   skillScope, verifyPassword,
 } from "../src/auth";
 import { sha256Hex } from "../src/hash";
+import { en } from "../src/i18n/en";
+import { RateLimiter } from "../src/rate-limit";
 import type { Membership, SkillRow, Viewer } from "../src/db/queries";
+import { appFetch, env, ORIGIN, resetDb, seedUser, setCookieLine } from "./helpers";
 
 const viewer = (over: Partial<Viewer> = {}): Viewer => ({
   id: "u1", username: "alice", password_hash: "h", role: "member",
@@ -21,26 +24,72 @@ const skill = (over: Partial<SkillRow> = {}): SkillRow => ({
 });
 
 describe("password hashing", () => {
-  it("round-trips a password, at the stored iteration count", async () => {
-    for (const stored of [await hashPassword("correct horse battery"), await hashPassword("correct horse battery", 1000)]) {
-      expect(await verifyPassword("correct horse battery", stored)).toBe(true);
-      expect(await verifyPassword("wrong password xx", stored)).toBe(false);
-    }
+  it("round-trips a password", async () => {
+    const stored = await hashPassword("correct horse battery");
+    expect(await verifyPassword("correct horse battery", stored)).toBe(true);
+    expect(await verifyPassword("wrong password xx", stored)).toBe(false);
   });
 
-  it("encodes scheme, iterations, salt and hash, with a fresh salt each time", async () => {
+  it("encodes Argon2id with its parameters, salt and hash, with a fresh salt each time", async () => {
     const stored = await hashPassword("correct horse battery");
-    const parts = stored.split("$");
-    expect(parts[0]).toBe("pbkdf2");
-    expect(Number(parts[1])).toBe(PBKDF2_ITERATIONS);
-    expect(parts).toHaveLength(4);
+    expect(stored).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/);
     expect(await hashPassword("correct horse battery")).not.toBe(stored);
-    expect(await hashPassword("correct horse battery", 1000)).toContain("$1000$");
   });
 
   it("rejects malformed stored hashes without throwing", async () => {
+    const stored = await hashPassword("x");
     expect(await verifyPassword("x", "garbage")).toBe(false);
     expect(await verifyPassword("x", "")).toBe(false);
+    expect(await verifyPassword("x", stored.slice(0, stored.lastIndexOf("$")))).toBe(false);
+    expect(await verifyPassword("x", "pbkdf2$100000$c2FsdA$aGFzaA")).toBe(false);
+  });
+});
+
+describe("signing in", () => {
+  beforeEach(resetDb);
+
+  const signIn = (password: string, clientIp: string) =>
+    appFetch(`${ORIGIN}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
+      body: new URLSearchParams({ username: "alice", password }),
+      redirect: "manual",
+      clientIp,
+    });
+
+  it("counts only failed attempts, so people who sign in often are never refused", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    env.limiters = { ...env.limiters, signIn: new RateLimiter(10, 60_000) };
+    for (let i = 0; i < 12; i++) expect((await signIn(password, "203.0.113.7")).status).toBe(302);
+  });
+
+  it("refuses an eleventh failure from one IP address within a minute, even with the right password", async () => {
+    const { password } = await seedUser({ username: "alice" });
+    env.limiters = { ...env.limiters, signIn: new RateLimiter(10, 60_000) };
+    for (let i = 0; i < 10; i++) expect((await signIn("wrong password xx", "203.0.113.7")).status).toBe(401);
+
+    const res = await signIn(password, "203.0.113.7");
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toMatch(/^\d+$/);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(Number(res.headers.get("Retry-After"))).toBeLessThanOrEqual(60);
+    expect(setCookieLine(res, SESSION_COOKIE)).toBeUndefined();
+    const html = await res.text();
+    expect(html).toContain(en.auth.tooManySignIns);
+    expect(html).toContain('action="/login"');
+
+    const elsewhere = await signIn(password, "198.51.100.9");
+    expect(elsewhere.status).toBe(302);
+    expect(setCookieLine(elsewhere, SESSION_COOKIE)).toBeDefined();
+  });
+
+  it("counts an IPv6 visitor's whole /64 as one address", async () => {
+    await seedUser({ username: "alice" });
+    env.limiters = { ...env.limiters, signIn: new RateLimiter(2, 60_000) };
+    expect((await signIn("wrong password xx", "2001:db8:1:2::1")).status).toBe(401);
+    expect((await signIn("wrong password xx", "2001:db8:1:2::2")).status).toBe(401);
+    expect((await signIn("wrong password xx", "2001:db8:1:2:ffff::9")).status).toBe(429);
+    expect((await signIn("wrong password xx", "2001:db8:1:3::1")).status).toBe(401);
   });
 });
 
@@ -52,8 +101,8 @@ describe("randomHex", () => {
 });
 
 describe("sha256Hex", () => {
-  it("matches the known digest of an empty string", async () => {
-    expect(await sha256Hex("")).toBe(
+  it("matches the known digest of an empty string", () => {
+    expect(sha256Hex("")).toBe(
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     );
   });

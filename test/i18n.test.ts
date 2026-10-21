@@ -1,4 +1,3 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Ctx } from "../src/auth";
 import { localeOf } from "../src/i18n";
@@ -8,7 +7,7 @@ import { ja } from "../src/i18n/ja";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { zhTW } from "../src/i18n/zh-TW";
-import { fetchWith, follow, GOOD_MD, ORIGIN, postForm, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject, seedUser, seedWithSkills } from "./helpers";
+import { appFetch, fetchWith, follow, GOOD_MD, ORIGIN, postForm, postMultipart, resetDb, seedAndLogin, seedAndToken, seedProject, seedUser, seedWithSkills } from "./helpers";
 
 const htmlIn = async (path: string, headers: Record<string, string> = {}) => (await fetchWith(path, headers)).text();
 
@@ -235,7 +234,7 @@ describe("registry and skill pages", () => {
   });
 
   it("refuses a move into a project the mover is not in, in Japanese", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const { cookie } = await seedWithSkills({ username: "bob", role: "member" }, [GOOD_MD, "private"]);
     const res = await postForm("/p/default/s/demo-skill/move", withLang(cookie, "ja"), { project: "team-b" });
     expect(res.status).toBe(403);
@@ -317,7 +316,7 @@ describe("publishing", () => {
 
   it("keeps the API's error messages in English whatever the language", async () => {
     const { token } = await seedAndToken();
-    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+    const res = await appFetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -337,7 +336,7 @@ describe("plain-text refusals", () => {
 
   it("refuses a missing CSRF token in Chinese", async () => {
     const { cookie } = await seedAndLogin();
-    const res = await SELF.fetch(`${ORIGIN}/p/default/install-key`, {
+    const res = await appFetch(`${ORIGIN}/p/default/install-key`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",

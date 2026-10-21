@@ -1,23 +1,17 @@
-import { SELF } from "cloudflare:test";
 import { Hono } from "hono";
 import { setSignedCookie } from "hono/cookie";
 import { beforeEach, describe, expect, it } from "vitest";
+import { app } from "../src/app";
 import { SESSION_COOKIE, sessionCsrf } from "../src/auth";
 import type { Ctx } from "../src/auth";
 import { SAFE_METHODS } from "../src/csrf";
 import { getSkill, getUserById } from "../src/db/queries";
-import { app } from "../src/index";
 import { Layout } from "../src/views/layout";
 import {
-  csrfFor, env as bindings, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown, resetDb,
+  appFetch, csrfFor, env, GOOD_MD, installKey, login, ORIGIN, postForm, publishMarkdown, resetDb,
   seedAndLogin, seedUser,
 } from "./helpers";
 import type { Env } from "../src/types";
-
-// `SESSION_SECRET` is a plain string binding, not one of the typed ones in
-// helpers' `env`, so this file widens the same object rather than re-casting
-// `cloudflare:test`'s.
-const env = bindings as typeof bindings & { SESSION_SECRET: string };
 
 // ---------------------------------------------------------------------------
 // The two exemptions from the session-bound token check, each with a test
@@ -121,8 +115,8 @@ const registered = () =>
 
 const FORM = { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN };
 
-const post = (path: string, cookie: string, body: BodyInit, headers: Record<string, string> = FORM) =>
-  SELF.fetch(`${ORIGIN}${path}`, { method: "POST", headers: { Cookie: cookie, ...headers }, body, redirect: "manual" });
+const post = (path: string, cookie: string, body: RequestInit["body"], headers: Record<string, string> = FORM) =>
+  appFetch(`${ORIGIN}${path}`, { method: "POST", headers: { Cookie: cookie, ...headers }, body, redirect: "manual" });
 
 describe("route inventory (guards against a new route slipping through)", () => {
   it("accounts for every registered route, with no stale entries in any list", () => {
@@ -151,10 +145,10 @@ describe("token layer", () => {
       const res = await post(path, cookie, new URLSearchParams({ role: "admin", password: "a-very-long-password" }));
       expect(res.status, `${key} should reject a tokenless request`).toBe(403);
     }
-    const bobAfter = await getUserById(env.DB, target.id);
+    const bobAfter = getUserById(env.db, target.id);
     expect(bobAfter?.role).toBe("member");
     expect(await installKey(target.id)).toBe(bobKey);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it.each<[string, () => Promise<string>]>([
@@ -206,7 +200,7 @@ describe("/api/* exemption", () => {
   // check there cannot expose anything.
   it("cannot be authenticated by a session cookie alone", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+    const res = await appFetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: { Cookie: cookie, "Content-Type": "text/markdown" },
       body: GOOD_MD,
@@ -215,7 +209,7 @@ describe("/api/* exemption", () => {
   });
 
   it("still refuses a cross-origin form post to the publish API", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+    const res = await appFetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: GOOD_MD,
@@ -225,7 +219,7 @@ describe("/api/* exemption", () => {
 
   it("does not let a session cookie stand in for a Bearer credential on /api/whoami", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    expect((await SELF.fetch(`${ORIGIN}/api/whoami`, { headers: { Cookie: cookie } })).status).toBe(401);
+    expect((await appFetch(`${ORIGIN}/api/whoami`, { headers: { Cookie: cookie } })).status).toBe(401);
   });
 });
 
@@ -250,14 +244,14 @@ describe("session payload", () => {
         c,
         SESSION_COOKIE,
         JSON.stringify({ uid: user.id, exp: Date.now() + 60_000 }),
-        env.SESSION_SECRET,
+        env.config.sessionSecret,
         { path: "/" },
       );
       return c.text("ok");
     });
     const legacy = (await minter.request(`${ORIGIN}/`)).headers.get("Set-Cookie")!.split(";")[0];
 
-    const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: legacy }, redirect: "manual" });
+    const res = await appFetch(`${ORIGIN}/me`, { headers: { Cookie: legacy }, redirect: "manual" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/login");
   });
@@ -316,7 +310,7 @@ describe("rendered forms", () => {
       "/", "/p/default/s/demo-skill", "/me", "/admin/users", "/admin/users/new", `/admin/users/${user.id}`, "/new", "/p/default/s/demo-skill/edit",
       "/p/default/s/demo-skill/upload", "/projects", "/projects/new", "/p/default",
     ]) {
-      const html = await (await SELF.fetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
+      const html = await (await appFetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie } })).text();
       const forms = postFormsIn(html);
       expect(forms.length, `${path} should render at least one POST form`).toBeGreaterThan(0);
       for (const form of forms) {
@@ -330,12 +324,12 @@ describe("rendered forms", () => {
   it("leaves the bootstrap and login forms without a token", async () => {
     const own = (html: string, action: string) => postFormsIn(html).filter((f) => f.includes(`action="${action}"`));
 
-    const setup = await (await SELF.fetch(`${ORIGIN}/setup`)).text();
+    const setup = await (await appFetch(`${ORIGIN}/setup`)).text();
     expect(own(setup, "/setup")).toHaveLength(1);
     expect(setup).not.toContain('name="_csrf"');
 
     await seedUser({ username: "alice" });
-    const loginHtml = await (await SELF.fetch(`${ORIGIN}/login`)).text();
+    const loginHtml = await (await appFetch(`${ORIGIN}/login`)).text();
     expect(own(loginHtml, "/login")).toHaveLength(1);
     expect(loginHtml).not.toContain('name="_csrf"');
   });
@@ -343,7 +337,7 @@ describe("rendered forms", () => {
   // A token in a GET form would land in the query string and from there in
   // outgoing Referer headers.
   it("keeps the search form a token-less GET", async () => {
-    const html = await (await SELF.fetch(`${ORIGIN}/`)).text();
+    const html = await (await appFetch(`${ORIGIN}/`)).text();
     const searchForm = formsIn(html).find((f) => f.includes('action="/"'))!;
     expect(searchForm).toContain('method="get"');
     expect(searchForm).not.toContain("_csrf");
