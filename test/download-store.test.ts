@@ -6,7 +6,7 @@ import {
 import type { DownloadFilter } from "../src/db/downloads";
 import * as q from "../src/db/queries";
 import { DAY_MS } from "../src/time";
-import { env, resetDb, seedLog, seedLogs } from "./helpers";
+import { countingReads, env, resetDb, seedLog, seedLogs } from "./helpers";
 
 const NOW = Date.UTC(2026, 9, 13, 12);
 const TODAY = Math.floor(NOW / DAY_MS);
@@ -148,6 +148,18 @@ describe("rolling up downloads", () => {
     expect(await countOf("demo")).toBe(2);
     expect(await countOf("other")).toBe(1);
     expect(await dayTotal()).toBe(3);
+  });
+
+  it("adds signed-in downloads to their account's daily counts, and leaves anonymous ones out", async () => {
+    const device = { source: "device" as const, userId: "u1", username: "alice", deviceName: "laptop" };
+    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: device, ...NOWHERE, at: NOW });
+    await recordDownload(env.DB, { skillId: "s1", version: 1, downloader: device, ...NOWHERE, at: NOW + 1 });
+    await record("s1");
+    await rollupDownloads(env.DB);
+    await rollupDownloads(env.DB);
+    expect(await env.DB.prepare("SELECT user_id, day, skill_id, version, source, count FROM download_user_days").all().then((r) => r.results)).toEqual([
+      { user_id: "u1", day: TODAY, skill_id: "s1", version: 1, source: "device", count: 2 },
+    ]);
   });
 
   it("leaves out the downloads of a skill deleted before they were rolled up", async () => {
@@ -311,6 +323,8 @@ describe("reading the log", () => {
         downloadStats(env.DB, NO_FILTER, "project", 0),
         downloadStats(env.DB, filter({ project: "default" }), "skill", 0),
         downloadStats(env.DB, filter({ skillId: "s1", source: "anonymous" }), "version", 0),
+        downloadStats(env.DB, filter({ userId: "u1" }), "project", 0),
+        downloadStats(env.DB, filter({ userId: "u2", project: "default" }), "skill", 0),
       ]);
     const before = await totals();
     await rollupDownloads(env.DB);
@@ -448,6 +462,15 @@ describe("pruning the log", () => {
     ]);
   });
 
+  it("deletes the account daily counts of days that ended before the cutoff", async () => {
+    const cutoff = (TODAY - 90) * DAY_MS + 5;
+    await seedLog("s1", { at: cutoff - DAY_MS, source: "web", userId: "u1", username: "alice" });
+    await seedLog("s1", { at: NOW, source: "web", userId: "u1", username: "alice" });
+    await rollupDownloads(env.DB);
+    await pruneDownloadLogs(env.DB, cutoff);
+    expect(await env.DB.prepare("SELECT day FROM download_user_days").all().then((r) => r.results)).toEqual([{ day: TODAY }]);
+  });
+
   it("stops after a fixed number of batches and leaves the rest for the next run", async () => {
     const cutoff = NOW - 90 * DAY_MS;
     await seedLogs("s1", PRUNE_BATCH * PRUNE_MAX_BATCHES + 5, cutoff - 1);
@@ -456,6 +479,35 @@ describe("pruning the log", () => {
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: PRUNE_BATCH * PRUNE_MAX_BATCHES, capped: true });
     expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 5, capped: false });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM download_logs").first("n")).toBe(1);
+  });
+
+  it("reads about one row when nothing has expired", async () => {
+    await seedLogs("s1", 5000, NOW - DAY_MS);
+    await rollupDownloads(env.DB);
+    const { db, read } = countingReads();
+    expect(await pruneDownloadLogs(db, NOW - 90 * DAY_MS)).toEqual({ deleted: 0, capped: false });
+    expect(read()).toBeLessThan(20);
+  });
+
+  it("reads about as many rows as it deletes", async () => {
+    const cutoff = NOW - 90 * DAY_MS;
+    await seedLogs("s1", 420, cutoff - 1);
+    await seedLogs("s1", 5000, NOW - DAY_MS);
+    await rollupDownloads(env.DB);
+    const { db, read } = countingReads();
+    expect(await pruneDownloadLogs(db, cutoff)).toEqual({ deleted: 420, capped: false });
+    expect(read()).toBeLessThan(420 * 4);
+  });
+
+  it("stops at the first download that has not expired, and leaves any older-dated one after it for later", async () => {
+    const cutoff = NOW - 90 * DAY_MS;
+    await seedLog("s1", { at: cutoff - 2 });
+    await seedLog("s1", { at: cutoff + 1 });
+    await seedLog("s1", { at: cutoff - 1 });
+    await rollupDownloads(env.DB);
+    expect(await pruneDownloadLogs(env.DB, cutoff)).toEqual({ deleted: 1, capped: false });
+    const { results } = await env.DB.prepare("SELECT created_at FROM download_logs ORDER BY id").all();
+    expect(results).toEqual([{ created_at: cutoff + 1 }, { created_at: cutoff - 1 }]);
   });
 
   it("keeps the downloads it has not rolled up yet", async () => {
@@ -477,6 +529,13 @@ describe("reading the totals", () => {
        INSERT INTO download_days (skill_id, day, version, source, count) SELECT 's2', ? - i, 1, 'anonymous', 1 FROM n`,
     )
       .bind(TODAY)
+      .run();
+    await env.DB.prepare(
+      `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 6000)
+       INSERT INTO download_logs (skill_id, version, source, user_id, username, created_at)
+       SELECT 's2', 1, 'install_key', 'u1', 'alice', ? - (i % 90) * ${DAY_MS} FROM n`,
+    )
+      .bind(NOW - DAY_MS)
       .run();
     await seedLogs("s2", 3000, NOW - DAY_MS);
     await rollupDownloads(env.DB);
@@ -507,7 +566,7 @@ describe("reading the totals", () => {
     ["a quiet skill", { skillId: "s1" }, "version"],
     ["an account", { userId: "u1" }, "project"],
   ])("reads the window's daily counts and the downloads not rolled up yet, not every row, for %s", async (_, change, breakdown) => {
-    expect(await rowsRead(change, breakdown)).toBeLessThan(300);
+    expect(await rowsRead(change, breakdown)).toBeLessThan(500);
   });
 });
 

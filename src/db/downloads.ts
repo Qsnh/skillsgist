@@ -152,6 +152,16 @@ export async function rollupDownloads(db: D1Database): Promise<{ capped: boolean
         .bind(upTo),
       db
         .prepare(
+          `INSERT INTO download_user_days (user_id, day, skill_id, version, source, count)
+           SELECT g.user_id, g.day, g.skill_id, g.version, g.source, g.n
+           FROM (SELECT l.user_id, l.created_at / ${DAY_MS} AS day, l.skill_id, l.version, l.source, COUNT(*) AS n
+                 FROM ${range} AND l.user_id IS NOT NULL GROUP BY 1, 2, 3, 4, 5) g
+           WHERE g.skill_id IN (SELECT id FROM skills)
+           ON CONFLICT (user_id, day, skill_id, version, source) DO UPDATE SET count = count + excluded.count`,
+        )
+        .bind(upTo),
+      db
+        .prepare(
           `UPDATE skills SET download_count = download_count + g.n
            FROM (SELECT l.skill_id, COUNT(*) AS n FROM ${range} GROUP BY l.skill_id) g
            WHERE skills.id = g.skill_id`,
@@ -186,8 +196,13 @@ export async function listDownloadLogs(
   return { rows: results.slice(0, opts.limit), more: results.length > opts.limit };
 }
 
-const EACH_DOWNLOAD = `(SELECT l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, l.user_id, 1 AS count
-  FROM download_logs l WHERE ${SKILL_EXISTS}) d`;
+const ACCOUNT_DAILY_COUNTS = `(SELECT user_id, skill_id, day, version, source, count FROM download_user_days
+  WHERE skill_id IN (SELECT id FROM skills)
+  UNION ALL
+  SELECT g.user_id, g.skill_id, g.day, g.version, g.source, g.n
+  FROM (SELECT l.user_id, l.skill_id, l.created_at / ${DAY_MS} AS day, l.version, l.source, COUNT(*) AS n
+        FROM download_logs l NOT INDEXED WHERE ${UNROLLED} AND l.user_id IS NOT NULL GROUP BY 1, 2, 3, 4, 5) g
+  WHERE g.skill_id IN (SELECT id FROM skills)) d`;
 
 const DAILY_COUNTS = `(SELECT skill_id, day, version, source, count FROM download_days
   UNION ALL
@@ -220,7 +235,7 @@ export async function downloadStats(
   breakdown: DownloadBreakdown,
   firstDay: number,
 ): Promise<DownloadStats> {
-  const from = filter.userId === null ? DAILY_COUNTS : EACH_DOWNLOAD;
+  const from = filter.userId === null ? DAILY_COUNTS : ACCOUNT_DAILY_COUNTS;
   const { sql, binds } = where("d", filter, firstDay);
   const [days, shares] = await db.batch([
     db
@@ -283,11 +298,18 @@ export async function filterNames(
 }
 
 export async function pruneDownloadLogs(db: D1Database, cutoff: number): Promise<{ deleted: number; capped: boolean }> {
-  await db.prepare("DELETE FROM download_days WHERE day < ?").bind(Math.floor(cutoff / DAY_MS)).run();
+  const firstDay = Math.floor(cutoff / DAY_MS);
+  await db.batch([
+    db.prepare("DELETE FROM download_days WHERE day < ?").bind(firstDay),
+    db.prepare("DELETE FROM download_user_days WHERE day < ?").bind(firstDay),
+  ]);
   const steps = [
     db
       .prepare(
-        `DELETE FROM download_logs WHERE id IN (SELECT id FROM download_logs ORDER BY id LIMIT ?) AND created_at < ?
+        `DELETE FROM download_logs
+         WHERE id < COALESCE(
+           (SELECT id FROM (SELECT id, created_at FROM download_logs ORDER BY id LIMIT ?1) WHERE created_at >= ?2 LIMIT 1),
+           (SELECT MAX(id) + 1 FROM (SELECT id FROM download_logs ORDER BY id LIMIT ?1)))
          AND id <= (SELECT last_id FROM download_rollup)`,
       )
       .bind(PRUNE_BATCH, cutoff),

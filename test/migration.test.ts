@@ -17,7 +17,7 @@ const fromLogs = migrations.filter((m) => m.name >= "0008");
 
 async function wipe(): Promise<void> {
   for (const table of [
-    "download_rollup", "download_purges", "download_days", "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+    "download_user_days", "download_rollup", "download_purges", "download_days", "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
   ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
@@ -375,5 +375,32 @@ describe("migration 0012 on an instance that already has download logs", () => {
 
   it("keeps a single watermark", async () => {
     await expect(db.prepare("INSERT INTO download_rollup (id, last_id) VALUES (2, 0)").run()).rejects.toThrow(/CHECK/);
+  });
+});
+
+describe("migration 0013 on an instance that already has download logs", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, migrations.filter((m) => m.name < "0012"));
+    const log = db.prepare(
+      "INSERT INTO download_logs (skill_id, version, source, user_id, created_at) VALUES (?, 1, ?, ?, ?)",
+    );
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare(`INSERT INTO skills (${SKILL_COLUMNS}) VALUES ('s1', 'default', 'demo', 'd', 'u1', 1, 0, 0)`),
+      log.bind("s1", "web", "u1", 5),
+      log.bind("s1", "web", "u1", 6),
+      log.bind("s1", "anonymous", null, 7),
+      log.bind("gone", "web", "u1", 8),
+    ]);
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0012" && m.name < "0013"));
+    await log.bind("s1", "web", "u1", 9).run();
+    await applyD1Migrations(db, migrations.filter((m) => m.name >= "0013"));
+  });
+
+  it("counts the downloads already rolled up by account, for skills that still exist", async () => {
+    expect(await rows("SELECT user_id, day, skill_id, version, source, count FROM download_user_days")).toEqual([
+      { user_id: "u1", day: 0, skill_id: "s1", version: 1, source: "web", count: 2 },
+    ]);
   });
 });
