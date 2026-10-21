@@ -4,7 +4,7 @@ const ACTIONS: Record<SkillAction, string> = { modify: "修改", move: "移动",
 
 export const zhCN: Messages = {
   layout: {
-    tagline: "运行在 Cloudflare Workers 上的私有 Agent Skills 仓库。",
+    tagline: "自己托管的私有 Agent Skills 仓库。",
     ogImageAlt: "skillsgist：你的私有 Agent Skills 仓库",
     skip: "跳到正文",
     mainNav: "主导航",
@@ -25,6 +25,7 @@ export const zhCN: Messages = {
     showLess: "收起",
   },
   common: {
+    geoCredit: (dbip) => ["IP 地理位置数据来自 ", dbip],
     create: "创建",
     cancel: "取消",
     save: "保存",
@@ -55,6 +56,7 @@ export const zhCN: Messages = {
     passwordTooShort: (min) => `密码至少需要 ${min} 个字符`,
     newPasswordTooShort: (min) => `新密码至少需要 ${min} 个字符`,
     badCredentials: "用户名或密码不正确",
+    tooManySignIns: "你所在网络的登录尝试过于频繁，请等一分钟后再试。",
     currentPasswordWrong: "当前密码不正确",
     passwordChanged: "你的密码已修改，所有用 CLI 登录的电脑都已退出登录。",
     cliLoginsPanel: "CLI 登录",
@@ -396,5 +398,7 @@ export const zhCN: Messages = {
   errors: {
     requestValidation: "请求校验失败，请刷新页面后重试。",
     internal: "服务器内部错误",
+    payloadTooLarge: (limitMb) => `请求超过了 ${limitMb} MB 的上传上限。`,
+    requestTooLarge: "请求内容过大。",
   },
 };

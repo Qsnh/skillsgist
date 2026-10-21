@@ -6,7 +6,7 @@ export type SkillAction = "modify" | "move" | "delete" | "edit" | "update";
 
 export const en = {
   layout: {
-    tagline: "A private registry for Agent Skills, running on Cloudflare Workers.",
+    tagline: "A private Agent Skills registry you host yourself.",
     ogImageAlt: "skillsgist: your private Agent Skills registry",
     skip: "Skip to content",
     mainNav: "Main",
@@ -27,6 +27,7 @@ export const en = {
     showLess: "Show less",
   },
   common: {
+    geoCredit: (dbip: Slot) => ["IP geolocation by ", dbip],
     create: "Create",
     cancel: "Cancel",
     save: "Save",
@@ -58,6 +59,7 @@ export const en = {
     passwordTooShort: (min: number) => `Password must be at least ${min} characters`,
     newPasswordTooShort: (min: number) => `New password must be at least ${min} characters`,
     badCredentials: "Incorrect username or password",
+    tooManySignIns: "Too many sign-in attempts from your network. Wait a minute, then try again.",
     currentPasswordWrong: "Current password is incorrect",
     passwordChanged: "Your password has been changed, and every computer signed in with the CLI was signed out.",
     cliLoginsPanel: "CLI sign-ins",
@@ -437,6 +439,8 @@ export const en = {
   errors: {
     requestValidation: "Request validation failed. Refresh the page and try again.",
     internal: "Internal server error",
+    payloadTooLarge: (limitMb: number) => `The request is larger than the ${limitMb} MB upload limit.`,
+    requestTooLarge: "The request is too large.",
   },
 };
 

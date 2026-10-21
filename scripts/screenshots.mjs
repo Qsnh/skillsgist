@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { cpSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const chrome = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 8799;
+const S3_PORT = 8798;
 const CDP_PORT = 9333;
+const S3_CONTAINER = `skillsgist-screenshots-s3-${process.pid}`;
+const S3_SECRET = randomBytes(16).toString("hex");
 const BASE = `http://127.0.0.1:${PORT}`;
 const ORIGIN = "https://skills.example.com";
 const PASSWORD = "screenshots-password";
@@ -139,18 +142,33 @@ async function capture(cookie) {
 
 try {
   execFileSync("npm", ["run", "build"], { cwd: root, stdio: "ignore" });
-  const state = join(work, "state");
-  execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--local", "--persist-to", state], { cwd: root, stdio: "ignore" });
+  execFileSync(
+    "docker",
+    [
+      "run", "-d", "--rm", "--name", S3_CONTAINER, "-p", `127.0.0.1:${S3_PORT}:8333`,
+      "-e", "AWS_ACCESS_KEY_ID=screenshots", "-e", `AWS_SECRET_ACCESS_KEY=${S3_SECRET}`,
+      "chrislusf/seaweedfs:4.48", "mini", "-dir=/data", "-master.telemetry=false",
+    ],
+    { stdio: "ignore" },
+  );
   children.push(
-    spawn(
-      "npx",
-      [
-        "wrangler", "dev", "--port", String(PORT), "--persist-to", state,
-        "--local-upstream", "skills.example.com", "--upstream-protocol", "https",
-        "--var", `SESSION_SECRET:${randomBytes(32).toString("hex")}`,
-      ],
-      { cwd: root, stdio: "ignore" },
-    ),
+    spawn(process.execPath, ["dist/server.js"], {
+      cwd: root,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        PORT: String(PORT),
+        HOST: "127.0.0.1",
+        PUBLIC_URL: ORIGIN,
+        SESSION_SECRET: randomBytes(32).toString("hex"),
+        DATA_DIR: join(work, "data"),
+        GEOIP_AUTO_UPDATE: "false",
+        S3_ENDPOINT: `http://127.0.0.1:${S3_PORT}`,
+        S3_BUCKET: "skillsgist",
+        S3_ACCESS_KEY_ID: "screenshots",
+        S3_SECRET_ACCESS_KEY: S3_SECRET,
+      },
+    }),
   );
   await waitFor(`${BASE}/healthz`);
   await capture(await seed());
@@ -165,5 +183,6 @@ try {
         }),
     ),
   );
+  spawnSync("docker", ["rm", "-f", S3_CONTAINER], { stdio: "ignore" });
   rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import {
-  clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser, roleOf, startSession,
-  verifyPassword,
+  burnPasswordCheck, clearSession, hashPassword, MIN_PASSWORD_LENGTH, randomHex, requireAdmin, requireUser, roleOf,
+  startSession, USERNAME, verifyPassword,
 } from "../auth";
 import type { AppEnv, Ctx } from "../auth";
 import { loginExpired, loginIdleCutoff, newInstallKey } from "../credentials";
@@ -14,27 +14,24 @@ import {
   getUserByUsername, getUserSummary, listUserSummaries, rotateInstallKeys, touchLogin, updateApiTokenHash, updatePassword,
   updateUserRole,
 } from "../db/queries";
+import type { Db } from "../db/database";
 import type { UserRow, Viewer } from "../db/queries";
 import { sha256Hex } from "../hash";
 import { safeNext, userSettingsPath } from "../paths";
+import { clientKey, retryAfterSeconds } from "../rate-limit";
 import { LoginPage, MePage, NewUserPage, SetupPage, UserSettingsPage, UsersPage } from "../views/auth";
-
-export const USERNAME = /^[a-z0-9-]{2,32}$/;
-
-const DUMMY_PASSWORD_HASH =
-  "pbkdf2$10000$gjyRMe6k+HkicrCTiEY7zg==$ZV/Ne/ZKCLOQWmnxZmtXlwKrXq7/0Th3ydwHLStYv28=";
 
 export const usersRoutes = new Hono<AppEnv>();
 
-async function issueApiToken(db: D1Database, userId: string): Promise<{ token: string; hash: string }> {
+function issueApiToken(db: Db, userId: string): { token: string; hash: string } {
   const token = `sgt_${randomHex(16)}`;
-  const hash = await sha256Hex(token);
-  await updateApiTokenHash(db, userId, hash);
+  const hash = sha256Hex(token);
+  updateApiTokenHash(db, userId, hash);
   return { token, hash };
 }
 
 async function mePage(c: Ctx, user: Viewer, extra: { newToken?: string; error?: string } = {}): Promise<Response> {
-  const logins = await listUserLogins(c.env.DB, user.id);
+  const logins = listUserLogins(c.env.db, user.id);
   return page(
     c,
     <MePage user={user} logins={logins} newToken={extra.newToken} error={extra.error} />,
@@ -48,7 +45,7 @@ const userSettings = async (
   id: string,
   extra: { error?: string; newToken?: string } = {},
 ): Promise<Response> => {
-  const target = await getUserSummary(c.env.DB, id, loginIdleCutoff(Date.now()));
+  const target = getUserSummary(c.env.db, id, loginIdleCutoff(Date.now()));
   if (!target) return c.notFound();
   return page(
     c,
@@ -59,12 +56,12 @@ const userSettings = async (
 };
 
 usersRoutes.get("/setup", async (c) => {
-  if ((await countUsers(c.env.DB)) > 0) return c.notFound();
+  if (countUsers(c.env.db) > 0) return c.notFound();
   return page(c, <SetupPage />);
 });
 
 usersRoutes.post("/setup", async (c) => {
-  if ((await countUsers(c.env.DB)) > 0) return c.notFound();
+  if (countUsers(c.env.db) > 0) return c.notFound();
   const t = messages(c);
   const body = await c.req.parseBody();
   const username = String(body.username ?? "");
@@ -76,7 +73,7 @@ usersRoutes.post("/setup", async (c) => {
     return page(c, <SetupPage error={t.auth.passwordTooShort(MIN_PASSWORD_LENGTH)} />, 400);
   }
   const id = randomHex(8);
-  const inserted = await createFirstAdmin(c.env.DB, {
+  const inserted = createFirstAdmin(c.env.db, {
     id, username, passwordHash: await hashPassword(password), installKey: newInstallKey(),
   });
   if (!inserted) return c.notFound();
@@ -87,14 +84,25 @@ usersRoutes.post("/setup", async (c) => {
 usersRoutes.get("/login", async (c) => page(c, <LoginPage next={safeNext(c.req.query("next"))} />));
 
 usersRoutes.post("/login", async (c) => {
-  const body = await c.req.parseBody();
+  const limiter = c.env.limiters.signIn;
+  const address = clientKey(c.env.clientIp);
+  const blocked = limiter.wait(address);
+  const body = blocked > 0 ? {} : await c.req.parseBody();
   const username = String(body.username ?? "");
   const password = String(body.password ?? "");
-  const next = safeNext(body.next);
-  const user = await getUserByUsername(c.env.DB, username);
-  const ok = await verifyPassword(password, user ? user.password_hash : DUMMY_PASSWORD_HASH);
-  if (!user || !ok) return page(c, <LoginPage error={messages(c).auth.badCredentials} next={next} />, 401);
-  await Promise.all([touchLogin(c.env.DB, user.id, Date.now()), startSession(c, user.id)]);
+  const next = safeNext(body.next ?? c.req.query("next"));
+  if (blocked > 0) {
+    c.header("Retry-After", retryAfterSeconds(blocked));
+    return page(c, <LoginPage error={messages(c).auth.tooManySignIns} next={next} />, 429);
+  }
+  const user = getUserByUsername(c.env.db, username);
+  if (!user) await burnPasswordCheck(password);
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
+    limiter.hit(address);
+    return page(c, <LoginPage error={messages(c).auth.badCredentials} next={next} />, 401);
+  }
+  touchLogin(c.env.db, user.id, Date.now());
+  await startSession(c, user.id);
   return c.redirect(next, 302);
 });
 
@@ -107,12 +115,12 @@ usersRoutes.get("/me", requireUser, (c) => mePage(c, c.get("user")));
 
 usersRoutes.post("/me/api-token", requireUser, async (c) => {
   const user = c.get("user");
-  const { token, hash } = await issueApiToken(c.env.DB, user.id);
+  const { token, hash } = issueApiToken(c.env.db, user.id);
   return mePage(c, { ...user, api_token_hash: hash }, { newToken: token });
 });
 
 usersRoutes.post("/me/api-token/revoke", requireUser, async (c) => {
-  await updateApiTokenHash(c.env.DB, c.get("user").id, null);
+  updateApiTokenHash(c.env.db, c.get("user").id, null);
   return c.redirect("/me", 302);
 });
 
@@ -127,13 +135,13 @@ usersRoutes.post("/me/password", requireUser, async (c) => {
   if (next.length < MIN_PASSWORD_LENGTH) {
     return mePage(c, user, { error: t.auth.newPasswordTooShort(MIN_PASSWORD_LENGTH) });
   }
-  await updatePassword(c.env.DB, user.id, await hashPassword(next));
+  updatePassword(c.env.db, user.id, await hashPassword(next));
   await flash(c, t.auth.passwordChanged);
   return c.redirect("/me", 302);
 });
 
 usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
-  const login = await deleteUserLogin(c.env.DB, c.get("user").id, c.req.param("id"));
+  const login = deleteUserLogin(c.env.db, c.get("user").id, c.req.param("id"));
   if (!login) return c.notFound();
   const t = messages(c);
   const name = login.device_name || t.auth.unnamedComputer;
@@ -141,8 +149,8 @@ usersRoutes.post("/me/cli-logins/:id/revoke", requireUser, async (c) => {
   return c.redirect("/me", 302);
 });
 
-usersRoutes.get("/admin/users", requireAdmin, async (c) =>
-  page(c, <UsersPage user={c.get("user")} users={await listUserSummaries(c.env.DB, loginIdleCutoff(Date.now()))} />),
+usersRoutes.get("/admin/users", requireAdmin, (c) =>
+  page(c, <UsersPage user={c.get("user")} users={listUserSummaries(c.env.db, loginIdleCutoff(Date.now()))} />),
 );
 
 usersRoutes.get("/admin/users/new", requireAdmin, (c) => page(c, <NewUserPage user={c.get("user")} />));
@@ -159,8 +167,8 @@ usersRoutes.post("/admin/users/new", requireAdmin, async (c) => {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return fail(t.auth.passwordTooShort(MIN_PASSWORD_LENGTH));
   }
-  if (await getUserByUsername(c.env.DB, username)) return fail(t.users.usernameTaken);
-  await createUser(c.env.DB, {
+  if (getUserByUsername(c.env.db, username)) return fail(t.users.usernameTaken);
+  createUser(c.env.db, {
     id: randomHex(8),
     username,
     passwordHash: await hashPassword(password),
@@ -177,7 +185,7 @@ async function adminTarget(
   opts: { allowSelf?: boolean; selfError?: string } = {},
 ): Promise<{ ok: true; admin: UserRow; target: UserRow } | { ok: false; response: Response }> {
   const admin = c.get("user");
-  const target = await getUserById(c.env.DB, id);
+  const target = getUserById(c.env.db, id);
   if (!target) return { ok: false, response: await c.notFound() };
   if (target.id === admin.id && !opts.allowSelf) {
     return {
@@ -196,10 +204,10 @@ usersRoutes.post("/admin/users/:id/role", requireAdmin, async (c) => {
   const { target } = guard;
   const body = await c.req.parseBody();
   const role = roleOf(body.role);
-  if (target.role === "admin" && role !== "admin" && (await countAdmins(c.env.DB)) <= 1) {
+  if (target.role === "admin" && role !== "admin" && countAdmins(c.env.db) <= 1) {
     return userSettings(c, target.id, { error: messages(c).users.lastAdminDemote });
   }
-  await updateUserRole(c.env.DB, target.id, role);
+  updateUserRole(c.env.db, target.id, role);
   return c.redirect(userSettingsPath(target.id), 302);
 });
 
@@ -211,7 +219,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return userSettings(c, guard.target.id, { error: messages(c).auth.passwordTooShort(MIN_PASSWORD_LENGTH) });
   }
-  await updatePassword(c.env.DB, guard.target.id, await hashPassword(password));
+  updatePassword(c.env.db, guard.target.id, await hashPassword(password));
   await flash(c, messages(c).users.passwordReset(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
@@ -219,7 +227,7 @@ usersRoutes.post("/admin/users/:id/password", requireAdmin, async (c) => {
 usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  await rotateInstallKeys(c.env.DB, guard.target.id, newInstallKey);
+  rotateInstallKeys(c.env.db, guard.target.id, newInstallKey);
   await flash(c, messages(c).users.keysRotated(guard.target.username));
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
@@ -227,14 +235,14 @@ usersRoutes.post("/admin/users/:id/install-key", requireAdmin, async (c) => {
 usersRoutes.post("/admin/users/:id/api-token", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  const { token } = await issueApiToken(c.env.DB, guard.target.id);
+  const { token } = issueApiToken(c.env.db, guard.target.id);
   return userSettings(c, guard.target.id, { newToken: token });
 });
 
 usersRoutes.post("/admin/users/:id/api-token/revoke", requireAdmin, async (c) => {
   const guard = await adminTarget(c, c.req.param("id"), { allowSelf: true });
   if (!guard.ok) return guard.response;
-  await updateApiTokenHash(c.env.DB, guard.target.id, null);
+  updateApiTokenHash(c.env.db, guard.target.id, null);
   return c.redirect(userSettingsPath(guard.target.id), 302);
 });
 
@@ -244,12 +252,10 @@ usersRoutes.post("/admin/users/:id/delete", requireAdmin, async (c) => {
   });
   if (!guard.ok) return guard.response;
   const { admin, target } = guard;
-  if (target.role === "admin" && (await countAdmins(c.env.DB)) <= 1) {
+  if (target.role === "admin" && countAdmins(c.env.db) <= 1) {
     return userSettings(c, target.id, { error: messages(c).users.lastAdminDelete });
   }
-  // Reassigns owner_id and author_id in the same batch as the delete; the
-  // foreign keys make that mandatory — see deleteUserReassigning.
-  await deleteUserReassigning(c.env.DB, target.id, admin.id);
+  deleteUserReassigning(c.env.db, target.id, admin.id);
   await flash(c, messages(c).users.deleted(target.username));
   return c.redirect("/admin/users", 302);
 });

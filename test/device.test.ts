@@ -1,29 +1,30 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { activateLogin, approveLogin } from "../src/db/logins";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { en } from "../src/i18n/en";
-import { env, follow, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject } from "./helpers";
+import {
+  appFetch, env, follow, get, joinProject, ORIGIN, postFields, postForm, resetDb, seedAndLogin, seedProject,
+} from "./helpers";
 
-async function startDevice(fields: Record<string, string> = {}) {
-  const res = await SELF.fetch(`${ORIGIN}/api/oauth/device`, {
+async function startDevice(fields: Record<string, string> = {}, clientIp: string | null = null) {
+  const res = await appFetch(`${ORIGIN}/api/oauth/device`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: "skillsgist-cli", device_name: "work-laptop", ...fields }),
+    clientIp,
   });
-  return res.json<{ device_code: string; user_code: string }>();
+  return (await res.json()) as { device_code: string; user_code: string };
 }
 
-const grants = async () =>
-  (await env.DB.prepare("SELECT project FROM cli_login_projects ORDER BY project").all<{ project: string }>()).results.map((r) => r.project);
+const grants = () => env.db.prepare("SELECT project FROM cli_login_projects ORDER BY project").pluck().all() as string[];
 
-const status = async () => (await env.DB.prepare("SELECT status FROM cli_logins").first<{ status: string }>())?.status;
+const status = () => (env.db.prepare("SELECT status FROM cli_logins").get() as { status: string } | undefined)?.status;
 
-const loginId = async () => (await env.DB.prepare("SELECT id FROM cli_logins").first<{ id: string }>())!.id;
+const loginId = () => (env.db.prepare("SELECT id FROM cli_logins").get() as { id: string }).id;
 
-const failures = async () =>
-  (await env.DB.prepare("SELECT COALESCE(SUM(failures), 0) AS n FROM device_code_attempts").first<{ n: number }>())?.n;
+const failures = () =>
+  (env.db.prepare("SELECT COALESCE(SUM(failures), 0) AS n FROM device_code_attempts").get() as { n: number }).n;
 
 const switcher = (html: string) => /<form method="post" action="\/lang"[\s\S]*?<\/form>/.exec(html)?.[0] ?? "";
 
@@ -46,7 +47,7 @@ describe("reaching the page", () => {
   it("returns to next after signing in, and ignores a next that leaves the site", async () => {
     const { user, password } = await seedAndLogin({ username: "alice" });
     const signIn = (next: string) =>
-      SELF.fetch(`${ORIGIN}/login`, {
+      appFetch(`${ORIGIN}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN },
         body: new URLSearchParams({ username: user.username, password, next }),
@@ -70,7 +71,7 @@ describe("reaching the page", () => {
     expect(html).toContain(`value="${user_code}"`);
     expect(html).toMatch(/<input class="cf-input cf-input-code" name="code"[^>]*autocapitalize="characters" spellcheck="false"/);
     expect(html).not.toContain('value="approve"');
-    expect(await status()).toBe("pending");
+    expect(status()).toBe("pending");
   });
 });
 
@@ -113,10 +114,13 @@ describe("approving", () => {
 
   it("labels the request time as UTC and names the country it came from", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
-    const { user_code } = await startDevice();
+    const { user_code } = await startDevice({}, "203.0.113.7");
+    expect(await (await postForm("/device", cookie, { code: user_code })).text()).toContain(
+      '<dd class="cf-row-value">New Zealand</dd>',
+    );
     const at = Date.UTC(2026, 8, 27, 14, 5);
     const show = async (country: string | null, extra = "") => {
-      await env.DB.prepare("UPDATE cli_logins SET request_country = ?, created_at = ?").bind(country, at).run();
+      env.db.prepare("UPDATE cli_logins SET request_country = ?, created_at = ?").run(country, at);
       return (await postForm("/device", `${cookie}${extra}`, { code: user_code })).text();
     };
     const html = await show("JP");
@@ -135,13 +139,13 @@ describe("approving", () => {
       ["code", user_code], ["decision", "approve"], ["project", "team-b"], ["project", "team-c"], ["project", "default"],
     ]);
     expect(res.status).toBe(302);
-    expect(res.headers.get("Location")).toBe(`/device/${await loginId()}`);
+    expect(res.headers.get("Location")).toBe(`/device/${loginId()}`);
     const done = await (await follow(res, cookie)).text();
     expect(done).toContain("It can now install the private skills of Default and Team B.");
     expect(done).toContain("Return to your terminal");
     expect(done).toContain('You can sign it out on your <a href="/me" class="cf-link">account page</a> at any time.');
-    expect(await grants()).toEqual(["default", "team-b"]);
-    expect(await status()).toBe("approved");
+    expect(grants()).toEqual(["default", "team-b"]);
+    expect(status()).toBe("approved");
   });
 
   it("asks again when no project is ticked, or only projects the user is not in", async () => {
@@ -152,7 +156,7 @@ describe("approving", () => {
       expect(res.status).toBe(400);
       expect(await res.text()).toContain("Tick at least one project");
     }
-    expect(await status()).toBe("pending");
+    expect(status()).toBe("pending");
   });
 
   it("offers only Deny to a user in no project", async () => {
@@ -171,7 +175,7 @@ describe("approving", () => {
     const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
     expect(res.status).toBe(302);
     expect(await (await follow(res, cookie)).text()).toContain("Request denied");
-    expect(await status()).toBe("denied");
+    expect(status()).toBe("denied");
   });
 
   it("shows the result again on reload without counting a wrong code, and only to the person who decided", async () => {
@@ -185,11 +189,11 @@ describe("approving", () => {
       expect(again.status).toBe(200);
       expect(await again.text()).toContain("Computer approved");
     }
-    await env.DB.prepare("UPDATE cli_logins SET status = 'active'").run();
+    env.db.prepare("UPDATE cli_logins SET status = 'active'").run();
     expect(await (await get(result, cookie)).text()).toContain("Computer approved");
-    expect(await failures()).toBe(0);
+    expect(failures()).toBe(0);
     expect((await postForm("/device", cookie, { code: "BBBB-BBBB" })).status).toBe(400);
-    expect(await failures()).toBe(1);
+    expect(failures()).toBe(1);
 
     for (const [path, who] of [[result, bob.cookie], ["/device/nope", cookie]] as const) {
       const elsewhere = await get(path, who);
@@ -205,7 +209,7 @@ describe("approving", () => {
     const res = await postFields("/device", cookie, [["code", user_code], ["decision", "deny"]]);
     const result = res.headers.get("Location")!;
     expect(await (await get(result, cookie)).text()).toContain("Request denied");
-    await env.DB.prepare("DELETE FROM cli_logins").run();
+    env.db.prepare("DELETE FROM cli_logins").run();
     expect((await get(result, cookie)).headers.get("Location")).toBe("/device");
   });
 
@@ -216,16 +220,16 @@ describe("approving", () => {
     expect(confirm).not.toContain('value="team-b"');
     const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "team-b"]]);
     expect(res.status).toBe(400);
-    expect(await grants()).toEqual([]);
-    expect(await status()).toBe("pending");
+    expect(grants()).toEqual([]);
+    expect(status()).toBe("pending");
   });
 
   it("shows the result to the person who already decided, without counting a wrong code", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
     expect((await postForm("/device", cookie, { code: user_code })).status).toBe(200);
-    const id = await loginId();
-    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
+    const id = loginId();
+    expect(approveLogin(env.db, id, user.id, ["default"], Date.now())).toBe(true);
     const approve: Array<[string, string]> = [["code", user_code], ["decision", "approve"], ["project", "default"]];
     for (const fields of [approve, [["code", user_code], ["decision", "deny"]], [["code", user_code]]] as Array<Array<[string, string]>>) {
       const res = await postFields("/device", cookie, fields);
@@ -235,8 +239,8 @@ describe("approving", () => {
       expect(done).toContain("Computer approved");
       expect(done).not.toContain("Request denied");
     }
-    expect(await status()).toBe("approved");
-    expect(await failures()).toBe(0);
+    expect(status()).toBe("approved");
+    expect(failures()).toBe(0);
   });
 
   it("refuses a code someone else already used, and counts it as wrong", async () => {
@@ -247,13 +251,13 @@ describe("approving", () => {
     const again = await postFields("/device", bob.cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
     expect(again.status).toBe(400);
     expect(await again.text()).toContain("That code is wrong or has expired. Check the code in your terminal, or run <code>skillsgist login</code> again.");
-    expect(await failures()).toBe(1);
+    expect(failures()).toBe(1);
   });
 
   it("asks again when the ticked projects are gone by the time the approval is written", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
-    await env.DB.prepare(
+    env.db.prepare(
       `CREATE TRIGGER leave_mid_approval BEFORE INSERT ON cli_login_projects BEGIN
          DELETE FROM memberships WHERE project = NEW.project AND user_id = NEW.user_id;
          SELECT RAISE(IGNORE);
@@ -267,19 +271,19 @@ describe("approving", () => {
       expect(html).toContain("You are not in any project");
       expect(html).not.toContain('value="approve"');
     } finally {
-      await env.DB.prepare("DROP TRIGGER leave_mid_approval").run();
+      env.db.prepare("DROP TRIGGER leave_mid_approval").run();
     }
-    expect(await status()).toBe("pending");
-    expect(await grants()).toEqual([]);
-    expect((await env.DB.prepare("SELECT user_id FROM cli_logins").first<{ user_id: string | null }>())?.user_id).toBeNull();
+    expect(status()).toBe("pending");
+    expect(grants()).toEqual([]);
+    expect((env.db.prepare("SELECT user_id FROM cli_logins").get() as { user_id: string | null } | undefined)?.user_id).toBeNull();
   });
 
   it("treats the code of a finished sign-in as unknown", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
-    const id = await loginId();
-    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
-    expect(await activateLogin(env.DB, id, "token-hash", Date.now())).toBe(true);
+    const id = loginId();
+    expect(approveLogin(env.db, id, user.id, ["default"], Date.now())).toBe(true);
+    expect(activateLogin(env.db, id, "token-hash", Date.now())).toBe(true);
     const res = await postForm("/device", cookie, { code: user_code });
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("That code is wrong or has expired");
@@ -289,12 +293,12 @@ describe("approving", () => {
   it("says a request expired when its confirmation page outlived it, without counting a wrong code", async () => {
     const { cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
-    await env.DB.prepare("UPDATE cli_logins SET expires_at = ?").bind(Date.now() - 1).run();
+    env.db.prepare("UPDATE cli_logins SET expires_at = ?").run(Date.now() - 1);
     const res = await postFields("/device", cookie, [["code", user_code], ["decision", "approve"], ["project", "default"]]);
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("This request expired before you answered it.");
-    expect(await failures()).toBe(0);
-    expect(await status()).toBe("pending");
+    expect(failures()).toBe(0);
+    expect(status()).toBe("pending");
   });
 });
 
@@ -318,8 +322,8 @@ describe("wrong codes", () => {
   it("still sends a locked-out user to the result of a request they already answered", async () => {
     const { user, cookie } = await seedAndLogin({ username: "alice" });
     const { user_code } = await startDevice();
-    const id = await loginId();
-    expect(await approveLogin(env.DB, id, user.id, ["default"], Date.now())).toBe(true);
+    const id = loginId();
+    expect(approveLogin(env.db, id, user.id, ["default"], Date.now())).toBe(true);
     for (let i = 0; i < 5; i++) await postForm("/device", cookie, { code: "BBBB-BBBB" });
     expect((await postForm("/device", cookie, { code: "BBBB-BBBB" })).status).toBe(429);
     const res = await postForm("/device", cookie, { code: user_code });

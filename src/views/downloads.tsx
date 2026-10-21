@@ -386,6 +386,7 @@ function Log(props: {
       )}
       <footer class="cf-log-foot">
         {rows.length > 0 ? <p class="cf-log-count">{t.downloads.listed(rows.length, formatCount(locale, rows.length))}</p> : null}
+        <p class="cf-log-count">{t.common.geoCredit(<a href="https://db-ip.com" class="cf-link">DB-IP</a>)}</p>
         {props.paged || props.more ? (
           <nav class="cf-pager" aria-label={t.downloads.pages}>
             {props.paged ? <a href={filterHref(base, filter)} class="cf-btn cf-btn-outline cf-btn-sm">{t.downloads.newest}</a> : null}

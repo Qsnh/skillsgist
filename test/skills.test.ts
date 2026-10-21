@@ -1,4 +1,3 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill, getVersion, updateVersionHtml } from "../src/db/queries";
 import { en } from "../src/i18n/en";
@@ -6,8 +5,8 @@ import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
 import { RENDER_REVISION } from "../src/render/markdown";
 import {
-  bearer, cellMeta, denyPublish, env, fetchWith, get, indexAt, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
-  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedWithSkills, twoProjects,
+  appFetch, bearer, cellMeta, denyPublish, env, fetchWith, get, indexAt, installKey, joinProject, ORIGIN, OTHER_MD,
+  postForm, publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedWithSkills, twoProjects,
 } from "./helpers";
 
 // This file asserts the rendered body reaches the page, so it wants a heading
@@ -37,7 +36,7 @@ describe("GET /", () => {
     expect(cellMeta(html)).toContain("alice");
     expect(cellMeta(html)).toContain("0 downloads");
 
-    await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'other-skill'").run();
+    env.db.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'other-skill'").run();
     expect(cellMeta(await home())).toContain("1,234 downloads");
   });
 
@@ -88,20 +87,20 @@ describe("GET /p/:project/s/:slug", () => {
 
   it("re-renders html stored by an older renderer and saves it", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await updateVersionHtml(env.DB, "default", "demo-skill", 1, "<hr>\n<h2>name: demo-skill</h2>", 0);
+    updateVersionHtml(env.db, "default", "demo-skill", 1, "<hr>\n<h2>name: demo-skill</h2>", 0);
 
     const html = await (await get("/p/default/s/demo-skill")).text();
     expect(html).not.toContain("name: demo-skill</h2>");
     expect(html).toContain("Demo Heading");
 
-    const row = await getVersion(env.DB, "default", "demo-skill", 1);
+    const row = getVersion(env.db, "default", "demo-skill", 1);
     expect(row?.html_rev).toBe(RENDER_REVISION);
     expect(row?.html).toContain("Demo Heading");
   });
 
   it("heals an older version viewed with ?v=", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [GOOD_MD.replace("Demo Heading", "Second Heading"), "public"]);
-    await updateVersionHtml(env.DB, "default", "demo-skill", 1, "<h2>stale</h2>", 0);
+    updateVersionHtml(env.db, "default", "demo-skill", 1, "<h2>stale</h2>", 0);
 
     const html = await (await get("/p/default/s/demo-skill?v=1")).text();
     expect(html).not.toContain("stale");
@@ -110,10 +109,10 @@ describe("GET /p/:project/s/:slug", () => {
 
   it("still serves a healed page when saving the re-rendered html fails", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await updateVersionHtml(env.DB, "default", "demo-skill", 1, "<h2>stale</h2>", 0);
-    await env.DB.prepare(
+    updateVersionHtml(env.db, "default", "demo-skill", 1, "<h2>stale</h2>", 0);
+    env.db.exec(
       "CREATE TRIGGER reject_html_write BEFORE UPDATE OF html ON versions BEGIN SELECT RAISE(ABORT, 'write rejected'); END",
-    ).run();
+    );
 
     try {
       const res = await get("/p/default/s/demo-skill");
@@ -122,13 +121,13 @@ describe("GET /p/:project/s/:slug", () => {
       expect(html).not.toContain("stale");
       expect(html).toContain("Demo Heading");
     } finally {
-      await env.DB.prepare("DROP TRIGGER reject_html_write").run();
+      env.db.exec("DROP TRIGGER reject_html_write");
     }
   });
 
   it("serves current html from storage without re-rendering", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await updateVersionHtml(env.DB, "default", "demo-skill", 1, "<p>stored-sentinel</p>", RENDER_REVISION);
+    updateVersionHtml(env.db, "default", "demo-skill", 1, "<p>stored-sentinel</p>", RENDER_REVISION);
 
     const html = await (await get("/p/default/s/demo-skill")).text();
     expect(html).toContain("stored-sentinel");
@@ -183,7 +182,7 @@ describe("GET /p/:project/s/:slug", () => {
 
     const skills = await indexAt(url.slice(ORIGIN.length));
     expect(skills.map((s) => s.name)).toEqual(["demo-skill"]);
-    expect((await SELF.fetch(skills[0].url)).status).toBe(200);
+    expect((await appFetch(skills[0].url)).status).toBe(200);
   });
 
   it("shows a member the project address on public and private skills alike", async () => {
@@ -328,7 +327,7 @@ describe("GET /p/:project/s/:slug", () => {
 
   it("shows the linked project and a grouped download count in the Details panel to a signed-in user", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
-    await env.DB.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
+    env.db.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
 
     let html = await (await get("/p/default/s/demo-skill", cookie)).text();
     expect(details(html)).toMatch(
@@ -336,7 +335,7 @@ describe("GET /p/:project/s/:slug", () => {
     );
     expect(details(html)).toContain('<a href="/p/default" class="cf-row-link">Default</a>');
 
-    await env.DB.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
+    env.db.prepare("UPDATE skills SET download_count = 1234 WHERE slug = 'demo-skill'").run();
     html = await (await get("/p/default/s/demo-skill", cookie)).text();
     expect(details(html)).toContain('class="cf-row-link">1,234</a></dd>');
   });
@@ -368,19 +367,19 @@ describe("visibility and deletion", () => {
   it("toggles visibility", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
     await postForm("/p/default/s/demo-skill/visibility", cookie);
-    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
+    expect(getSkill(env.db, "default", "demo-skill")?.visibility).toBe("public");
     await postForm("/p/default/s/demo-skill/visibility", cookie);
-    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("private");
+    expect(getSkill(env.db, "default", "demo-skill")?.visibility).toBe("private");
   });
 
-  it("deletes the skill and its r2 objects", async () => {
+  it("deletes the skill and its stored archives", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
-    const key = (await getVersion(env.DB, "default", "demo-skill", 1))!.r2_key;
-    expect(await env.BUCKET.get(key)).not.toBeNull();
+    const key = getVersion(env.db, "default", "demo-skill", 1)!.object_key;
+    expect(await env.storage.get(key)).not.toBeNull();
     const res = await postForm("/p/default/s/demo-skill/delete", cookie);
     expect(res.status).toBe(302);
-    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
-    expect(await env.BUCKET.get(key)).toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).toBeNull();
+    expect(await env.storage.get(key)).toBeNull();
   });
 
   it("puts skill deletion behind a confirm step that names the skill", async () => {
@@ -427,7 +426,7 @@ describe("home page hero", () => {
   });
 
   it("shows an instance admin in one project no install command and points to the project pages, though they see other projects' private skills", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     await seedWithSkills({ username: "bob", role: "member", project: "team-b" }, [GOOD_MD, "private", "team-b"]);
     const root = await seedAndLogin({ username: "root", role: "admin" });
 
@@ -440,9 +439,9 @@ describe("home page hero", () => {
   });
 
   it("shows no install command or key anywhere on the page to a user in several projects", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const { user, cookie } = await seedAndLogin({ username: "alice" });
-    await joinProject(user.id, "team-b", "b".repeat(32));
+    joinProject(user.id, "team-b", "b".repeat(32));
 
     const html = await homeOf("/", cookie);
     expectNoCommand(heroOf(html));
@@ -484,7 +483,7 @@ describe("project visibility", () => {
     for (const path of [`${base}/visibility`, `${base}/delete`]) {
       expect((await postForm(path, bob.cookie)).status, path).toBe(404);
     }
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("shows another project's public skill to everyone but lets only its project manage it", async () => {
@@ -510,33 +509,33 @@ describe("project visibility", () => {
     await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
     const lead = await seedAndLogin({ username: "lead", role: "member", projectRole: "admin" });
     expect((await postForm("/p/default/s/demo-skill/visibility", lead.cookie)).status).toBe(302);
-    expect((await getSkill(env.DB, "default", "demo-skill"))?.visibility).toBe("public");
+    expect(getSkill(env.db, "default", "demo-skill")?.visibility).toBe("public");
   });
 
   it("takes a private skill away from its owner once they leave the project", async () => {
     const alice = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
-    await env.DB.prepare("DELETE FROM memberships WHERE user_id = ?").bind(alice.user.id).run();
+    env.db.prepare("DELETE FROM memberships WHERE user_id = ?").run(alice.user.id);
     expect((await get("/p/default/s/demo-skill", alice.cookie)).status).toBe(404);
     expect((await postForm("/p/default/s/demo-skill/delete", alice.cookie)).status).toBe(404);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("leaves a member whose publishing is blocked seeing and installing their skill, but not managing it", async () => {
     const alice = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
-    await denyPublish(alice.user.id);
+    denyPublish(alice.user.id);
     const base = "/p/default/s/demo-skill";
     const page = await get(base, alice.cookie);
     expect(page.status).toBe(200);
     expect(await page.text()).not.toContain(`href="${base}/edit"`);
     expect((await get(`${base}/download`, alice.cookie)).status).toBe(200);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
     for (const path of [`${base}/edit`, `${base}/upload`]) {
       expect((await get(path, alice.cookie)).status, path).toBe(403);
     }
     for (const path of [`${base}/visibility`, `${base}/move`, `${base}/delete`]) {
       expect((await postForm(path, alice.cookie)).status, path).toBe(403);
     }
-    expect(await getSkill(env.DB, "default", "demo-skill")).toMatchObject({ visibility: "private" });
+    expect(getSkill(env.db, "default", "demo-skill")).toMatchObject({ visibility: "private" });
   });
 });
 
@@ -544,9 +543,9 @@ describe("moving a skill", () => {
   beforeEach(resetDb);
 
   const inTwoProjects = async (username = "alice") => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const login = await seedAndLogin({ username, role: "member" });
-    await joinProject(login.user.id, "team-b");
+    joinProject(login.user.id, "team-b");
     return login;
   };
 
@@ -554,28 +553,29 @@ describe("moving a skill", () => {
     const alice = await inTwoProjects();
     await publish(alice.cookie, GOOD_MD, "private", "default");
     await publish(alice.cookie, `${GOOD_MD}\nv2\n`, "private", "default");
-    await env.DB.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
+    env.db.prepare("UPDATE skills SET download_count = download_count + 1 WHERE slug = 'demo-skill'").run();
 
     const res = await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/p/team-b/s/demo-skill");
-    expect(await getSkill(env.DB, "default", "demo-skill")).toBeNull();
-    expect(await getSkill(env.DB, "team-b", "demo-skill")).toMatchObject({ latest_version: 2, download_count: 1 });
+    expect(getSkill(env.db, "default", "demo-skill")).toBeNull();
+    expect(getSkill(env.db, "team-b", "demo-skill")).toMatchObject({ latest_version: 2, download_count: 1 });
     expect((await get("/p/team-b/s/demo-skill/v/1/download", alice.cookie)).status).toBe(200);
 
     const defaultKey = await installKey(alice.user.id);
     const teamBKey = await installKey(alice.user.id, "team-b");
     const names = async (key: string, project: string) =>
-      (await (await fetchWith(`/p/${project}/.well-known/agent-skills/index.json`, bearer(key))).json<{ skills: Array<{ name: string }> }>())
-        .skills.map((s) => s.name);
+      ((await (await fetchWith(`/p/${project}/.well-known/agent-skills/index.json`, bearer(key))).json()) as {
+        skills: Array<{ name: string }>;
+      }).skills.map((s) => s.name);
     expect(await names(defaultKey, "default")).not.toContain("demo-skill");
     expect(await names(teamBKey, "team-b")).toContain("demo-skill");
   });
 
   it("offers the other projects without a skill of that name in a Move control", async () => {
     const alice = await inTwoProjects();
-    await seedProject("team-c", "Team C");
-    await joinProject(alice.user.id, "team-c");
+    seedProject("team-c", "Team C");
+    joinProject(alice.user.id, "team-c");
     await publish(alice.cookie, GOOD_MD, "private", "default");
     const bob = await seedAndLogin({ username: "bob", role: "member", project: "team-c" });
     await publish(bob.cookie, GOOD_MD, "private");
@@ -601,41 +601,41 @@ describe("moving a skill", () => {
     const res = await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" });
     expect(res.status).toBe(409);
     expect(await res.text()).toBe("Team B already has a skill named demo-skill");
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("refuses a project the mover cannot publish to, or one that does not exist", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const alice = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private", "default"]);
     for (const project of ["team-b", "nope"]) {
       expect((await postForm("/p/default/s/demo-skill/move", alice.cookie, { project })).status, project).toBe(403);
     }
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("neither offers nor accepts a project where the mover's publishing is blocked", async () => {
     const alice = await inTwoProjects();
     await publish(alice.cookie, GOOD_MD, "private", "default");
-    await denyPublish(alice.user.id, "team-b");
+    denyPublish(alice.user.id, "team-b");
     expect(await (await get("/p/default/s/demo-skill", alice.cookie)).text()).not.toContain("cf-move");
     expect((await postForm("/p/default/s/demo-skill/move", alice.cookie, { project: "team-b" })).status).toBe(403);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("refuses someone who cannot manage the skill", async () => {
     const alice = await inTwoProjects();
     await publish(alice.cookie, GOOD_MD, "private", "default");
     const bob = await seedAndLogin({ username: "bob", role: "member" });
-    await joinProject(bob.user.id, "team-b");
+    joinProject(bob.user.id, "team-b");
     expect((await postForm("/p/default/s/demo-skill/move", bob.cookie, { project: "team-b" })).status).toBe(403);
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
   });
 
   it("lets an instance admin in no project move a skill into any project", async () => {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const root = await seedAndLogin({ username: "root", role: "admin", project: null });
     await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private", "default"]);
     expect((await postForm("/p/default/s/demo-skill/move", root.cookie, { project: "team-b" })).status).toBe(302);
-    expect(await getSkill(env.DB, "team-b", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "team-b", "demo-skill")).not.toBeNull();
   });
 });

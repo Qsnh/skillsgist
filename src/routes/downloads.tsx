@@ -6,7 +6,6 @@ import { DOWNLOAD_SOURCES, downloadStats, filterNames, listDownloadLogs, NO_FILT
 import type { DownloadFilter } from "../db/downloads";
 import { getSkillWithAuthor } from "../db/queries";
 import { messages } from "../i18n";
-import { retentionDays } from "../retention";
 import { DAY_MS } from "../time";
 import { CHART_DAYS, DownloadsPage, downloadsView } from "../views/downloads";
 import type { DownloadsSubject } from "../views/downloads";
@@ -40,7 +39,7 @@ function readCursor(c: Ctx): number | null {
 }
 
 async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Response> {
-  const days = retentionDays(c.env);
+  const days = c.env.config.retentionDays;
   const today = Math.floor(Date.now() / DAY_MS);
   const since = (today - days + 1) * DAY_MS;
   const windowDays = Math.min(CHART_DAYS, days);
@@ -49,11 +48,9 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
   const within = { ...NO_FILTER, ...view.scope };
   const query = { ...filter, ...view.scope };
   const before = readCursor(c);
-  const [stats, log, names] = await Promise.all([
-    downloadStats(c.env.DB, query, view.breakdown, today - windowDays + 1),
-    listDownloadLogs(c.env.DB, query, { since, before, limit: PAGE_SIZE }),
-    filterNames(c.env.DB, filter, within, since),
-  ]);
+  const stats = downloadStats(c.env.db, query, view.breakdown, today - windowDays + 1);
+  const log = listDownloadLogs(c.env.db, query, { since, before, limit: PAGE_SIZE });
+  const names = filterNames(c.env.db, filter, within, since);
   return page(
     c,
     <DownloadsPage
@@ -73,7 +70,7 @@ async function downloadsPage(c: Ctx, subject: DownloadsSubject): Promise<Respons
 }
 
 downloadsRoutes.get("/p/:project/s/:slug/downloads", requireUser, async (c) => {
-  const skill = await getSkillWithAuthor(c.env.DB, c.req.param("project"), c.req.param("slug"));
+  const skill = getSkillWithAuthor(c.env.db, c.req.param("project"), c.req.param("slug"));
   const guard = await managedSkillGuard(c, skill, messages(c).downloads.managersOnly);
   if (!guard.ok) return guard.response;
   return downloadsPage(c, { kind: "skill", skill: guard.skill });

@@ -1,4 +1,6 @@
 import { CODE_ATTEMPT_LIMIT, CODE_LOCK_MS, DEVICE_CODE_TTL_S, loginIdleCutoff, POLL_INTERVAL_S } from "../credentials";
+import { all, get, run, transaction } from "./database";
+import type { Db } from "./database";
 
 export type LoginStatus = "pending" | "approved" | "denied" | "active";
 
@@ -38,8 +40,8 @@ export interface CliLoginSummary {
   projects: string[];
 }
 
-export async function createPendingLogin(
-  db: D1Database,
+export function createPendingLogin(
+  db: Db,
   input: {
     id: string;
     userCode: string;
@@ -49,199 +51,177 @@ export async function createPendingLogin(
     requestedScope: string | null;
     now: number;
   },
-): Promise<boolean> {
-  const result = await db
-    .prepare(
-      `INSERT INTO cli_logins (id, user_code, device_code_hash, status, device_name, request_country, requested_scope, poll_interval, created_at, expires_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
-       ON CONFLICT DO NOTHING`,
-    )
-    .bind(
-      input.id, input.userCode, input.deviceCodeHash, input.deviceName, input.country, input.requestedScope,
-      POLL_INTERVAL_S, input.now, input.now + DEVICE_CODE_TTL_S * 1000,
-    )
-    .run();
-  return result.meta.changes === 1;
+): boolean {
+  const changes = run(
+    db,
+    `INSERT INTO cli_logins (id, user_code, device_code_hash, status, device_name, request_country, requested_scope, poll_interval, created_at, expires_at)
+     VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+     ON CONFLICT DO NOTHING`,
+    input.id, input.userCode, input.deviceCodeHash, input.deviceName, input.country, input.requestedScope,
+    POLL_INTERVAL_S, input.now, input.now + DEVICE_CODE_TTL_S * 1000,
+  );
+  return changes === 1;
 }
 
-export async function deleteStaleLogins(db: D1Database, now: number): Promise<void> {
-  await db.batch([
-    db.prepare("DELETE FROM cli_logins WHERE status IN ('pending', 'approved', 'denied') AND expires_at <= ?").bind(now),
-    db.prepare("DELETE FROM cli_logins WHERE status = 'active' AND last_used_at <= ?").bind(loginIdleCutoff(now)),
-  ]);
+export function deleteStaleLogins(db: Db, now: number): number {
+  return transaction(
+    db,
+    () =>
+      run(db, "DELETE FROM cli_logins WHERE status IN ('pending', 'approved', 'denied') AND expires_at <= ?", now) +
+      run(db, "DELETE FROM cli_logins WHERE status = 'active' AND last_used_at <= ?", loginIdleCutoff(now)),
+  );
 }
 
-export function getLoginByUserCode(db: D1Database, userCode: string): Promise<CliLoginRow | null> {
-  return db.prepare("SELECT * FROM cli_logins WHERE user_code = ?").bind(userCode).first<CliLoginRow>();
+export function getLoginByUserCode(db: Db, userCode: string): CliLoginRow | null {
+  return get<CliLoginRow>(db, "SELECT * FROM cli_logins WHERE user_code = ?", userCode);
 }
 
-export function getLoginByDeviceCodeHash(db: D1Database, hash: string): Promise<CliLoginRow | null> {
-  return db.prepare("SELECT * FROM cli_logins WHERE device_code_hash = ?").bind(hash).first<CliLoginRow>();
+export function getLoginByDeviceCodeHash(db: Db, hash: string): CliLoginRow | null {
+  return get<CliLoginRow>(db, "SELECT * FROM cli_logins WHERE device_code_hash = ?", hash);
 }
 
-export async function approveLogin(
-  db: D1Database,
-  id: string,
-  userId: string,
-  projects: string[],
-  now: number,
-): Promise<boolean> {
-  const [, approved] = await db.batch([
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO cli_login_projects (login_id, project, user_id)
-         SELECT ?1, m.project, m.user_id FROM memberships m
-         WHERE m.user_id = ?2 AND m.project IN (SELECT value FROM json_each(?4))
-           AND EXISTS (SELECT 1 FROM cli_logins WHERE id = ?1 AND status = 'pending' AND expires_at > ?3)`,
-      )
-      .bind(id, userId, now, JSON.stringify(projects)),
-    db
-      .prepare(
-        `UPDATE cli_logins SET status = 'approved', user_id = ?2, requested_scope = NULL, approved_at = ?3
-         WHERE id = ?1 AND status = 'pending' AND expires_at > ?3
-           AND EXISTS (SELECT 1 FROM cli_login_projects WHERE login_id = ?1 AND user_id = ?2)`,
-      )
-      .bind(id, userId, now),
-  ]);
-  return approved.meta.changes === 1;
+export function approveLogin(db: Db, id: string, userId: string, projects: string[], now: number): boolean {
+  return transaction(db, () => {
+    const pending = get(db, "SELECT 1 AS found FROM cli_logins WHERE id = ? AND status = 'pending' AND expires_at > ?", id, now);
+    if (!pending) return false;
+    run(
+      db,
+      `INSERT OR IGNORE INTO cli_login_projects (login_id, project, user_id)
+       SELECT @id, m.project, m.user_id FROM memberships m
+       WHERE m.user_id = @userId AND m.project IN (SELECT value FROM json_each(@projects))`,
+      { id, userId, projects: JSON.stringify(projects) },
+    );
+    return (
+      run(
+        db,
+        `UPDATE cli_logins SET status = 'approved', user_id = @userId, requested_scope = NULL, approved_at = @now
+         WHERE id = @id AND EXISTS (SELECT 1 FROM cli_login_projects WHERE login_id = @id AND user_id = @userId)`,
+        { id, userId, now },
+      ) === 1
+    );
+  });
 }
 
-export async function denyLogin(db: D1Database, id: string, userId: string, now: number): Promise<boolean> {
-  const result = await db
-    .prepare(
-      `UPDATE cli_logins SET status = 'denied', user_id = ?2, requested_scope = NULL
-       WHERE id = ?1 AND status = 'pending' AND expires_at > ?3`,
-    )
-    .bind(id, userId, now)
-    .run();
-  return result.meta.changes === 1;
+export function denyLogin(db: Db, id: string, userId: string, now: number): boolean {
+  return (
+    run(
+      db,
+      `UPDATE cli_logins SET status = 'denied', user_id = ?, requested_scope = NULL
+       WHERE id = ? AND status = 'pending' AND expires_at > ?`,
+      userId, id, now,
+    ) === 1
+  );
 }
 
-export async function getDecidedLogin(
-  db: D1Database,
-  id: string,
-  userId: string,
-): Promise<{ status: LoginStatus; projects: string[] } | null> {
-  const [login, grants] = await db.batch([
-    db.prepare("SELECT status FROM cli_logins WHERE id = ? AND user_id = ?").bind(id, userId),
-    db
-      .prepare(
-        `SELECT p.name FROM cli_login_projects clp
-         JOIN projects p ON p.slug = clp.project
-         WHERE clp.login_id = ?1 AND clp.user_id = ?2
-         ORDER BY p.name`,
-      )
-      .bind(id, userId),
-  ]);
-  const row = login.results[0] as { status: LoginStatus } | undefined;
+export function getDecidedLogin(db: Db, id: string, userId: string): { status: LoginStatus; projects: string[] } | null {
+  const row = get<{ status: LoginStatus }>(db, "SELECT status FROM cli_logins WHERE id = ? AND user_id = ?", id, userId);
   if (!row) return null;
-  return { status: row.status, projects: (grants.results as Array<{ name: string }>).map((g) => g.name) };
+  const grants = all<{ name: string }>(
+    db,
+    `SELECT p.name FROM cli_login_projects clp
+     JOIN projects p ON p.slug = clp.project
+     WHERE clp.login_id = ? AND clp.user_id = ?
+     ORDER BY p.name`,
+    id, userId,
+  );
+  return { status: row.status, projects: grants.map((g) => g.name) };
 }
 
-export async function recordPoll(db: D1Database, id: string, at: number, interval: number): Promise<void> {
-  await db.prepare("UPDATE cli_logins SET last_polled_at = ?, poll_interval = ? WHERE id = ?").bind(at, interval, id).run();
+export function recordPoll(db: Db, id: string, at: number, interval: number): void {
+  run(db, "UPDATE cli_logins SET last_polled_at = ?, poll_interval = ? WHERE id = ?", at, interval, id);
 }
 
-export async function activateLogin(db: D1Database, id: string, tokenHash: string, now: number): Promise<boolean> {
-  const result = await db
-    .prepare(
+export function activateLogin(db: Db, id: string, tokenHash: string, now: number): boolean {
+  return (
+    run(
+      db,
       `UPDATE cli_logins SET status = 'active', token_hash = ?, user_code = NULL, device_code_hash = NULL, last_used_at = ?
        WHERE id = ? AND status = 'approved' AND expires_at > ?`,
-    )
-    .bind(tokenHash, now, id, now)
-    .run();
-  return result.meta.changes === 1;
+      tokenHash, now, id, now,
+    ) === 1
+  );
 }
 
-export async function loginProjects(db: D1Database, id: string): Promise<string[]> {
-  const { results } = await db
-    .prepare("SELECT project FROM cli_login_projects WHERE login_id = ? ORDER BY project")
-    .bind(id)
-    .all<{ project: string }>();
-  return results.map((r) => r.project);
+export function loginProjects(db: Db, id: string): string[] {
+  return all<{ project: string }>(db, "SELECT project FROM cli_login_projects WHERE login_id = ? ORDER BY project", id).map(
+    (r) => r.project,
+  );
 }
 
-export async function deleteLogin(db: D1Database, id: string): Promise<void> {
-  await db.prepare("DELETE FROM cli_logins WHERE id = ?").bind(id).run();
+export function deleteLogin(db: Db, id: string): void {
+  run(db, "DELETE FROM cli_logins WHERE id = ?", id);
 }
 
-export async function deleteLoginByTokenHash(db: D1Database, hash: string): Promise<void> {
-  await db.prepare("DELETE FROM cli_logins WHERE token_hash = ?").bind(hash).run();
+export function deleteLoginByTokenHash(db: Db, hash: string): void {
+  run(db, "DELETE FROM cli_logins WHERE token_hash = ?", hash);
 }
 
-export async function deleteUserLogin(
-  db: D1Database,
+export function deleteUserLogin(
+  db: Db,
   userId: string,
   id: string,
-): Promise<{ device_name: string; last_used_at: number | null } | null> {
-  return db
-    .prepare("DELETE FROM cli_logins WHERE id = ? AND user_id = ? AND status = 'active' RETURNING device_name, last_used_at")
-    .bind(id, userId)
-    .first<{ device_name: string; last_used_at: number | null }>();
+): { device_name: string; last_used_at: number | null } | null {
+  return get(
+    db,
+    "DELETE FROM cli_logins WHERE id = ? AND user_id = ? AND status = 'active' RETURNING device_name, last_used_at",
+    id, userId,
+  );
 }
 
-export async function loginAccessByTokenHash(db: D1Database, hash: string): Promise<LoginAccess | null> {
-  const row = await db
-    .prepare(
-      `SELECT l.id, l.user_id, l.device_name, l.last_used_at, u.username,
-              (SELECT json_group_array(clp.project) FROM cli_login_projects clp WHERE clp.login_id = l.id) AS granted
-       FROM cli_logins l JOIN users u ON u.id = l.user_id
-       WHERE l.token_hash = ? AND l.status = 'active'`,
-    )
-    .bind(hash)
-    .first<Omit<LoginAccess, "granted"> & { granted: string }>();
+export function loginAccessByTokenHash(db: Db, hash: string): LoginAccess | null {
+  const row = get<Omit<LoginAccess, "granted"> & { granted: string }>(
+    db,
+    `SELECT l.id, l.user_id, l.device_name, l.last_used_at, u.username,
+            (SELECT json_group_array(clp.project) FROM cli_login_projects clp WHERE clp.login_id = l.id) AS granted
+     FROM cli_logins l JOIN users u ON u.id = l.user_id
+     WHERE l.token_hash = ? AND l.status = 'active'`,
+    hash,
+  );
   if (!row) return null;
   return { ...row, granted: (JSON.parse(row.granted) as string[]).sort() };
 }
 
-export async function markLoginUsed(db: D1Database, id: string, at: number): Promise<void> {
-  await db.prepare("UPDATE cli_logins SET last_used_at = ? WHERE id = ?").bind(at, id).run();
+export function markLoginUsed(db: Db, id: string, at: number): void {
+  run(db, "UPDATE cli_logins SET last_used_at = ? WHERE id = ?", at, id);
 }
 
-export async function listUserLogins(db: D1Database, userId: string): Promise<CliLoginSummary[]> {
-  const [logins, grants] = await db.batch([
-    db
-      .prepare(
-        `SELECT id, device_name, request_country, approved_at, last_used_at FROM cli_logins
-         WHERE user_id = ? AND status = 'active'
-         ORDER BY approved_at DESC, id`,
-      )
-      .bind(userId),
-    db
-      .prepare(
-        `SELECT clp.login_id, p.name FROM cli_login_projects clp
-         JOIN cli_logins l ON l.id = clp.login_id
-         JOIN projects p ON p.slug = clp.project
-         WHERE clp.user_id = ? AND l.status = 'active'
-         ORDER BY p.name`,
-      )
-      .bind(userId),
-  ]);
-  const names = grants.results as Array<{ login_id: string; name: string }>;
-  return (logins.results as Array<Omit<CliLoginSummary, "projects">>).map((login) => ({
+export function listUserLogins(db: Db, userId: string): CliLoginSummary[] {
+  const logins = all<Omit<CliLoginSummary, "projects">>(
+    db,
+    `SELECT id, device_name, request_country, approved_at, last_used_at FROM cli_logins
+     WHERE user_id = ? AND status = 'active'
+     ORDER BY approved_at DESC, id`,
+    userId,
+  );
+  const names = all<{ login_id: string; name: string }>(
+    db,
+    `SELECT clp.login_id, p.name FROM cli_login_projects clp
+     JOIN cli_logins l ON l.id = clp.login_id
+     JOIN projects p ON p.slug = clp.project
+     WHERE clp.user_id = ? AND l.status = 'active'
+     ORDER BY p.name`,
+    userId,
+  );
+  return logins.map((login) => ({
     ...login,
     projects: names.filter((g) => g.login_id === login.id).map((g) => g.name),
   }));
 }
 
-export async function claimCodeAttempt(db: D1Database, userId: string, now: number): Promise<boolean> {
-  const row = await db
-    .prepare(
-      `INSERT INTO device_code_attempts (user_id, failures, window_started_at) VALUES (?1, 1, ?2)
-       ON CONFLICT(user_id) DO UPDATE SET
-         failures = CASE WHEN window_started_at > ?2 - ?3 THEN failures + 1 ELSE 1 END,
-         window_started_at = CASE WHEN window_started_at > ?2 - ?3 THEN window_started_at ELSE ?2 END
-       WHERE window_started_at <= ?2 - ?3 OR failures < ?4
-       RETURNING failures`,
-    )
-    .bind(userId, now, CODE_LOCK_MS, CODE_ATTEMPT_LIMIT)
-    .first();
+export function claimCodeAttempt(db: Db, userId: string, now: number): boolean {
+  const row = get(
+    db,
+    `INSERT INTO device_code_attempts (user_id, failures, window_started_at) VALUES (@userId, 1, @now)
+     ON CONFLICT(user_id) DO UPDATE SET
+       failures = CASE WHEN window_started_at > @now - @lockMs THEN failures + 1 ELSE 1 END,
+       window_started_at = CASE WHEN window_started_at > @now - @lockMs THEN window_started_at ELSE @now END
+     WHERE window_started_at <= @now - @lockMs OR failures < @limit
+     RETURNING failures`,
+    { userId, now, lockMs: CODE_LOCK_MS, limit: CODE_ATTEMPT_LIMIT },
+  );
   return row !== null;
 }
 
-export async function refundCodeAttempt(db: D1Database, userId: string): Promise<void> {
-  await db
-    .prepare("UPDATE device_code_attempts SET failures = failures - 1 WHERE user_id = ? AND failures > 0")
-    .bind(userId)
-    .run();
+export function refundCodeAttempt(db: Db, userId: string): void {
+  run(db, "UPDATE device_code_attempts SET failures = failures - 1 WHERE user_id = ? AND failures > 0", userId);
 }

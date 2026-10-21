@@ -1,7 +1,7 @@
 {
   "name": "skillsgist",
   "version": "1.0.0",
-  "description": "A private Agent Skills registry you self-host on Cloudflare.",
+  "description": "A private Agent Skills registry you self-host with Node.js, SQLite and S3-compatible storage.",
   "keywords": [
     "agent-skills",
     "skills",
@@ -9,9 +9,9 @@
     "ai-agents",
     "registry",
     "self-hosted",
-    "cloudflare-workers",
-    "cloudflare-d1",
-    "cloudflare-r2",
+    "sqlite",
+    "s3",
+    "docker",
     "hono"
   ],
   "homepage": "https://github.com/Qsnh/skillsgist#readme",
@@ -27,44 +27,44 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "test": "vitest run",
-    "dev": "concurrently \"npx @tailwindcss/cli -i src/app.css -o public/app.css --watch\" \"wrangler dev\"",
-    "build": "npx @tailwindcss/cli -i src/app.css -o public/app.css --minify",
-    "deploy": "npm run db:migrate && npm run build && wrangler deploy",
-    "db:migrate": "wrangler d1 migrations apply DB --remote",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "reset-password": "node scripts/reset-password.mjs",
+    "dev": "concurrently \"tailwindcss -i src/app.css -o public/app.css --watch\" \"tsx watch --env-file-if-exists=.env src/server.ts\"",
+    "build": "npm run build:css && npm run build:server",
+    "build:css": "tailwindcss -i src/app.css -o public/app.css --minify",
+    "build:server": "esbuild src/server.ts src/reset-password.ts --bundle --platform=node --format=esm --target=node22 --packages=external --sourcemap --outdir=dist",
+    "start": "node --enable-source-maps --env-file-if-exists=.env dist/server.js",
+    "reset-password": "node --env-file-if-exists=.env dist/reset-password.js",
     "typecheck": "tsc --noEmit",
     "verify:cli": "node scripts/verify-cli.mjs",
     "logo": "node scripts/export-logo.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "fixtures": "./scripts/make-fixtures.sh"
   },
-  "cloudflare": {
-    "bindings": {
-      "SESSION_SECRET": {
-        "description": "Signs session cookies. Use a long random value, for example the output of `openssl rand -hex 32`. Changing it later signs everyone out."
-      }
-    }
-  },
   "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@node-rs/argon2": "^2.2.2",
+    "aws4fetch": "^1.0.20",
+    "better-sqlite3": "^13.0.3",
     "hono": "^4.13.8",
     "marked": "^18.0.13",
+    "mmdb-lib": "^3.0.3",
+    "sanitize-html": "^2.18.1",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260922.1",
     "@tailwindcss/cli": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.2",
+    "@types/sanitize-html": "^2.16.2",
     "concurrently": "^10.0.5",
+    "esbuild": "^0.28.2",
     "fflate": "^0.8.3",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11",
-    "wrangler": "^4.136.1"
+    "vitest": "^4.1.11"
   }
 }

@@ -1,20 +1,19 @@
-import { createExecutionContext, SELF, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getVersion } from "../src/db/queries";
-import { app } from "../src/index";
+import { sha256Hex } from "../src/hash";
 import {
-  apiToken, bearer, env, fetchWith, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, postForm, publishMarkdown as publish,
-  resetDb, seedAndLogin, seedProject, seedWithSkills, signInDevice,
+  apiToken, appFetch, bearer, env, fetchWith, GOOD_MD, installKey, joinProject, ORIGIN, OTHER_MD, postForm,
+  publishMarkdown as publish, resetDb, seedAndLogin, seedProject, seedWithSkills, signInDevice,
 } from "./helpers";
 
 const INDEX = "/p/default/.well-known/agent-skills/index.json";
 const SKILL_INDEX = (slug: string) => `/p/default/.well-known/agent-skills/${slug}/.well-known/agent-skills/index.json`;
 const DAY = 24 * 60 * 60 * 1000;
 
-const names = async (res: Response) => (await res.json<{ skills: Array<{ name: string }> }>()).skills.map((s) => s.name);
+const names = async (res: Response) => ((await res.json()) as { skills: Array<{ name: string }> }).skills.map((s) => s.name);
 
-async function privateArtifact(slug = "other-skill") {
-  const digest = (await getVersion(env.DB, "default", slug, 1))!.digest;
+function privateArtifact(slug = "other-skill") {
+  const digest = getVersion(env.db, "default", slug, 1)!.digest;
   return `/p/default/d/${slug}/${digest.slice("sha256:".length)}.zip`;
 }
 
@@ -36,7 +35,7 @@ describe("install keys", () => {
     expect(index.status).toBe(200);
     expectPrivate(index);
     expect(await names(index)).toEqual(["demo-skill", "other-skill"]);
-    const artifact = await fetchWith(await privateArtifact(), bearer(key));
+    const artifact = await fetchWith(privateArtifact(), bearer(key));
     expect(artifact.status).toBe(200);
     expectPrivate(artifact);
   });
@@ -50,10 +49,10 @@ describe("install keys", () => {
     expectPrivate(index);
     expect(await names(index)).toEqual(["demo-skill"]);
     expect(await names(await fetchWith(SKILL_INDEX("demo-skill"), bearer(key)))).toEqual(["demo-skill"]);
-    const open = await fetchWith(await privateArtifact("demo-skill"), bearer(key));
+    const open = await fetchWith(privateArtifact("demo-skill"), bearer(key));
     expect(open.status).toBe(200);
     expect(open.headers.get("Cache-Control")).toBe("public, max-age=300");
-    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
+    for (const path of [SKILL_INDEX("other-skill"), privateArtifact()]) {
       const res = await fetchWith(path, bearer(key));
       expect(res.status, path).toBe(403);
       expectPrivate(res);
@@ -77,7 +76,7 @@ describe("install keys", () => {
     const second = await installKey(user.id);
     expect((await fetchWith(INDEX, bearer(first))).status).toBe(401);
     expect((await fetchWith(INDEX, bearer(second))).status).toBe(200);
-    await env.DB.prepare("DELETE FROM memberships WHERE user_id = ?").bind(user.id).run();
+    env.db.prepare("DELETE FROM memberships WHERE user_id = ?").run(user.id);
     expect((await fetchWith(INDEX, bearer(second))).status).toBe(401);
   });
 });
@@ -91,7 +90,7 @@ describe("device sign-ins", () => {
     const { token } = await signInDevice(user.id, ["team-b"]);
     expect(await names(await fetchWith("/p/team-b/.well-known/agent-skills/index.json", bearer(token)))).toEqual(["other-skill"]);
     expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
-    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
+    for (const path of [SKILL_INDEX("other-skill"), privateArtifact()]) {
       const refused = await fetchWith(path, bearer(token));
       expect(refused.status, path).toBe(403);
       expect(await refused.json()).toEqual({ error: "project_not_granted", project: "default" });
@@ -101,20 +100,19 @@ describe("device sign-ins", () => {
     const open = await fetchWith(INDEX, bearer(outsider.token));
     expect(open.status).toBe(200);
     expect(await names(open)).toEqual(["demo-skill"]);
-    expect((await fetchWith(await privateArtifact(), bearer(outsider.token))).status).toBe(404);
+    expect((await fetchWith(privateArtifact(), bearer(outsider.token))).status).toBe(404);
   });
 
   it("download a private artifact of a granted project, uncacheable", async () => {
     const { user } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
     const { token } = await signInDevice(user.id, ["default"]);
-    const index = await (await fetchWith(INDEX, bearer(token))).json<{ skills: Array<{ name: string; url: string; digest: string }> }>();
+    const index = (await (await fetchWith(INDEX, bearer(token))).json()) as { skills: Array<{ name: string; url: string; digest: string }> };
     const entry = index.skills.find((s) => s.name === "other-skill")!;
-    const res = await fetchWith(await privateArtifact(), bearer(token));
+    const res = await fetchWith(privateArtifact(), bearer(token));
     expect(res.status).toBe(200);
     expectPrivate(res);
-    const digest = await crypto.subtle.digest("SHA-256", await res.arrayBuffer());
-    expect(`sha256:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("")}`).toBe(entry.digest);
-    expect(new URL(entry.url).pathname).toBe(await privateArtifact());
+    expect(`sha256:${sha256Hex(new Uint8Array(await res.arrayBuffer()))}`).toBe(entry.digest);
+    expect(new URL(entry.url).pathname).toBe(privateArtifact());
   });
 
   it("give an instance admin only the public skills of a project they are not a member of", async () => {
@@ -125,12 +123,12 @@ describe("device sign-ins", () => {
     expect(res.status).toBe(200);
     expectPrivate(res);
     expect(await names(res)).toEqual(["demo-skill"]);
-    expect((await fetchWith(await privateArtifact(), bearer(token))).status).toBe(404);
+    expect((await fetchWith(privateArtifact(), bearer(token))).status).toBe(404);
     expect(await (await fetchWith("/api/whoami", bearer(token))).json()).toEqual({ user: "root", kind: "login", projects: ["team-b"] });
 
     const key = await installKey(root.user.id, "team-b");
     expect(await names(await fetchWith(INDEX, bearer(key)))).toEqual(["demo-skill"]);
-    const refused = await fetchWith(await privateArtifact(), bearer(key));
+    const refused = await fetchWith(privateArtifact(), bearer(key));
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: "wrong_project", project: "team-b" });
   });
@@ -143,7 +141,7 @@ describe("device sign-ins", () => {
     expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
     await joinProject(user.id, "default");
     expect(await names(await fetchWith(INDEX, bearer(token)))).toEqual(["demo-skill"]);
-    expect((await fetchWith(await privateArtifact(), bearer(token))).status).toBe(403);
+    expect((await fetchWith(privateArtifact(), bearer(token))).status).toBe(403);
   });
 
   it("stop working after 90 days unused, and record use at most once an hour", async () => {
@@ -152,19 +150,15 @@ describe("device sign-ins", () => {
     expect((await fetchWith(INDEX, bearer(stale.token))).status).toBe(401);
 
     const recent = await signInDevice(user.id, ["default"], Date.now() - 30 * 60 * 1000);
-    const lastUsed = async () =>
-      (await env.DB.prepare("SELECT last_used_at FROM cli_logins WHERE id = ?").bind(recent.id).first<{ last_used_at: number }>())!.last_used_at;
-    const before = await lastUsed();
-    const settle = async () => {
-      const ctx = createExecutionContext();
-      await app.fetch(new Request(`${ORIGIN}${INDEX}`, { headers: bearer(recent.token) }), env, ctx);
-      await waitOnExecutionContext(ctx);
-    };
-    await settle();
-    expect(await lastUsed()).toBe(before);
-    await env.DB.prepare("UPDATE cli_logins SET last_used_at = ? WHERE id = ?").bind(Date.now() - 2 * 60 * 60 * 1000, recent.id).run();
-    await settle();
-    expect(await lastUsed()).toBeGreaterThan(Date.now() - 60 * 1000);
+    const lastUsed = () =>
+      (env.db.prepare("SELECT last_used_at FROM cli_logins WHERE id = ?").get(recent.id) as { last_used_at: number }).last_used_at;
+    const before = lastUsed();
+    const use = async () => expect((await fetchWith(INDEX, bearer(recent.token))).status).toBe(200);
+    await use();
+    expect(lastUsed()).toBe(before);
+    env.db.prepare("UPDATE cli_logins SET last_used_at = ? WHERE id = ?").run(Date.now() - 2 * 60 * 60 * 1000, recent.id);
+    await use();
+    expect(lastUsed()).toBeGreaterThan(Date.now() - 60 * 1000);
   });
 });
 
@@ -192,8 +186,8 @@ describe("credentials the registry refuses or ignores", () => {
     expect(index.status).toBe(200);
     expectPrivate(index);
     expect(await names(index)).toEqual(["demo-skill"]);
-    expect((await fetchWith(await privateArtifact("demo-skill"), junk)).status).toBe(200);
-    for (const path of [SKILL_INDEX("other-skill"), await privateArtifact()]) {
+    expect((await fetchWith(privateArtifact("demo-skill"), junk)).status).toBe(200);
+    for (const path of [SKILL_INDEX("other-skill"), privateArtifact()]) {
       const res = await fetchWith(path, junk);
       expect(res.status, path).toBe(401);
       expect(res.headers.get("WWW-Authenticate")).toBe('Bearer error="invalid_token"');
@@ -204,7 +198,7 @@ describe("credentials the registry refuses or ignores", () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [OTHER_MD, "private"]);
     const { token } = await signInDevice(user.id, ["default"]);
     expect(await names(await fetchWith(INDEX, { Authorization: `bearer ${token}` }))).toEqual(["other-skill"]);
-    const res = await SELF.fetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
+    const res = await appFetch(`${ORIGIN}/api/projects/default/skills/demo-skill`, {
       method: "PUT",
       headers: { Authorization: `BEARER   ${await apiToken(cookie)}`, "Content-Type": "text/markdown" },
       body: GOOD_MD,
@@ -230,10 +224,10 @@ describe("credentials the registry refuses or ignores", () => {
   it("keeps anonymous project responses uncacheable, a private artifact a 404, and a public artifact cacheable", async () => {
     await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"], [OTHER_MD, "private"]);
     expectPrivate(await fetchWith(INDEX));
-    const hidden = await fetchWith(await privateArtifact());
+    const hidden = await fetchWith(privateArtifact());
     expect(hidden.status).toBe(404);
     expectPrivate(hidden);
-    const open = await SELF.fetch(`${ORIGIN}${await privateArtifact("demo-skill")}`);
+    const open = await appFetch(`${ORIGIN}${privateArtifact("demo-skill")}`);
     expect(open.status).toBe(200);
     expect(open.headers.get("Cache-Control")).toBe("public, max-age=300");
   });
@@ -244,7 +238,7 @@ describe("/api/whoami", () => {
     const { user } = await seedAndLogin({ username: "alice" });
     await joinProject(user.id, "team-b");
     const { token } = await signInDevice(user.id, ["default", "team-b"]);
-    await env.DB.prepare("DELETE FROM memberships WHERE user_id = ? AND project = 'team-b'").bind(user.id).run();
+    env.db.prepare("DELETE FROM memberships WHERE user_id = ? AND project = 'team-b'").run(user.id);
     const login = await fetchWith("/api/whoami", bearer(token));
     expect(login.status).toBe(200);
     expectPrivate(login);

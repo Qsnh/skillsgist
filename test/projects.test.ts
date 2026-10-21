@@ -46,7 +46,7 @@ describe("/projects/new", () => {
     const res = await postForm("/projects/new", cookie, { name: "  Team C  ", slug: "team-c" });
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/p/team-c");
-    expect(await getProject(env.DB, "team-c")).toMatchObject({ slug: "team-c", name: "Team C" });
+    expect(getProject(env.db, "team-c")).toMatchObject({ slug: "team-c", name: "Team C" });
     expect((await get("/p/team-c", cookie)).status).toBe(200);
     expect(await membership(user.id, "team-c")).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("/projects/new", () => {
     const html = await res.text();
     expect(html).toContain(error);
     expect(html).toContain(`value="${fields.slug}"`);
-    expect(await getProject(env.DB, "team-c")).toBeNull();
+    expect(getProject(env.db, "team-c")).toBeNull();
   });
 
   it("is for instance admins only, as is deleting a project", async () => {
@@ -113,13 +113,13 @@ describe("/p/:project", () => {
     await publish(alice.cookie, GOOD_MD, "public");
     await publish(alice.cookie, OTHER_MD, "public");
     const stamp = (slug: string, at: number) =>
-      env.DB.prepare("UPDATE skills SET updated_at = ? WHERE slug = ?").bind(at, slug).run();
-    await stamp("demo-skill", 2);
-    await stamp("other-skill", 1);
+      env.db.prepare("UPDATE skills SET updated_at = ? WHERE slug = ?").run(at, slug);
+    stamp("demo-skill", 2);
+    stamp("other-skill", 1);
     expect(cellLinks(await (await get("/p/default")).text())).toEqual([
       "/p/default/s/demo-skill", "/p/default/s/other-skill",
     ]);
-    await stamp("other-skill", 3);
+    stamp("other-skill", 3);
     expect(cellLinks(await (await get("/p/default")).text())).toEqual([
       "/p/default/s/other-skill", "/p/default/s/demo-skill",
     ]);
@@ -299,7 +299,7 @@ describe("renaming a project", () => {
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toBe("/p/default/settings");
     expect(await (await follow(res, lead.cookie)).text()).toContain("Renamed the project to Platform.");
-    expect((await getProject(env.DB, "default"))?.name).toBe("Platform");
+    expect(getProject(env.db, "default")?.name).toBe("Platform");
     expect(await installKey(lead.user.id)).toBe(key);
   });
 
@@ -311,13 +311,13 @@ describe("renaming a project", () => {
     const taken = await postForm("/p/default/rename", cookie, { name: "team b" });
     expect(taken.status).toBe(400);
     expect(await taken.text()).toContain("That name is taken");
-    expect((await getProject(env.DB, "default"))?.name).toBe("Default");
+    expect(getProject(env.db, "default")?.name).toBe("Default");
   });
 
   it("allows changing only the letter case of the project's own name", async () => {
     const { cookie } = await seedAndLogin({ username: "root", role: "admin" });
     expect((await postForm("/p/default/rename", cookie, { name: "DEFAULT" })).status).toBe(302);
-    expect((await getProject(env.DB, "default"))?.name).toBe("DEFAULT");
+    expect(getProject(env.db, "default")?.name).toBe("DEFAULT");
   });
 });
 
@@ -358,7 +358,7 @@ describe("project membership", () => {
     const { user: bob } = await seedUser({ username: "bob", role: "member" });
     const { user: carol } = await seedUser({ username: "carol", role: "member", project: null });
     expect((await postForm("/p/default/rename", alice.cookie, { name: "Mine" })).status).toBe(403);
-    expect((await getProject(env.DB, "default"))?.name).toBe("Default");
+    expect(getProject(env.db, "default")?.name).toBe("Default");
     expect((await postForm("/p/default/members", alice.cookie, { user: carol.id, role: "member" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/role`, alice.cookie, { role: "admin" })).status).toBe(403);
     expect((await postForm(`/p/default/members/${bob.id}/remove`, alice.cookie)).status).toBe(403);
@@ -430,7 +430,7 @@ describe("deleting a project", () => {
     const res = await postForm("/p/default/delete", cookie);
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("Default still has skills. Move or delete them first.");
-    expect(await getSkill(env.DB, "default", "demo-skill")).not.toBeNull();
+    expect(getSkill(env.db, "default", "demo-skill")).not.toBeNull();
     expect(await membership(user.id)).not.toBeNull();
   });
 

@@ -1,3 +1,6 @@
+import { all, get, run, transaction } from "./database";
+import type { Db } from "./database";
+
 export interface UserRow {
   id: string;
   username: string;
@@ -58,7 +61,7 @@ export interface VersionRow {
   html: string;
   html_rev: number;
   files: string;
-  r2_key: string;
+  object_key: string;
   author_id: string;
   created_at: number;
 }
@@ -71,7 +74,7 @@ export interface ArtifactRef {
   slug: string;
   version: number;
   visibility: "public" | "private";
-  r2_key: string;
+  object_key: string;
 }
 
 export interface InsertVersionInput {
@@ -94,51 +97,49 @@ export type SkillScope = { kind: "public" } | { kind: "all" } | { kind: "member"
 
 export type IndexFilter = { kind: "root" } | { kind: "project"; project: string; publicOnly: boolean };
 
-export async function countUsers(db: D1Database): Promise<number> {
-  const row = await db.prepare("SELECT COUNT(*) AS n FROM users").first<{ n: number }>();
-  return row?.n ?? 0;
+export function countUsers(db: Db): number {
+  return get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM users")?.n ?? 0;
 }
 
-export async function createUser(
-  db: D1Database,
+export function createUser(
+  db: Db,
   input: { id: string; username: string; passwordHash: string; role: "admin" | "member" },
-): Promise<void> {
-  await db
-    .prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)")
-    .bind(input.id, input.username, input.passwordHash, input.role, Date.now())
-    .run();
+): void {
+  run(
+    db,
+    "INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
+    input.id, input.username, input.passwordHash, input.role, Date.now(),
+  );
 }
 
-export async function createFirstAdmin(
-  db: D1Database,
+export function createFirstAdmin(
+  db: Db,
   input: { id: string; username: string; passwordHash: string; installKey: string },
-): Promise<boolean> {
+): boolean {
   const now = Date.now();
-  const [user] = await db.batch([
-    db
-      .prepare(
-        `INSERT INTO users (id, username, password_hash, role, created_at)
-         SELECT ?, ?, ?, 'admin', ?
-         WHERE NOT EXISTS (SELECT 1 FROM users)`,
-      )
-      .bind(input.id, input.username, input.passwordHash, now),
-    db
-      .prepare(
-        `INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at)
-         SELECT slug, ?, 'member', ?, 1, ? FROM projects
-         WHERE slug = ? AND EXISTS (SELECT 1 FROM users WHERE id = ?)`,
-      )
-      .bind(input.id, input.installKey, now, DEFAULT_PROJECT, input.id),
-  ]);
-  return user.meta.changes === 1;
+  return transaction(db, () => {
+    if (countUsers(db) > 0) return false;
+    run(
+      db,
+      "INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, 'admin', ?)",
+      input.id, input.username, input.passwordHash, now,
+    );
+    run(
+      db,
+      `INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at)
+       SELECT slug, ?, 'member', ?, 1, ? FROM projects WHERE slug = ?`,
+      input.id, input.installKey, now, DEFAULT_PROJECT,
+    );
+    return true;
+  });
 }
 
-export function getUserByUsername(db: D1Database, username: string): Promise<UserRow | null> {
-  return db.prepare("SELECT * FROM users WHERE username = ?").bind(username).first<UserRow>();
+export function getUserByUsername(db: Db, username: string): UserRow | null {
+  return get<UserRow>(db, "SELECT * FROM users WHERE username = ?", username);
 }
 
-export function getUserById(db: D1Database, id: string): Promise<UserRow | null> {
-  return db.prepare("SELECT * FROM users WHERE id = ?").bind(id).first<UserRow>();
+export function getUserById(db: Db, id: string): UserRow | null {
+  return get<UserRow>(db, "SELECT * FROM users WHERE id = ?", id);
 }
 
 export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_hash" | "created_at" | "last_login_at"> & {
@@ -150,134 +151,95 @@ export type UserSummary = Pick<UserRow, "id" | "username" | "role" | "api_token_
 const USER_SUMMARY_SQL = `SELECT u.id, u.username, u.role, u.api_token_hash, u.created_at, u.last_login_at,
          (SELECT COUNT(*) FROM memberships m WHERE m.user_id = u.id) AS projects,
          (SELECT COUNT(*) FROM skills s WHERE s.owner_id = u.id) AS skills,
-         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active' AND l.last_used_at > ?1) AS cli_logins
+         (SELECT COUNT(*) FROM cli_logins l WHERE l.user_id = u.id AND l.status = 'active' AND l.last_used_at > @usedAfter) AS cli_logins
   FROM users u`;
 
-export async function listUserSummaries(db: D1Database, loginsUsedAfter: number): Promise<UserSummary[]> {
-  const { results } = await db
-    .prepare(`${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`)
-    .bind(loginsUsedAfter)
-    .all<UserSummary>();
-  return results;
+export function listUserSummaries(db: Db, loginsUsedAfter: number): UserSummary[] {
+  return all<UserSummary>(db, `${USER_SUMMARY_SQL} ORDER BY u.created_at, u.username`, { usedAfter: loginsUsedAfter });
 }
 
-export function getUserSummary(db: D1Database, id: string, loginsUsedAfter: number): Promise<UserSummary | null> {
-  return db.prepare(`${USER_SUMMARY_SQL} WHERE u.id = ?2`).bind(loginsUsedAfter, id).first<UserSummary>();
+export function getUserSummary(db: Db, id: string, loginsUsedAfter: number): UserSummary | null {
+  return get<UserSummary>(db, `${USER_SUMMARY_SQL} WHERE u.id = @id`, { usedAfter: loginsUsedAfter, id });
 }
 
-export async function countAdmins(db: D1Database): Promise<number> {
-  const row = await db
-    .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'")
-    .first<{ n: number }>();
-  return row?.n ?? 0;
+export function countAdmins(db: Db): number {
+  return get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM users WHERE role = 'admin'")?.n ?? 0;
 }
 
-export async function updateUserRole(
-  db: D1Database,
-  userId: string,
-  role: "admin" | "member",
-): Promise<void> {
-  await db.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, userId).run();
+export function updateUserRole(db: Db, userId: string, role: "admin" | "member"): void {
+  run(db, "UPDATE users SET role = ? WHERE id = ?", role, userId);
 }
 
-export async function deleteUserReassigning(
-  db: D1Database,
-  userId: string,
-  reassignTo: string,
-): Promise<void> {
+export function deleteUserReassigning(db: Db, userId: string, reassignTo: string): void {
   if (userId === reassignTo) {
     throw new Error("deleteUserReassigning: cannot reassign a user's rows to itself");
   }
-  await db.batch([
-    db.prepare("UPDATE skills SET owner_id = ? WHERE owner_id = ?").bind(reassignTo, userId),
-    db.prepare("UPDATE versions SET author_id = ? WHERE author_id = ?").bind(reassignTo, userId),
-    db.prepare("DELETE FROM memberships WHERE user_id = ?").bind(userId),
-    db.prepare("DELETE FROM users WHERE id = ?").bind(userId),
-  ]);
+  transaction(db, () => {
+    run(db, "UPDATE skills SET owner_id = ? WHERE owner_id = ?", reassignTo, userId);
+    run(db, "UPDATE versions SET author_id = ? WHERE author_id = ?", reassignTo, userId);
+    run(db, "DELETE FROM users WHERE id = ?", userId);
+  });
 }
 
-async function viewerWhere(
-  db: D1Database,
-  column: "id" | "api_token_hash",
-  value: string,
-): Promise<Viewer | null> {
-  const [users, memberships] = await db.batch([
-    db.prepare(`SELECT * FROM users WHERE ${column} = ?`).bind(value),
-    db
-      .prepare(
-        `SELECT m.*, p.name AS project_name
-         FROM memberships m
-         JOIN users u ON u.id = m.user_id
-         JOIN projects p ON p.slug = m.project
-         WHERE u.${column} = ?
-         ORDER BY p.name`,
-      )
-      .bind(value),
-  ]);
-  const user = users.results[0] as UserRow | undefined;
-  return user ? { ...user, memberships: memberships.results as Membership[] } : null;
+function viewerWhere(db: Db, column: "id" | "api_token_hash", value: string): Viewer | null {
+  const user = get<UserRow>(db, `SELECT * FROM users WHERE ${column} = ?`, value);
+  if (!user) return null;
+  const memberships = all<Membership>(
+    db,
+    `SELECT m.*, p.name AS project_name
+     FROM memberships m
+     JOIN projects p ON p.slug = m.project
+     WHERE m.user_id = ?
+     ORDER BY p.name`,
+    user.id,
+  );
+  return { ...user, memberships };
 }
 
-export function getViewer(db: D1Database, userId: string): Promise<Viewer | null> {
+export function getViewer(db: Db, userId: string): Viewer | null {
   return viewerWhere(db, "id", userId);
 }
 
-export function getViewerByApiTokenHash(db: D1Database, hash: string): Promise<Viewer | null> {
+export function getViewerByApiTokenHash(db: Db, hash: string): Viewer | null {
   return viewerWhere(db, "api_token_hash", hash);
 }
 
-export async function createProject(db: D1Database, input: { slug: string; name: string }): Promise<void> {
-  await db
-    .prepare("INSERT INTO projects (slug, name, created_at) VALUES (?, ?, ?)")
-    .bind(input.slug, input.name, Date.now())
-    .run();
+export function createProject(db: Db, input: { slug: string; name: string }): void {
+  run(db, "INSERT INTO projects (slug, name, created_at) VALUES (?, ?, ?)", input.slug, input.name, Date.now());
 }
 
-export function getProject(db: D1Database, slug: string): Promise<ProjectRow | null> {
-  return db.prepare("SELECT * FROM projects WHERE slug = ?").bind(slug).first<ProjectRow>();
+export function getProject(db: Db, slug: string): ProjectRow | null {
+  return get<ProjectRow>(db, "SELECT * FROM projects WHERE slug = ?", slug);
 }
 
-export async function listProjects(db: D1Database): Promise<ProjectRow[]> {
-  const { results } = await db.prepare("SELECT * FROM projects ORDER BY name").all<ProjectRow>();
-  return results;
+export function listProjects(db: Db): ProjectRow[] {
+  return all<ProjectRow>(db, "SELECT * FROM projects ORDER BY name");
 }
 
-export async function addMembership(
-  db: D1Database,
+export function addMembership(
+  db: Db,
   input: { project: string; userId: string; role: "admin" | "member"; installKey: string; canPublish?: boolean },
-): Promise<void> {
-  await db
-    .prepare(
-      "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-    )
-    .bind(input.project, input.userId, input.role, input.installKey, input.canPublish ? 1 : 0, Date.now())
-    .run();
+): void {
+  run(
+    db,
+    "INSERT INTO memberships (project, user_id, role, install_key, can_publish, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    input.project, input.userId, input.role, input.installKey, input.canPublish ? 1 : 0, Date.now(),
+  );
 }
 
-const setInstallKey = (db: D1Database, project: string, userId: string, key: string) =>
-  db.prepare("UPDATE memberships SET install_key = ? WHERE project = ? AND user_id = ?").bind(key, project, userId);
-
-export async function updateInstallKey(
-  db: D1Database,
-  project: string,
-  userId: string,
-  key: string,
-): Promise<void> {
-  await setInstallKey(db, project, userId, key).run();
+export function updateInstallKey(db: Db, project: string, userId: string, key: string): void {
+  run(db, "UPDATE memberships SET install_key = ? WHERE project = ? AND user_id = ?", key, project, userId);
 }
 
-const deleteUserLogins = (db: D1Database, userId: string) =>
-  db.prepare("DELETE FROM cli_logins WHERE user_id = ?").bind(userId);
+const deleteUserLogins = (db: Db, userId: string) => run(db, "DELETE FROM cli_logins WHERE user_id = ?", userId);
 
-export async function rotateInstallKeys(db: D1Database, userId: string, nextKey: () => string): Promise<void> {
-  const { results } = await db
-    .prepare("SELECT project FROM memberships WHERE user_id = ?")
-    .bind(userId)
-    .all<{ project: string }>();
-  await db.batch([
-    ...results.map(({ project }) => setInstallKey(db, project, userId, nextKey())),
-    deleteUserLogins(db, userId),
-  ]);
+export function rotateInstallKeys(db: Db, userId: string, nextKey: () => string): void {
+  transaction(db, () => {
+    for (const { project } of all<{ project: string }>(db, "SELECT project FROM memberships WHERE user_id = ?", userId)) {
+      updateInstallKey(db, project, userId, nextKey());
+    }
+    deleteUserLogins(db, userId);
+  });
 }
 
 const LISTED_SKILL_SQL = `SELECT s.*, u.username AS author, p.name AS project_name
@@ -285,243 +247,185 @@ const LISTED_SKILL_SQL = `SELECT s.*, u.username AS author, p.name AS project_na
   JOIN users u ON u.id = s.owner_id
   JOIN projects p ON p.slug = s.project`;
 
-export async function listSkills(
-  db: D1Database,
-  opts: { scope: SkillScope; project?: string; q?: string },
-): Promise<ListedSkill[]> {
+export function listSkills(db: Db, opts: { scope: SkillScope; project?: string; q?: string }): ListedSkill[] {
   const clauses: string[] = [];
-  const binds: unknown[] = [];
-  const bind = (value: unknown) => {
-    binds.push(value);
-    return `?${binds.length}`;
-  };
+  const params: Record<string, unknown> = {};
   if (opts.scope.kind === "public") clauses.push("s.visibility = 'public'");
   if (opts.scope.kind === "member") {
+    params.userId = opts.scope.userId;
     clauses.push(
-      `(s.visibility = 'public' OR EXISTS (SELECT 1 FROM memberships m WHERE m.project = s.project AND m.user_id = ${bind(opts.scope.userId)}))`,
+      "(s.visibility = 'public' OR EXISTS (SELECT 1 FROM memberships m WHERE m.project = s.project AND m.user_id = @userId))",
     );
   }
-  if (opts.project !== undefined) clauses.push(`s.project = ${bind(opts.project)}`);
+  if (opts.project !== undefined) {
+    params.project = opts.project;
+    clauses.push("s.project = @project");
+  }
   if (opts.q) {
-    const pattern = bind(`%${opts.q}%`);
+    params.pattern = `%${opts.q}%`;
     clauses.push(
-      `(s.slug LIKE ${pattern} OR s.description LIKE ${pattern} OR EXISTS (SELECT 1 FROM versions v WHERE v.skill_id = s.id AND v.version = s.latest_version AND v.skill_md LIKE ${pattern}))`,
+      "(s.slug LIKE @pattern OR s.description LIKE @pattern OR EXISTS (SELECT 1 FROM versions v WHERE v.skill_id = s.id AND v.version = s.latest_version AND v.skill_md LIKE @pattern))",
     );
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  const { results } = await db
-    .prepare(`${LISTED_SKILL_SQL} ${where} ORDER BY s.updated_at DESC`)
-    .bind(...binds)
-    .all<ListedSkill>();
-  return results;
+  return all<ListedSkill>(db, `${LISTED_SKILL_SQL} ${where} ORDER BY s.updated_at DESC`, params);
 }
 
-export function getSkill(db: D1Database, project: string, slug: string): Promise<SkillRow | null> {
-  return db
-    .prepare("SELECT * FROM skills WHERE project = ? AND slug = ?")
-    .bind(project, slug)
-    .first<SkillRow>();
+export function getSkill(db: Db, project: string, slug: string): SkillRow | null {
+  return get<SkillRow>(db, "SELECT * FROM skills WHERE project = ? AND slug = ?", project, slug);
 }
 
-export function getSkillWithAuthor(db: D1Database, project: string, slug: string): Promise<ListedSkill | null> {
-  return db
-    .prepare(`${LISTED_SKILL_SQL} WHERE s.project = ? AND s.slug = ?`)
-    .bind(project, slug)
-    .first<ListedSkill>();
+export function getSkillWithAuthor(db: Db, project: string, slug: string): ListedSkill | null {
+  return get<ListedSkill>(db, `${LISTED_SKILL_SQL} WHERE s.project = ? AND s.slug = ?`, project, slug);
 }
 
 const SKILL_ID_SQL = "(SELECT id FROM skills WHERE project = ? AND slug = ?)";
 
 export function updateVersionHtml(
-  db: D1Database,
+  db: Db,
   project: string,
   slug: string,
   version: number,
   html: string,
   rev: number,
-): Promise<unknown> {
-  return db
-    .prepare(`UPDATE versions SET html = ?, html_rev = ? WHERE skill_id = ${SKILL_ID_SQL} AND version = ?`)
-    .bind(html, rev, project, slug, version)
-    .run();
+): void {
+  run(
+    db,
+    `UPDATE versions SET html = ?, html_rev = ? WHERE skill_id = ${SKILL_ID_SQL} AND version = ?`,
+    html, rev, project, slug, version,
+  );
 }
 
-export function getVersion(
-  db: D1Database,
-  project: string,
-  slug: string,
-  version: number,
-): Promise<VersionRow | null> {
-  return db
-    .prepare(
-      `SELECT v.*, s.slug FROM versions v JOIN skills s ON s.id = v.skill_id
-       WHERE s.project = ? AND s.slug = ? AND v.version = ?`,
-    )
-    .bind(project, slug, version)
-    .first<VersionRow>();
+export function getVersion(db: Db, project: string, slug: string, version: number): VersionRow | null {
+  return get<VersionRow>(
+    db,
+    `SELECT v.*, s.slug FROM versions v JOIN skills s ON s.id = v.skill_id
+     WHERE s.project = ? AND s.slug = ? AND v.version = ?`,
+    project, slug, version,
+  );
 }
 
-export async function listVersions(db: D1Database, project: string, slug: string): Promise<VersionSummary[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT v.version, v.created_at FROM versions v JOIN skills s ON s.id = v.skill_id
-       WHERE s.project = ? AND s.slug = ? ORDER BY v.version DESC`,
-    )
-    .bind(project, slug)
-    .all<VersionSummary>();
-  return results;
+export function listVersions(db: Db, project: string, slug: string): VersionSummary[] {
+  return all<VersionSummary>(
+    db,
+    `SELECT v.version, v.created_at FROM versions v JOIN skills s ON s.id = v.skill_id
+     WHERE s.project = ? AND s.slug = ? ORDER BY v.version DESC`,
+    project, slug,
+  );
 }
 
-export async function listPublishedForIndex(
-  db: D1Database,
+export function listPublishedForIndex(
+  db: Db,
   filter: IndexFilter,
   slug: string | null = null,
-): Promise<Array<{ slug: string; description: string; digest: string }>> {
+): Array<{ slug: string; description: string; digest: string }> {
   const clauses: string[] = [];
-  const binds: unknown[] = [];
-  const bind = (value: unknown) => {
-    binds.push(value);
-    return `?${binds.length}`;
-  };
+  const params: Record<string, unknown> = {};
   if (filter.kind === "root") {
     clauses.push(
       "s.visibility = 'public'",
       "NOT EXISTS (SELECT 1 FROM skills o WHERE o.slug = s.slug AND o.id <> s.id AND o.visibility = 'public')",
     );
   } else {
-    clauses.push(`s.project = ${bind(filter.project)}`);
+    params.project = filter.project;
+    clauses.push("s.project = @project");
     if (filter.publicOnly) clauses.push("s.visibility = 'public'");
   }
-  if (slug !== null) clauses.push(`s.slug = ${bind(slug)}`);
-  const { results } = await db
-    .prepare(
-      `SELECT s.slug, v.description, v.digest
-       FROM skills s
-       JOIN versions v ON v.skill_id = s.id AND v.version = s.latest_version
-       WHERE ${clauses.join(" AND ")}
-       ORDER BY s.slug`,
-    )
-    .bind(...binds)
-    .all<{ slug: string; description: string; digest: string }>();
-  return results;
+  if (slug !== null) {
+    params.slug = slug;
+    clauses.push("s.slug = @slug");
+  }
+  return all(
+    db,
+    `SELECT s.slug, v.description, v.digest
+     FROM skills s
+     JOIN versions v ON v.skill_id = s.id AND v.version = s.latest_version
+     WHERE ${clauses.join(" AND ")}
+     ORDER BY s.slug`,
+    params,
+  );
 }
 
-export async function insertVersion(
-  db: D1Database,
-  input: InsertVersionInput,
-): Promise<{ version: number; r2Key: string }> {
+export const objectKeyFor = (skillId: string, digest: string) => `skills/${skillId}/${digest.replace(/^sha256:/, "")}.zip`;
+
+export function insertVersion(db: Db, input: InsertVersionInput & { objectKey: string }): number {
   const now = Date.now();
-  const next = await db
-    .prepare("SELECT COALESCE(MAX(version), 0) + 1 AS n FROM versions WHERE skill_id = ?")
-    .bind(input.skillId)
-    .first<{ n: number }>();
-  const version = next?.n ?? 1;
-  const r2Key = `artifacts/${input.skillId}/${version}.zip`;
-
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO skills (id, project, slug, description, visibility, owner_id, latest_version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET description = excluded.description,
-                                       latest_version = excluded.latest_version,
-                                       updated_at = excluded.updated_at`,
-      )
-      .bind(
-        input.skillId, input.project, input.slug, input.description, input.visibility, input.authorId,
-        version, now, now,
-      ),
-    db
-      .prepare(
-        `INSERT INTO versions (skill_id, version, digest, size, name, description, skill_md, html, html_rev, files, r2_key, author_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        input.skillId, version, input.digest, input.size, input.name, input.description,
-        input.skill_md, input.html, input.html_rev, input.files, r2Key, input.authorId, now,
-      ),
-  ]);
-
-  return { version, r2Key };
+  return transaction(db, () => {
+    const version =
+      get<{ n: number }>(db, "SELECT COALESCE(MAX(version), 0) + 1 AS n FROM versions WHERE skill_id = ?", input.skillId)?.n ?? 1;
+    run(
+      db,
+      `INSERT INTO skills (id, project, slug, description, visibility, owner_id, latest_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET description = excluded.description,
+                                     latest_version = excluded.latest_version,
+                                     updated_at = excluded.updated_at`,
+      input.skillId, input.project, input.slug, input.description, input.visibility, input.authorId,
+      version, now, now,
+    );
+    run(
+      db,
+      `INSERT INTO versions (skill_id, version, digest, size, name, description, skill_md, html, html_rev, files, object_key, author_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      input.skillId, version, input.digest, input.size, input.name, input.description,
+      input.skill_md, input.html, input.html_rev, input.files, input.objectKey, input.authorId, now,
+    );
+    return version;
+  });
 }
 
-export async function setVisibility(
-  db: D1Database,
-  project: string,
-  slug: string,
-  visibility: "public" | "private",
-): Promise<void> {
-  await db
-    .prepare("UPDATE skills SET visibility = ?, updated_at = ? WHERE project = ? AND slug = ?")
-    .bind(visibility, Date.now(), project, slug)
-    .run();
+export function setVisibility(db: Db, project: string, slug: string, visibility: "public" | "private"): void {
+  run(db, "UPDATE skills SET visibility = ?, updated_at = ? WHERE project = ? AND slug = ?", visibility, Date.now(), project, slug);
 }
 
-export async function deleteSkill(db: D1Database, project: string, slug: string): Promise<string[]> {
-  const { results } = await db
-    .prepare(`SELECT r2_key FROM versions WHERE skill_id = ${SKILL_ID_SQL}`)
-    .bind(project, slug)
-    .all<{ r2_key: string }>();
-  await db.batch([
-    db.prepare("INSERT OR IGNORE INTO download_purges (skill_id) SELECT id FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
-    db.prepare(`DELETE FROM download_days WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
-    db.prepare(`DELETE FROM versions WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
-    db.prepare("DELETE FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
-  ]);
-  return results.map((r) => r.r2_key);
+export function deleteSkill(db: Db, project: string, slug: string): string[] {
+  return transaction(db, () => {
+    const keys = all<{ object_key: string }>(
+      db,
+      `SELECT DISTINCT object_key FROM versions WHERE skill_id = ${SKILL_ID_SQL}`,
+      project, slug,
+    );
+    run(db, "DELETE FROM skills WHERE project = ? AND slug = ?", project, slug);
+    return keys.map((r) => r.object_key);
+  });
 }
 
-export async function updateApiTokenHash(
-  db: D1Database,
-  userId: string,
-  hash: string | null,
-): Promise<void> {
-  await db.prepare("UPDATE users SET api_token_hash = ? WHERE id = ?").bind(hash, userId).run();
+export function updateApiTokenHash(db: Db, userId: string, hash: string | null): void {
+  run(db, "UPDATE users SET api_token_hash = ? WHERE id = ?", hash, userId);
 }
 
-export async function updatePassword(db: D1Database, userId: string, hash: string): Promise<void> {
-  await db.batch([
-    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash, userId),
-    deleteUserLogins(db, userId),
-  ]);
+export function updatePassword(db: Db, userId: string, hash: string): void {
+  transaction(db, () => {
+    run(db, "UPDATE users SET password_hash = ? WHERE id = ?", hash, userId);
+    deleteUserLogins(db, userId);
+  });
 }
 
-export async function touchLogin(db: D1Database, userId: string, at: number): Promise<void> {
-  await db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").bind(at, userId).run();
+export function touchLogin(db: Db, userId: string, at: number): void {
+  run(db, "UPDATE users SET last_login_at = ? WHERE id = ?", at, userId);
 }
 
 const ARTIFACT_SQL =
-  "SELECT s.id AS skill_id, s.project, s.slug, v.version, s.visibility, v.r2_key FROM skills s JOIN versions v ON v.skill_id = s.id";
+  "SELECT s.id AS skill_id, s.project, s.slug, v.version, s.visibility, v.object_key FROM skills s JOIN versions v ON v.skill_id = s.id";
 
-export function getArtifactByVersion(
-  db: D1Database,
-  project: string,
-  slug: string,
-  version: number | null,
-): Promise<ArtifactRef | null> {
-  return db
-    .prepare(`${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.version = COALESCE(?, s.latest_version)`)
-    .bind(project, slug, version)
-    .first<ArtifactRef>();
+export function getArtifactByVersion(db: Db, project: string, slug: string, version: number | null): ArtifactRef | null {
+  return get<ArtifactRef>(
+    db,
+    `${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.version = COALESCE(?, s.latest_version)`,
+    project, slug, version,
+  );
 }
 
-export function getArtifactByDigest(
-  db: D1Database,
-  project: string,
-  slug: string,
-  digest: string,
-): Promise<ArtifactRef | null> {
-  return db
-    .prepare(`${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.digest = ?`)
-    .bind(project, slug, digest)
-    .first<ArtifactRef>();
+export function getArtifactByDigest(db: Db, project: string, slug: string, digest: string): ArtifactRef | null {
+  return get<ArtifactRef>(db, `${ARTIFACT_SQL} WHERE s.project = ? AND s.slug = ? AND v.digest = ?`, project, slug, digest);
 }
 
-export function getPublicArtifact(db: D1Database, slug: string, digest: string): Promise<ArtifactRef | null> {
-  return db
-    .prepare(`${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? ORDER BY s.created_at, s.id LIMIT 1`)
-    .bind(slug, digest)
-    .first<ArtifactRef>();
+export function getPublicArtifact(db: Db, slug: string, digest: string): ArtifactRef | null {
+  return get<ArtifactRef>(
+    db,
+    `${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? ORDER BY s.created_at, s.id LIMIT 1`,
+    slug, digest,
+  );
 }
 
 export interface ProjectSummary extends ProjectRow {
@@ -530,44 +434,35 @@ export interface ProjectSummary extends ProjectRow {
   role: "admin" | "member" | null;
 }
 
-export async function listProjectSummaries(db: D1Database, userId: string, all: boolean): Promise<ProjectSummary[]> {
-  const where = all ? "" : "WHERE EXISTS (SELECT 1 FROM memberships m WHERE m.project = p.slug AND m.user_id = ?1)";
-  const { results } = await db
-    .prepare(
-      `SELECT p.slug, p.name, p.created_at,
-              (SELECT COUNT(*) FROM skills s WHERE s.project = p.slug) AS skills,
-              (SELECT COUNT(*) FROM memberships m WHERE m.project = p.slug) AS members,
-              (SELECT m.role FROM memberships m WHERE m.project = p.slug AND m.user_id = ?1) AS role
-       FROM projects p ${where}
-       ORDER BY p.name`,
-    )
-    .bind(userId)
-    .all<ProjectSummary>();
-  return results;
+export function listProjectSummaries(db: Db, userId: string, everything: boolean): ProjectSummary[] {
+  const where = everything ? "" : "WHERE EXISTS (SELECT 1 FROM memberships m WHERE m.project = p.slug AND m.user_id = @userId)";
+  return all<ProjectSummary>(
+    db,
+    `SELECT p.slug, p.name, p.created_at,
+            (SELECT COUNT(*) FROM skills s WHERE s.project = p.slug) AS skills,
+            (SELECT COUNT(*) FROM memberships m WHERE m.project = p.slug) AS members,
+            (SELECT m.role FROM memberships m WHERE m.project = p.slug AND m.user_id = @userId) AS role
+     FROM projects p ${where}
+     ORDER BY p.name`,
+    { userId },
+  );
 }
 
-export async function projectNameTaken(db: D1Database, name: string, except: string | null): Promise<boolean> {
-  const row = await db
-    .prepare("SELECT 1 AS taken FROM projects WHERE name = ?1 AND (?2 IS NULL OR slug <> ?2)")
-    .bind(name, except)
-    .first<{ taken: number }>();
-  return row !== null;
+export function projectNameTaken(db: Db, name: string, except: string | null): boolean {
+  return (
+    get(db, "SELECT 1 AS taken FROM projects WHERE name = @name AND (@except IS NULL OR slug <> @except)", { name, except }) !==
+    null
+  );
 }
 
-export async function renameProject(db: D1Database, slug: string, name: string): Promise<void> {
-  await db.prepare("UPDATE projects SET name = ? WHERE slug = ?").bind(name, slug).run();
+export function renameProject(db: Db, slug: string, name: string): void {
+  run(db, "UPDATE projects SET name = ? WHERE slug = ?", name, slug);
 }
 
-export async function deleteProject(db: D1Database, slug: string): Promise<boolean> {
-  const [, project] = await db.batch([
-    db
-      .prepare("DELETE FROM memberships WHERE project = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
-      .bind(slug),
-    db
-      .prepare("DELETE FROM projects WHERE slug = ?1 AND NOT EXISTS (SELECT 1 FROM skills WHERE project = ?1)")
-      .bind(slug),
-  ]);
-  return project.meta.changes === 1;
+export function deleteProject(db: Db, slug: string): boolean {
+  return (
+    run(db, "DELETE FROM projects WHERE slug = @slug AND NOT EXISTS (SELECT 1 FROM skills WHERE project = @slug)", { slug }) === 1
+  );
 }
 
 export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & {
@@ -578,83 +473,53 @@ export type Member = Pick<MembershipRow, "user_id" | "role" | "can_publish"> & {
 const MEMBER_SQL = `SELECT m.user_id, m.role, m.can_publish, u.username, u.role AS account_role
   FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project = ?`;
 
-export async function listMembers(db: D1Database, project: string): Promise<Member[]> {
-  const { results } = await db.prepare(`${MEMBER_SQL} ORDER BY u.username`).bind(project).all<Member>();
-  return results;
+export function listMembers(db: Db, project: string): Member[] {
+  return all<Member>(db, `${MEMBER_SQL} ORDER BY u.username`, project);
 }
 
-export function getMember(db: D1Database, project: string, userId: string): Promise<Member | null> {
-  return db.prepare(`${MEMBER_SQL} AND m.user_id = ?`).bind(project, userId).first<Member>();
+export function getMember(db: Db, project: string, userId: string): Member | null {
+  return get<Member>(db, `${MEMBER_SQL} AND m.user_id = ?`, project, userId);
 }
 
-export async function listNonMembers(
-  db: D1Database,
-  project: string,
-): Promise<Array<Pick<UserRow, "id" | "username">>> {
-  const { results } = await db
-    .prepare(
-      `SELECT u.id, u.username FROM users u
-       WHERE NOT EXISTS (SELECT 1 FROM memberships m WHERE m.project = ? AND m.user_id = u.id)
-       ORDER BY u.username`,
-    )
-    .bind(project)
-    .all<Pick<UserRow, "id" | "username">>();
-  return results;
+export function listNonMembers(db: Db, project: string): Array<Pick<UserRow, "id" | "username">> {
+  return all(
+    db,
+    `SELECT u.id, u.username FROM users u
+     WHERE NOT EXISTS (SELECT 1 FROM memberships m WHERE m.project = ? AND m.user_id = u.id)
+     ORDER BY u.username`,
+    project,
+  );
 }
 
-export async function updateMembershipRole(
-  db: D1Database,
-  project: string,
-  userId: string,
-  role: "admin" | "member",
-): Promise<void> {
-  await db
-    .prepare("UPDATE memberships SET role = ? WHERE project = ? AND user_id = ?")
-    .bind(role, project, userId)
-    .run();
+export function updateMembershipRole(db: Db, project: string, userId: string, role: "admin" | "member"): void {
+  run(db, "UPDATE memberships SET role = ? WHERE project = ? AND user_id = ?", role, project, userId);
 }
 
-export async function updateMembershipPublish(
-  db: D1Database,
-  project: string,
-  userId: string,
-  canPublish: boolean,
-): Promise<void> {
-  await db
-    .prepare("UPDATE memberships SET can_publish = ? WHERE project = ? AND user_id = ?")
-    .bind(canPublish ? 1 : 0, project, userId)
-    .run();
+export function updateMembershipPublish(db: Db, project: string, userId: string, canPublish: boolean): void {
+  run(db, "UPDATE memberships SET can_publish = ? WHERE project = ? AND user_id = ?", canPublish ? 1 : 0, project, userId);
 }
 
-export async function deleteMembership(db: D1Database, project: string, userId: string): Promise<void> {
-  await db.prepare("DELETE FROM memberships WHERE project = ? AND user_id = ?").bind(project, userId).run();
+export function deleteMembership(db: Db, project: string, userId: string): void {
+  run(db, "DELETE FROM memberships WHERE project = ? AND user_id = ?", project, userId);
 }
 
-export async function projectHasSkills(db: D1Database, project: string, publicOnly: boolean): Promise<boolean> {
-  const row = await db
-    .prepare(`SELECT 1 AS found FROM skills WHERE project = ?${publicOnly ? " AND visibility = 'public'" : ""} LIMIT 1`)
-    .bind(project)
-    .first<{ found: number }>();
-  return row !== null;
+export function projectHasSkills(db: Db, project: string, publicOnly: boolean): boolean {
+  const visibility = publicOnly ? " AND visibility = 'public'" : "";
+  return get(db, `SELECT 1 AS found FROM skills WHERE project = ?${visibility} LIMIT 1`, project) !== null;
 }
 
-export async function projectsWithSkillNamed(db: D1Database, slug: string): Promise<string[]> {
-  const { results } = await db.prepare("SELECT project FROM skills WHERE slug = ?").bind(slug).all<{ project: string }>();
-  return results.map((r) => r.project);
+export function projectsWithSkillNamed(db: Db, slug: string): string[] {
+  return all<{ project: string }>(db, "SELECT project FROM skills WHERE slug = ?", slug).map((r) => r.project);
 }
 
-export async function moveSkill(db: D1Database, project: string, slug: string, target: string): Promise<void> {
-  await db.prepare("UPDATE skills SET project = ? WHERE project = ? AND slug = ?").bind(target, project, slug).run();
+export function moveSkill(db: Db, project: string, slug: string, target: string): void {
+  run(db, "UPDATE skills SET project = ? WHERE project = ? AND slug = ?", target, project, slug);
 }
 
-export function getInstallKeyAccess(
-  db: D1Database,
-  key: string,
-): Promise<{ project: string; user_id: string; username: string } | null> {
-  return db
-    .prepare(
-      "SELECT m.project, m.user_id, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?",
-    )
-    .bind(key)
-    .first<{ project: string; user_id: string; username: string }>();
+export function getInstallKeyAccess(db: Db, key: string): { project: string; user_id: string; username: string } | null {
+  return get(
+    db,
+    "SELECT m.project, m.user_id, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?",
+    key,
+  );
 }

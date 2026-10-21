@@ -3,18 +3,103 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    env:
+      S3_TEST_ENDPOINT: http://127.0.0.1:8333
+      S3_TEST_ACCESS_KEY_ID: ci
+      S3_TEST_SECRET_ACCESS_KEY: ci-secret-access-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
+      - name: Start SeaweedFS
+        run: |
+          docker run -d --name s3 -p 8333:8333 \
+            -e AWS_ACCESS_KEY_ID="$S3_TEST_ACCESS_KEY_ID" -e AWS_SECRET_ACCESS_KEY="$S3_TEST_SECRET_ACCESS_KEY" \
+            chrislusf/seaweedfs:4.48 mini -dir=/data -master.telemetry=false
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: Wait for SeaweedFS
+        run: |
+          for i in $(seq 1 60); do
+            curl -s -o /dev/null "$S3_TEST_ENDPOINT" && exit 0
+            sleep 1
+          done
+          docker logs s3
+          exit 1
       - run: npm test
+
+  image:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image for this runner
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: skillsgist:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke-test the image
+        run: |
+          docker network create smoke
+          docker run -d --name s3 --network smoke \
+            -e AWS_ACCESS_KEY_ID=smoke -e AWS_SECRET_ACCESS_KEY=smoke-secret-access-key -e S3_BUCKET=skillsgist \
+            chrislusf/seaweedfs:4.48 mini -dir=/data -master.telemetry=false
+          docker run -d --name app --network smoke -p 3000:3000 \
+            -e SESSION_SECRET="$(openssl rand -hex 32)" -e GEOIP_AUTO_UPDATE=false \
+            -e S3_ENDPOINT=http://s3:8333 -e S3_BUCKET=skillsgist \
+            -e S3_ACCESS_KEY_ID=smoke -e S3_SECRET_ACCESS_KEY=smoke-secret-access-key \
+            skillsgist:smoke
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:3000/healthz && exit 0
+            sleep 1
+          done
+          docker logs app
+          exit 1
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=edge,branch=main
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

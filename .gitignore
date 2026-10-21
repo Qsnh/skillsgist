@@ -1,8 +1,9 @@
 node_modules/
 public/app.css
-.wrangler/
 dist/
-.dev.vars
+data/
+.env
 docs/superpowers/
 .impeccable/review/
 .impeccable/questions/
+.wrangler/

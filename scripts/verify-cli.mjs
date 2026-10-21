@@ -9,12 +9,12 @@ import { createInterface } from "node:readline";
 const PORT = 8788;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const PASSWORD = "verify-cli-password";
-// wrangler dev reads SESSION_SECRET from `.dev.vars`, and this repo ships
-// none — the test suite runs on vitest-pool-workers, which injects the secret
-// as a Miniflare binding instead. Without it `c.env.SESSION_SECRET` is
-// undefined and every route that touches a session cookie 500s. `--var`
-// injects it for just this process without requiring any file on disk.
 const SESSION_SECRET = randomBytes(32).toString("hex");
+const S3_IMAGE = "chrislusf/seaweedfs:4.48";
+const S3_PORT = 8789;
+const S3_KEY = `verify-${randomBytes(4).toString("hex")}`;
+const S3_SECRET = randomBytes(16).toString("hex");
+const S3_CONTAINER = `skillsgist-verify-s3-${process.pid}`;
 
 const seenSecrets = new Set([SESSION_SECRET]);
 
@@ -42,7 +42,7 @@ async function waitForServer(timeoutMs = 60_000) {
     } catch {}
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error("wrangler dev was not ready before the timeout");
+  throw new Error("the server was not ready before the timeout");
 }
 
 function run(cmd, args, opts = {}) {
@@ -233,10 +233,6 @@ function findFile(root, relative) {
   return null;
 }
 
-// Kills the whole `wrangler dev` process tree and waits for it to actually
-// exit, so a second run of this script never fights the previous one for
-// PORT. SIGTERM cascades to wrangler's workerd children on its own (verified
-// empirically); SIGKILL is only a backstop if it doesn't.
 async function stopServer(server) {
   if (server.exitCode !== null || server.signalCode !== null) return;
   const exited = new Promise((resolve) => server.once("exit", resolve));
@@ -265,6 +261,7 @@ async function killChildren() {
 
 process.once("SIGINT", () => {
   for (const child of children) killGroup(child);
+  stopS3();
   process.exit(130);
 });
 
@@ -275,11 +272,69 @@ if (!terminalArgs) {
   process.exit(1);
 }
 
-const server = spawn(
-  "npx",
-  ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--test-scheduled", "--var", `SESSION_SECRET:${SESSION_SECRET}`],
-  { stdio: ["ignore", "pipe", "pipe"] },
-);
+function s3Settings() {
+  if (process.env.VERIFY_S3_ENDPOINT) {
+    return {
+      S3_ENDPOINT: process.env.VERIFY_S3_ENDPOINT,
+      S3_BUCKET: process.env.VERIFY_S3_BUCKET ?? "skillsgist-verify",
+      S3_ACCESS_KEY_ID: process.env.VERIFY_S3_ACCESS_KEY_ID ?? "",
+      S3_SECRET_ACCESS_KEY: process.env.VERIFY_S3_SECRET_ACCESS_KEY ?? "",
+      S3_REGION: process.env.VERIFY_S3_REGION ?? "us-east-1",
+    };
+  }
+  const started = spawnSync(
+    "docker",
+    [
+      "run", "-d", "--rm", "--name", S3_CONTAINER, "-p", `127.0.0.1:${S3_PORT}:8333`,
+      "-e", `AWS_ACCESS_KEY_ID=${S3_KEY}`, "-e", `AWS_SECRET_ACCESS_KEY=${S3_SECRET}`,
+      S3_IMAGE, "mini", "-dir=/data", "-master.telemetry=false",
+    ],
+    { encoding: "utf8" },
+  );
+  if (started.status !== 0) {
+    throw new Error(`could not start SeaweedFS with docker (set VERIFY_S3_ENDPOINT to use another S3):\n${started.stderr}`);
+  }
+  log(`started SeaweedFS in the container ${S3_CONTAINER}`);
+  return {
+    S3_ENDPOINT: `http://127.0.0.1:${S3_PORT}`,
+    S3_BUCKET: "skillsgist-verify",
+    S3_ACCESS_KEY_ID: S3_KEY,
+    S3_SECRET_ACCESS_KEY: S3_SECRET,
+  };
+}
+
+function stopS3() {
+  if (!process.env.VERIFY_S3_ENDPOINT) spawnSync("docker", ["rm", "-f", S3_CONTAINER], { stdio: "ignore" });
+}
+
+const built = spawnSync("npm", ["run", "build:server"], { stdio: "inherit" });
+if (built.status !== 0) {
+  process.stderr.write("[verify-cli] failed: npm run build:server did not succeed\n");
+  process.exit(1);
+}
+
+let s3;
+try {
+  s3 = s3Settings();
+} catch (err) {
+  process.stderr.write(`[verify-cli] failed: ${err.message}\n`);
+  process.exit(1);
+}
+
+const server = spawn(process.execPath, ["dist/server.js"], {
+  stdio: ["ignore", "pipe", "pipe"],
+  env: {
+    ...process.env,
+    ...s3,
+    PORT: String(PORT),
+    HOST: "127.0.0.1",
+    SESSION_SECRET,
+    DATA_DIR: tempDir("skillsgist-verify-data-"),
+    GEOIP_AUTO_UPDATE: "false",
+    PUBLIC_URL: "",
+    TRUST_PROXY: "",
+  },
+});
 for (const [from, to] of [[server.stdout, process.stdout], [server.stderr, process.stderr]]) {
   createInterface({ input: from, crlfDelay: Infinity }).on("line", (line) => to.write(`${redact(line)}\n`));
 }
@@ -287,7 +342,7 @@ for (const [from, to] of [[server.stdout, process.stdout], [server.stderr, proce
 let exitCode = 1;
 try {
   await waitForServer();
-  log("wrangler dev is ready");
+  log("the server is ready");
 
   // 1. Create an admin and sign in
   //
@@ -357,24 +412,6 @@ try {
     );
   };
 
-  const rollUpDownloads = async () => {
-    const res = await fetch(`${ORIGIN}/cdn-cgi/local/scheduled?cron=17+*+*+*+*`);
-    if (!res.ok) throw new Error(`the hourly run answered ${res.status}: ${await res.text()}`);
-  };
-
-  const settledDownloadCounts = async () => {
-    await rollUpDownloads();
-    let last = await downloadCounts();
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 300));
-      await rollUpDownloads();
-      const now = await downloadCounts();
-      if (JSON.stringify(now) === JSON.stringify(last)) return now;
-      last = now;
-    }
-    return last;
-  };
-
   const countedSince = (before, after) =>
     Object.fromEntries(Object.keys(after).map((slug) => [slug, after[slug] - before[slug]]));
 
@@ -399,8 +436,8 @@ try {
   // 3b. Publish the same skill again from a tar.gz produced by macOS `tar czf`,
   // block-aligned with trailing zero padding. Unpacked it is byte-identical to
   // wrapped.zip, so this almost certainly lands in the unchanged (200) branch —
-  // but it goes over real HTTP against the workerd runtime rather than the
-  // vitest sandbox, confirming the "tolerate bsdtar padding" path works in a
+  // but it goes over real HTTP against the built Node server rather than the
+  // vitest harness, confirming the "tolerate bsdtar padding" path works in a
   // real deployment shape too.
   const status = await publishFixture("bsdtar-padded.tar.gz", "application/gzip");
   log(`bsdtar-padded.tar.gz published (${status})`);
@@ -443,7 +480,7 @@ try {
   }
   log("install key digest verified, unauthenticated index hides demo-skill");
 
-  const beforeEnvInstall = await settledDownloadCounts();
+  const beforeEnvInstall = await downloadCounts();
   const envHome = await installTo(`${ORIGIN}/p/default`, ["-s", "demo-skill"], { SKILLSGIST_HOST: ORIGIN, SKILLSGIST_INSTALL_KEY: installKey });
   const envInstalled = findFile(envHome, join("demo-skill", "SKILL.md"));
   if (!envInstalled) throw new Error(`skillsgist add did not install demo-skill into ${envHome}`);
@@ -455,7 +492,7 @@ try {
     throw new Error("the installed skill is missing scripts/run.sh — incomplete install");
   }
   expectInstalled(envHome, ["demo-skill"], "-s demo-skill with SKILLSGIST_INSTALL_KEY");
-  const afterEnvInstall = await settledDownloadCounts();
+  const afterEnvInstall = await downloadCounts();
   const envCounted = countedSince(beforeEnvInstall, afterEnvInstall);
   if (envCounted["demo-skill"] !== 1) {
     throw new Error(`one install of demo-skill should count one download, counted ${envCounted["demo-skill"]}`);
@@ -472,7 +509,7 @@ try {
     SKILLSGIST_INSTALL_KEY: installKey,
   });
   expectInstalled(keyedHome, ["demo-skill"], "keyed single-skill install address");
-  const keyedCounted = countedSince(afterEnvInstall, await settledDownloadCounts());
+  const keyedCounted = countedSince(afterEnvInstall, await downloadCounts());
   if (keyedCounted["demo-skill"] !== 1 || keyedCounted["other-skill"] !== 0) {
     throw new Error(
       `the single-skill address should count demo-skill +1 and other-skill +0, counted +${keyedCounted["demo-skill"]} and +${keyedCounted["other-skill"]}`,
@@ -635,6 +672,7 @@ try {
 } finally {
   await killChildren();
   await stopServer(server);
+  stopS3();
   for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
 }
 

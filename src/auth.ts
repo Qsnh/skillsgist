@@ -1,10 +1,12 @@
+import { randomBytes } from "node:crypto";
+import { hash, verify } from "@node-rs/argon2";
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import type { CookieOptions } from "hono/utils/cookie";
-import { decodeBase64, encodeBase64 } from "hono/utils/encode";
+import type { Db } from "./db/database";
 import { getSkill, getViewer, getViewerByApiTokenHash, listProjects } from "./db/queries";
 import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
-import { sha256Hex, toHex } from "./hash";
+import { sha256Hex } from "./hash";
 import { messages } from "./i18n";
 import type { SkillAction } from "./i18n/en";
 import { DAY_MS } from "./time";
@@ -27,20 +29,15 @@ export interface AppEnv {
 
 export type Ctx = Context<AppEnv>;
 
-export const PBKDF2_ITERATIONS = 10_000;
 export const MIN_PASSWORD_LENGTH = 12;
+export const USERNAME = /^[a-z0-9-]{2,32}$/;
 export const SESSION_COOKIE = "sg_session";
 export const SESSION_TTL_MS = 30 * DAY_MS;
 
 /** Name of the hidden form field carrying the CSRF token. See src/csrf.tsx. */
 export const CSRF_FIELD = "_csrf";
 
-const enc = new TextEncoder();
-
-async function deriveBits(password: string, salt: Uint8Array, iterations: number): Promise<ArrayBuffer> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-  return crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
-}
+const ARGON2 = { memoryCost: 19456, timeCost: 2, parallelism: 1 };
 
 export function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -49,32 +46,27 @@ export function constantTimeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function hashPassword(
-  password: string,
-  iterations: number = PBKDF2_ITERATIONS,
-): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const bits = await deriveBits(password, salt, iterations);
-  return `pbkdf2$${iterations}$${encodeBase64(salt.buffer)}$${encodeBase64(bits)}`;
+export function hashPassword(password: string): Promise<string> {
+  return hash(password, ARGON2);
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const parts = stored.split("$");
-  if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
-  const iterations = Number(parts[1]);
-  if (!Number.isInteger(iterations) || iterations < 1 || iterations > 1_000_000) return false;
-  let salt: Uint8Array;
   try {
-    salt = decodeBase64(parts[2]);
+    return await verify(stored, password);
   } catch {
     return false;
   }
-  const bits = await deriveBits(password, salt, iterations);
-  return constantTimeEqual(encodeBase64(bits), parts[3]);
+}
+
+let dummyHash: Promise<string> | null = null;
+
+export async function burnPasswordCheck(password: string): Promise<void> {
+  dummyHash ??= hashPassword(randomHex(16));
+  await verifyPassword(password, await dummyHash);
 }
 
 export function randomHex(byteLength: number): string {
-  return toHex(crypto.getRandomValues(new Uint8Array(byteLength)));
+  return randomBytes(byteLength).toString("hex");
 }
 
 /**
@@ -95,7 +87,7 @@ export async function startSession(c: Ctx, userId: string): Promise<void> {
     exp: Date.now() + SESSION_TTL_MS,
     csrf: randomHex(16),
   } satisfies SessionPayload);
-  await setSignedCookie(c, SESSION_COOKIE, payload, c.env.SESSION_SECRET, cookieOptions(c, SESSION_TTL_MS / 1000));
+  await setSignedCookie(c, SESSION_COOKIE, payload, c.env.config.sessionSecret, cookieOptions(c, SESSION_TTL_MS / 1000));
 }
 
 export function cookieOptions(c: Ctx, maxAge: number): CookieOptions {
@@ -129,7 +121,7 @@ function readSession(c: Ctx): Promise<SessionPayload | null> {
 }
 
 async function loadSession(c: Ctx): Promise<SessionPayload | null> {
-  const raw = await getSignedCookie(c, c.env.SESSION_SECRET, SESSION_COOKIE);
+  const raw = await getSignedCookie(c, c.env.config.sessionSecret, SESSION_COOKIE);
   if (!raw) return null;
   let payload: { uid?: unknown; exp?: unknown; csrf?: unknown };
   try {
@@ -146,7 +138,7 @@ async function loadSession(c: Ctx): Promise<SessionPayload | null> {
 export async function currentUser(c: Ctx): Promise<Viewer | null> {
   const session = await readSession(c);
   if (!session) return null;
-  return await getViewer(c.env.DB, session.uid);
+  return getViewer(c.env.db, session.uid);
 }
 
 /** The current session's CSRF token, or null when there is no usable session. */
@@ -160,10 +152,10 @@ export function bearerToken(c: Ctx): string | null {
   return token && rest.length === 0 ? token : "";
 }
 
-export async function userFromApiToken(c: Ctx): Promise<Viewer | null> {
+export function userFromApiToken(c: Ctx): Viewer | null {
   const token = bearerToken(c);
   if (!token) return null;
-  return await getViewerByApiTokenHash(c.env.DB, await sha256Hex(token));
+  return getViewerByApiTokenHash(c.env.db, sha256Hex(token));
 }
 
 export function membershipIn(viewer: Viewer, project: string): Membership | undefined {
@@ -200,10 +192,7 @@ export function skillScope(viewer: Viewer | null): SkillScope {
   return { kind: "member", userId: viewer.id };
 }
 
-export async function publishableProjects(
-  db: D1Database,
-  viewer: Viewer,
-): Promise<Array<{ slug: string; name: string }>> {
+export function publishableProjects(db: Db, viewer: Viewer): Array<{ slug: string; name: string }> {
   if (viewer.role === "admin") return listProjects(db);
   return viewer.memberships
     .filter((m) => canPublishIn(viewer, m.project))
@@ -244,7 +233,7 @@ export async function requireManagedSkill(
   slug: string,
   action: SkillAction,
 ): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
-  return managedSkillGuard(c, await getSkill(c.env.DB, project, slug), messages(c).skills.notAllowed(action));
+  return managedSkillGuard(c, getSkill(c.env.db, project, slug), messages(c).skills.notAllowed(action));
 }
 
 /** `requireUser`, plus an admin-only gate. */

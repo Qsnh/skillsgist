@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022"],
-    "types": ["@cloudflare/workers-types/experimental", "@cloudflare/vitest-pool-workers/types"],
+    "lib": ["ES2023"],
+    "types": ["node"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "strict": true,
@@ -13,5 +13,5 @@
     "allowJs": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*", "test/**/*", "vitest.config.ts"]
+  "include": ["src/**/*", "test/**/*", "scripts/**/*.ts", "vitest.config.ts"]
 }

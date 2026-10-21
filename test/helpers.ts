@@ -1,44 +1,90 @@
-import { env as rawEnv, SELF } from "cloudflare:test";
+import { readFileSync } from "node:fs";
+import { app } from "../src/app";
 import { hashPassword, randomHex } from "../src/auth";
+import { DEFAULT_LIMITS } from "../src/config";
+import type { Config } from "../src/config";
 import { newDeviceCode, newDeviceToken, newInstallKey, newUserCode } from "../src/credentials";
+import { MEMORY, openDatabase, transaction } from "../src/db/database";
+import { recordDownload } from "../src/db/downloads";
+import type { DownloadSource } from "../src/db/downloads";
 import { activateLogin, approveLogin, createPendingLogin } from "../src/db/logins";
 import { addMembership, createProject, createUser, DEFAULT_PROJECT, getUserByUsername } from "../src/db/queries";
 import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
+import { GeoIp } from "../src/geoip";
 import { sha256Hex } from "../src/hash";
+import { RateLimiter } from "../src/rate-limit";
+import type { RateLimiters } from "../src/rate-limit";
 import type { IndexEntry } from "../src/registry";
 import type { Env } from "../src/types";
+import { MemoryStorage } from "./memory-storage";
 
-/**
- * The worker's bindings, typed.
- *
- * `cloudflare:test`'s `env` types as the ambient `Cloudflare.Env` — an empty
- * interface until `wrangler types` wires up project-specific bindings, which
- * is out of scope here. Local cast only; runtime behavior is unaffected. One
- * cast, exported, so it isn't restated in every test file.
- *
- * The `*_ZIP` / `*_TAR_GZ` entries are binary fixtures. They can't be read
- * with `node:fs` from inside a pool-workers test — the worker's `node:fs` is
- * a sandboxed, empty virtual filesystem with no bridge to the host disk — so
- * `vitest.config.ts` reads them in plain Node and hands them in as
- * `dataBlobBindings`. Use `fixture()` below to get the bytes.
- */
-export const env = rawEnv as unknown as {
-  DB: D1Database;
-  BUCKET: R2Bucket;
-  FLAT_ZIP: ArrayBuffer;
-  WRAPPED_ZIP: ArrayBuffer;
-  FLAT_DOT_TAR_GZ: ArrayBuffer;
-  SYMLINK_TAR_GZ: ArrayBuffer;
-  BSDTAR_PADDED_TAR_GZ: ArrayBuffer;
-  NO_SKILL_MD_ZIP: ArrayBuffer;
+const FIXTURES = {
+  FLAT_ZIP: "flat.zip",
+  WRAPPED_ZIP: "wrapped.zip",
+  FLAT_DOT_TAR_GZ: "flat-dot.tar.gz",
+  SYMLINK_TAR_GZ: "symlink.tar.gz",
+  BSDTAR_PADDED_TAR_GZ: "bsdtar-padded.tar.gz",
+  NO_SKILL_MD_ZIP: "no-skill-md.zip",
 };
 
-type FixtureName = {
-  [K in keyof typeof env]: (typeof env)[K] extends ArrayBuffer ? K : never;
-}[keyof typeof env];
+export const fixturePath = (file: string) => new URL(`./fixtures/${file}`, import.meta.url);
 
-export const fixture = (name: FixtureName) => new Uint8Array(env[name]);
+export const fixture = (name: keyof typeof FIXTURES) => new Uint8Array(readFileSync(fixturePath(FIXTURES[name])));
+
+export const GEOIP_FIXTURE = fixturePath("geoip-country.mmdb").pathname;
+
+export function testConfig(overrides: Partial<Config> = {}): Config {
+  return {
+    port: 0,
+    host: "127.0.0.1",
+    publicUrl: null,
+    trustProxy: 0,
+    dataDir: "",
+    databasePath: MEMORY,
+    sessionSecret: "test-secret-that-is-long-enough-for-hmac",
+    s3: {
+      endpoint: "http://s3.invalid",
+      region: "us-east-1",
+      bucket: "skillsgist",
+      accessKeyId: "test",
+      secretAccessKey: "test",
+      forcePathStyle: true,
+    },
+    retentionDays: 90,
+    geoip: { path: GEOIP_FIXTURE, autoUpdate: false },
+    limits: DEFAULT_LIMITS,
+    ...overrides,
+  };
+}
+
+export const unlimited = (): RateLimiters => ({
+  deviceAuthorization: new RateLimiter(Number.MAX_SAFE_INTEGER, 1),
+  signIn: new RateLimiter(Number.MAX_SAFE_INTEGER, 1),
+});
+
+const geoip = new GeoIp(GEOIP_FIXTURE);
+geoip.load();
+
+export const storage = new MemoryStorage();
+
+export const env: Env = {
+  db: openDatabase(MEMORY),
+  storage,
+  geoip,
+  config: testConfig(),
+  limiters: unlimited(),
+  clientIp: null,
+};
+
+export type AppRequestInit = RequestInit & { clientIp?: string | null; env?: Partial<Env> };
+
+export function appFetch(url: string, init: AppRequestInit = {}): Promise<Response> {
+  const { clientIp, env: overrides, ...request } = init;
+  return Promise.resolve(
+    app.fetch(new Request(url, request), { ...env, ...overrides, clientIp: clientIp === undefined ? env.clientIp : clientIp }),
+  );
+}
 
 export const ORIGIN = "http://localhost";
 
@@ -52,28 +98,18 @@ export const OTHER_MD = "---\nname: other-skill\ndescription: Another skill.\n--
 export const FLAT_FILES = ["SKILL.md", "references/api.md", "scripts/run.sh"];
 
 // Every state-changing request needs an Origin header now: `hono/csrf` rejects
-// a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and neither
-// `SELF.fetch` nor Node's `fetch` sends either on its own the way a browser
-// would. Anything that posts through these helpers gets it for free.
+// a form POST that carries neither `Origin` nor `Sec-Fetch-Site`, and a
+// server-side `Request` sends neither on its own the way a browser would.
+// Anything that posts through these helpers gets it for free.
 const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM download_logs"),
-    env.DB.prepare("DELETE FROM download_days"),
-    env.DB.prepare("DELETE FROM download_user_days"),
-    env.DB.prepare("DELETE FROM download_purges"),
-    env.DB.prepare("UPDATE download_rollup SET last_id = 0"),
-    env.DB.prepare("DELETE FROM cli_login_projects"),
-    env.DB.prepare("DELETE FROM cli_logins"),
-    env.DB.prepare("DELETE FROM device_code_attempts"),
-    env.DB.prepare("DELETE FROM memberships"),
-    env.DB.prepare("DELETE FROM versions"),
-    env.DB.prepare("DELETE FROM skills"),
-    env.DB.prepare("DELETE FROM users"),
-    env.DB.prepare("DELETE FROM projects"),
-    env.DB.prepare("INSERT INTO projects (slug, name, created_at) VALUES (?, 'Default', 0)").bind(DEFAULT_PROJECT),
-  ]);
+  env.db.close();
+  env.db = openDatabase(MEMORY);
+  env.db.prepare("UPDATE projects SET created_at = 0 WHERE slug = ?").run(DEFAULT_PROJECT);
+  env.config = testConfig();
+  env.limiters = unlimited();
+  storage.clear();
 }
 
 export interface SeedOptions {
@@ -89,10 +125,10 @@ export async function seedUser(opts: SeedOptions = {}): Promise<{ user: UserRow;
   const password = opts.password ?? "a-very-long-password";
   const role = opts.role ?? "admin";
   const id = randomHex(8);
-  await createUser(env.DB, { id, username, passwordHash: await hashPassword(password), role });
+  createUser(env.db, { id, username, passwordHash: await hashPassword(password), role });
   const project = opts.project === undefined ? DEFAULT_PROJECT : opts.project;
-  if (project !== null) await joinProject(id, project, newInstallKey(), opts.projectRole);
-  const user = await getUserByUsername(env.DB, username);
+  if (project !== null) joinProject(id, project, newInstallKey(), opts.projectRole);
+  const user = getUserByUsername(env.db, username);
   if (!user) throw new Error("seedUser failed");
   return { user, password };
 }
@@ -109,7 +145,7 @@ export async function seedAndLogin(
 }
 
 export async function login(username: string, password: string): Promise<string> {
-  const res = await SELF.fetch(`${ORIGIN}/login`, {
+  const res = await appFetch(`${ORIGIN}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", ...SAME_ORIGIN },
     body: new URLSearchParams({ username, password }),
@@ -129,7 +165,7 @@ export async function login(username: string, password: string): Promise<string>
  * suite rather than quietly weakening it.
  */
 export async function csrfFor(cookie: string): Promise<string> {
-  const res = await SELF.fetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
+  const res = await appFetch(`${ORIGIN}/me`, { headers: { Cookie: cookie } });
   const match = /name="_csrf" value="([a-f0-9]{32})"/.exec(await res.text());
   if (!match) throw new Error(`no CSRF token rendered on /me (status ${res.status})`);
   return match[1];
@@ -143,7 +179,7 @@ export async function postForm(
   headers: Record<string, string> = {},
 ): Promise<Response> {
   const fields = cookie ? { ...data, _csrf: await csrfFor(cookie) } : data;
-  return SELF.fetch(`${ORIGIN}${path}`, {
+  return appFetch(`${ORIGIN}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -159,7 +195,7 @@ export async function postForm(
 export async function postFields(path: string, cookie: string, fields: Array<[string, string]>): Promise<Response> {
   const body = new URLSearchParams(fields);
   body.set("_csrf", await csrfFor(cookie));
-  return SELF.fetch(`${ORIGIN}${path}`, {
+  return appFetch(`${ORIGIN}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", ...SAME_ORIGIN, Cookie: cookie },
     body,
@@ -176,7 +212,7 @@ export async function postMultipart(
   const form = new FormData();
   if (cookie) form.set("_csrf", await csrfFor(cookie));
   for (const [key, value] of Object.entries(fields)) form.set(key, value);
-  return SELF.fetch(`${ORIGIN}${path}`, {
+  return appFetch(`${ORIGIN}${path}`, {
     method: "POST",
     headers: { ...SAME_ORIGIN, ...(cookie ? { Cookie: cookie } : {}) },
     body: form,
@@ -232,13 +268,13 @@ export async function follow(res: Response, cookie: string): Promise<Response> {
   const location = res.headers.get("Location");
   if (!location) throw new Error(`not a redirect: ${res.status}`);
   const flashed = flashCookie(res)?.split(";")[0];
-  return SELF.fetch(`${ORIGIN}${location}`, {
+  return appFetch(`${ORIGIN}${location}`, {
     headers: { Cookie: flashed ? `${cookie}; ${flashed}` : cookie },
     redirect: "manual",
   });
 }
 
-export const seedProject = (slug: string, name: string = slug) => createProject(env.DB, { slug, name });
+export const seedProject = (slug: string, name: string = slug) => createProject(env.db, { slug, name });
 
 export async function twoProjects(aliceRole: "admin" | "member" = "admin") {
   await seedProject("team-b", "Team B");
@@ -253,18 +289,18 @@ export const joinProject = (
   key: string = newInstallKey(),
   role: "admin" | "member" = "member",
   canPublish: boolean = true,
-) => addMembership(env.DB, { project, userId, role, installKey: key, canPublish });
+) => addMembership(env.db, { project, userId, role, installKey: key, canPublish });
 
 export const membership = (userId: string, project: string = DEFAULT_PROJECT) =>
-  env.DB.prepare("SELECT role, install_key, can_publish FROM memberships WHERE project = ? AND user_id = ?")
-    .bind(project, userId)
-    .first<{ role: string; install_key: string; can_publish: number }>();
+  (env.db
+    .prepare("SELECT role, install_key, can_publish FROM memberships WHERE project = ? AND user_id = ?")
+    .get(project, userId) as { role: string; install_key: string; can_publish: number } | undefined) ?? null;
 
 export const denyPublish = (userId: string, project: string = DEFAULT_PROJECT) =>
-  env.DB.prepare("UPDATE memberships SET can_publish = 0 WHERE project = ? AND user_id = ?").bind(project, userId).run();
+  env.db.prepare("UPDATE memberships SET can_publish = 0 WHERE project = ? AND user_id = ?").run(project, userId);
 
 export async function installKey(userId: string, project: string = DEFAULT_PROJECT): Promise<string> {
-  const row = await membership(userId, project);
+  const row = membership(userId, project);
   if (!row) throw new Error(`${userId} is not a member of ${project}`);
   return row.install_key;
 }
@@ -279,39 +315,39 @@ export async function signInDevice(
 ): Promise<{ id: string; token: string }> {
   const id = randomHex(16);
   const now = Date.now();
-  const created = await createPendingLogin(env.DB, {
-    id, userCode: newUserCode(), deviceCodeHash: await sha256Hex(newDeviceCode()), deviceName,
+  const created = createPendingLogin(env.db, {
+    id, userCode: newUserCode(), deviceCodeHash: sha256Hex(newDeviceCode()), deviceName,
     country: null, requestedScope: null, now,
   });
   if (!created) throw new Error("signInDevice: createPendingLogin failed");
-  if (!(await approveLogin(env.DB, id, userId, projects, now))) throw new Error("signInDevice: approveLogin failed");
+  if (!approveLogin(env.db, id, userId, projects, now)) throw new Error("signInDevice: approveLogin failed");
   const token = newDeviceToken();
-  if (!(await activateLogin(env.DB, id, await sha256Hex(token), lastUsedAt))) throw new Error("signInDevice: activateLogin failed");
+  if (!activateLogin(env.db, id, sha256Hex(token), lastUsedAt)) throw new Error("signInDevice: activateLogin failed");
   return { id, token };
 }
 
 export async function indexAt(base: string, alias: "agent-skills" | "skills" = "agent-skills"): Promise<IndexEntry[]> {
-  const res = await SELF.fetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);
+  const res = await appFetch(`${ORIGIN}${base}/.well-known/${alias}/index.json`);
   if (res.status !== 200) throw new Error(`${base} index answered ${res.status}`);
-  return (await res.json<{ skills: IndexEntry[] }>()).skills;
+  return ((await res.json()) as { skills: IndexEntry[] }).skills;
 }
 
 export const indexNames = async (base: string, alias?: "agent-skills" | "skills") =>
   (await indexAt(base, alias)).map((s) => s.name);
 
 export const fetchWith = (path: string, headers: Record<string, string> = {}) =>
-  SELF.fetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
+  appFetch(`${ORIGIN}${path}`, { headers, redirect: "manual" });
 
 export const get = (path: string, cookie?: string) => fetchWith(path, cookie ? { Cookie: cookie } : {});
 
 export function putSkill(
   token: string,
-  body: BodyInit,
+  body: RequestInit["body"],
   opts: { slug?: string; contentType?: string; visibility?: string; project?: string } = {},
 ): Promise<Response> {
   const query = opts.visibility === undefined ? "" : `?visibility=${opts.visibility}`;
   const slug = opts.slug ?? "demo-skill";
-  return SELF.fetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
+  return appFetch(`${ORIGIN}/api/projects/${opts.project ?? "default"}/skills/${slug}${query}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -326,7 +362,7 @@ export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/
 export interface LogSeed {
   at?: number;
   version?: number;
-  source?: string;
+  source?: DownloadSource;
   userId?: string | null;
   username?: string | null;
   deviceName?: string | null;
@@ -335,60 +371,27 @@ export interface LogSeed {
   userAgent?: string | null;
 }
 
-export const seedLog = (skillId: string, seed: LogSeed = {}) =>
-  env.DB.prepare(
-    `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      skillId,
-      seed.version ?? 1,
-      seed.source ?? "anonymous",
-      seed.userId ?? null,
-      seed.username ?? null,
-      seed.deviceName ?? null,
-      seed.country ?? null,
-      seed.ip ?? null,
-      seed.userAgent ?? null,
-      seed.at ?? Date.now(),
-    )
-    .run();
+export function seedLog(skillId: string, seed: LogSeed = {}): void {
+  const recorded = recordDownload(env.db, {
+    skillId,
+    version: seed.version ?? 1,
+    downloader: {
+      source: seed.source ?? "anonymous",
+      userId: seed.userId ?? null,
+      username: seed.username ?? null,
+      deviceName: seed.deviceName ?? null,
+    },
+    country: seed.country ?? null,
+    ip: seed.ip ?? null,
+    userAgent: seed.userAgent ?? null,
+    at: seed.at ?? Date.now(),
+  });
+  if (!recorded) throw new Error(`seedLog: no skill ${skillId}`);
+}
 
 export const seedLogs = (skillId: string, count: number, at: number) =>
-  env.DB.prepare(
-    `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
-     INSERT INTO download_logs (skill_id, version, source, created_at) SELECT ?, 1, 'anonymous', ? FROM n`,
-  )
-    .bind(count, skillId, at)
-    .run();
-
-export const envWith = (vars: Record<string, string>): Env =>
-  Object.create(rawEnv, Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, { value, enumerable: true }])));
-
-export function countingReads(): { db: D1Database; read: () => number } {
-  let read = 0;
-  const tally = <T extends D1Result>(result: T): T => {
-    read += result.meta.rows_read;
-    return result;
-  };
-  const counted = (statement: D1PreparedStatement): D1PreparedStatement =>
-    new Proxy(statement, {
-      get(target, prop) {
-        if (prop === "bind") return (...values: unknown[]) => counted(target.bind(...values));
-        if (prop === "run") return async () => tally(await target.run());
-        if (prop === "all") return async () => tally(await target.all());
-        if (prop === "first") return async () => tally(await target.all()).results[0] ?? null;
-        const value = Reflect.get(target, prop);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    });
-  const db = new Proxy(env.DB, {
-    get(target, prop) {
-      if (prop === "prepare") return (sql: string) => counted(target.prepare(sql));
-      if (prop === "batch") return async (statements: D1PreparedStatement[]) => (await target.batch(statements)).map(tally);
-      const value = Reflect.get(target, prop);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
+  transaction(env.db, () => {
+    for (let i = 0; i < count; i++) seedLog(skillId, { at });
   });
-  return { db, read: () => read };
-}
+
+export const withConfig = (overrides: Partial<Config>): Partial<Env> => ({ config: testConfig(overrides) });

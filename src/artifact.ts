@@ -12,12 +12,17 @@ export function digestFromArtifactFile(file: string): string | null {
   return match ? `${DIGEST_PREFIX}${match[1]}` : null;
 }
 
-export function zipAttachment(object: R2ObjectBody, slug: string, cacheable: boolean): Response {
-  return new Response(object.body, {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${slug}.zip"`,
-      "Cache-Control": cacheable ? "public, max-age=300" : "private, no-store",
-    },
-  });
+export function zipAttachment(
+  body: ReadableStream<Uint8Array> | null,
+  size: number | null,
+  slug: string,
+  cacheable: boolean,
+): Response {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/zip",
+    "Content-Disposition": `attachment; filename="${slug}.zip"`,
+    "Cache-Control": cacheable ? "public, max-age=300" : "private, no-store",
+  };
+  if (size !== null) headers["Content-Length"] = String(size);
+  return new Response(body, { headers });
 }

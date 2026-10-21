@@ -1,14 +1,12 @@
-import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getSkill } from "../src/db/queries";
-import { app } from "../src/index";
 import { DAY_MS } from "../src/time";
 import {
-  denyPublish, env, envWith, get, GOOD_MD, ORIGIN, OTHER_MD, publishMarkdown, resetDb, seedAndLogin, seedLog, seedLogs,
-  seedProject, seedWithSkills,
+  appFetch, denyPublish, env, get, GOOD_MD, ORIGIN, OTHER_MD, publishMarkdown, resetDb, seedAndLogin, seedLog, seedLogs,
+  seedProject, seedWithSkills, withConfig,
 } from "./helpers";
 
-const skillId = async (slug: string, project = "default") => (await getSkill(env.DB, project, slug))!.id;
+const skillId = (slug: string, project = "default") => getSkill(env.db, project, slug)!.id;
 
 const listRows = (html: string) => (html.match(/class="cf-table-date cf-log-time"/g) ?? []).length;
 
@@ -18,10 +16,8 @@ const figure = (label: string, value: string) => new RegExp(`${label}</span><spa
 
 const text = async (path: string, cookie?: string) => (await get(path, cookie)).text();
 
-async function pageWith(path: string, cookie: string, vars: Record<string, string>): Promise<string> {
-  const ctx = createExecutionContext();
-  const res = await app.fetch(new Request(`${ORIGIN}${path}`, { headers: { Cookie: cookie } }), envWith(vars), ctx);
-  await waitOnExecutionContext(ctx);
+async function pageWith(path: string, cookie: string, retentionDays: number): Promise<string> {
+  const res = await appFetch(`${ORIGIN}${path}`, { headers: { Cookie: cookie }, env: withConfig({ retentionDays }) });
   return res.text();
 }
 
@@ -29,7 +25,7 @@ describe("who can open the download log", () => {
   beforeEach(resetDb);
 
   async function cast() {
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     const owner = await seedWithSkills({ username: "alice", role: "member" }, [GOOD_MD, "private"]);
     const member = await seedAndLogin({ username: "bob", role: "member" });
     const projectAdmin = await seedAndLogin({ username: "carol", role: "member", projectRole: "admin" });
@@ -48,7 +44,7 @@ describe("who can open the download log", () => {
     expect((await get(path, member.cookie)).status).toBe(403);
     expect((await get(path, otherAdmin.cookie)).status).toBe(404);
     expect((await get("/p/default/s/nope/downloads", root.cookie)).status).toBe(404);
-    await denyPublish(owner.user.id);
+    denyPublish(owner.user.id);
     expect((await get(path, owner.cookie)).status).toBe(403);
   });
 
@@ -77,10 +73,10 @@ describe("what the log shows", () => {
 
   it("lists downloads newest first with the source, account, computer and place", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id, { at: Date.now() - 2 * DAY_MS, country: "DE" });
-    await seedLog(id, { at: Date.now() - DAY_MS, source: "device", userId: user.id, username: "alice", deviceName: "work-laptop", country: "T1" });
-    await seedLog(id, { at: Date.now(), source: "device", userId: user.id, username: "alice", deviceName: "" });
+    const id = skillId("demo-skill");
+    seedLog(id, { at: Date.now() - 2 * DAY_MS, country: "DE" });
+    seedLog(id, { at: Date.now() - DAY_MS, source: "device", userId: user.id, username: "alice", deviceName: "work-laptop", country: "T1" });
+    seedLog(id, { at: Date.now(), source: "device", userId: user.id, username: "alice", deviceName: "" });
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(listRows(html)).toBe(3);
     expect(html.indexOf("Unnamed computer")).toBeLessThan(html.indexOf("work-laptop"));
@@ -94,7 +90,7 @@ describe("what the log shows", () => {
 
   it("keeps a real space after the Filters label and after the time, for copied text and screen readers", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await seedLog(await skillId("demo-skill"));
+    seedLog(skillId("demo-skill"));
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(html).toContain('<span class="cf-filters-label">Filters</span> None.');
     expect(html).toMatch(/<\/time> <span class="cf-log-zone">UTC<\/span>/);
@@ -102,9 +98,9 @@ describe("what the log shows", () => {
 
   it("shows the IP address under the place and the User-Agent under the source", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id, { at: Date.now() - DAY_MS, country: "DE", ip: "203.0.113.7", userAgent: "node" });
-    await seedLog(id);
+    const id = skillId("demo-skill");
+    seedLog(id, { at: Date.now() - DAY_MS, country: "DE", ip: "203.0.113.7", userAgent: "node" });
+    seedLog(id);
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(html).toContain('<span class="cf-log-place">Germany<span class="cf-log-ip">203.0.113.7</span></span>');
     expect(html).toMatch(/Anonymous<\/a><span class="cf-log-agent" title="node">node<\/span><\/span><\/td>/);
@@ -112,9 +108,16 @@ describe("what the log shows", () => {
     expect((html.match(/class="cf-log-agent"/g) ?? []).length).toBe(1);
   });
 
+  it("credits DB-IP for the countries under the log", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    seedLog(skillId("demo-skill"), { country: "DE" });
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    expect(html).toContain('<p class="cf-log-count">IP geolocation by <a href="https://db-ip.com" class="cf-link">DB-IP</a></p>');
+  });
+
   it("lets an IPv6 address wrap only after a colon, and a skill's full name after its slash", async () => {
     const { cookie } = await seedWithSkills({ username: "alice", role: "admin" }, [GOOD_MD, "public"]);
-    await seedLog(await skillId("demo-skill"), { ip: "2001:db8::7" });
+    seedLog(skillId("demo-skill"), { ip: "2001:db8::7" });
     const html = await text("/admin/downloads", cookie);
     expect(html).toContain('<span class="cf-log-ip">2001:<wbr/>db8:<wbr/>:<wbr/>7</span>');
     expect(html).toContain(">Default/<wbr/>demo-skill</a>");
@@ -122,11 +125,11 @@ describe("what the log shows", () => {
 
   it("totals the last 30 days by source and version, draws one bar per day, and lists every retained row", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id, { source: "web", userId: "u", username: "alice", version: 2 });
-    await seedLog(id);
-    await seedLog(id, { at: Date.now() - 3 * DAY_MS });
-    await seedLog(id, { at: Date.now() - 40 * DAY_MS });
+    const id = skillId("demo-skill");
+    seedLog(id, { source: "web", userId: "u", username: "alice", version: 2 });
+    seedLog(id);
+    seedLog(id, { at: Date.now() - 3 * DAY_MS });
+    seedLog(id, { at: Date.now() - 40 * DAY_MS });
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(chartDays(html)).toBe(30);
     expect((html.match(/class="cf-chart-bar"/g) ?? []).length).toBe(2);
@@ -143,9 +146,9 @@ describe("what the log shows", () => {
 
   it("never rounds a real share of downloads to 0% or 100%", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLogs(id, 299, Date.now());
-    await seedLog(id, { source: "web", userId: "u", username: "alice" });
+    const id = skillId("demo-skill");
+    seedLogs(id, 299, Date.now());
+    seedLog(id, { source: "web", userId: "u", username: "alice" });
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(html).toMatch(/Web, signed in<\/span>.*?<span class="cf-figure-percent">&lt;1%<\/span>/);
     expect(html).toMatch(/Anonymous<\/span>.*?<span class="cf-figure-percent">&gt;99%<\/span>/);
@@ -154,10 +157,10 @@ describe("what the log shows", () => {
 
   it("splits the sources into whole percents that add up to 100", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id, { source: "web", userId: "u", username: "alice" });
-    await seedLog(id, { source: "device", userId: "u", username: "alice", deviceName: "mac" });
-    await seedLog(id, { source: "install_key", userId: "u", username: "alice" });
+    const id = skillId("demo-skill");
+    seedLog(id, { source: "web", userId: "u", username: "alice" });
+    seedLog(id, { source: "device", userId: "u", username: "alice", deviceName: "mac" });
+    seedLog(id, { source: "install_key", userId: "u", username: "alice" });
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     const percents = [...html.matchAll(/<span class="cf-figure-percent">([^<]*)<\/span>/g)].map((m) => m[1]);
     expect(percents).toEqual(["34%", "33%", "33%", "0%"]);
@@ -165,8 +168,8 @@ describe("what the log shows", () => {
 
   it("hides the per-day table for screen readers inside a block, which a table cannot shrink to sr-only's one pixel", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id);
+    const id = skillId("demo-skill");
+    seedLog(id);
     const html = await text("/p/default/s/demo-skill/downloads", cookie);
     expect(html).toContain('<div class="sr-only"><table><caption>Per day</caption>');
     expect(html).not.toContain('<table class="sr-only">');
@@ -174,11 +177,11 @@ describe("what the log shows", () => {
 
   it("keeps a project page to its own skills, whatever the query asks for", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"]);
-    await seedProject("team-b", "Team B");
+    seedProject("team-b", "Team B");
     await publishMarkdown(cookie, OTHER_MD, "private", "team-b");
-    const foreign = await skillId("other-skill", "team-b");
-    await seedLog(await skillId("demo-skill"));
-    await seedLog(foreign);
+    const foreign = skillId("other-skill", "team-b");
+    seedLog(skillId("demo-skill"));
+    seedLog(foreign);
     let html = await text("/p/default/downloads", cookie);
     expect(listRows(html)).toBe(1);
     expect(html).not.toContain("other-skill");
@@ -196,12 +199,12 @@ describe("what the log shows", () => {
 
   it("filters by account, skill and source, and ignores values it does not know", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "private"], [OTHER_MD, "private"]);
-    const demo = await skillId("demo-skill");
-    const other = await skillId("other-skill");
-    await seedLog(demo, { source: "web", userId: user.id, username: "alice" });
-    await seedLog(demo, { source: "web", userId: user.id, username: "alice" });
-    await seedLog(other, { source: "install_key", userId: "bob-id", username: "bob" });
-    await seedLog(demo);
+    const demo = skillId("demo-skill");
+    const other = skillId("other-skill");
+    seedLog(demo, { source: "web", userId: user.id, username: "alice" });
+    seedLog(demo, { source: "web", userId: user.id, username: "alice" });
+    seedLog(other, { source: "install_key", userId: "bob-id", username: "bob" });
+    seedLog(demo);
     const base = "/p/default/downloads";
 
     let html = await text(`${base}?user=${user.id}`, cookie);
@@ -235,7 +238,7 @@ describe("what the log shows", () => {
 
   it("pages 50 at a time, keeping the filters, and survives a stale cursor", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await seedLogs(await skillId("demo-skill"), 55, Date.now());
+    seedLogs(skillId("demo-skill"), 55, Date.now());
     const base = "/p/default/s/demo-skill/downloads";
     const first = await text(`${base}?source=anonymous`, cookie);
     expect(listRows(first)).toBe(50);
@@ -258,13 +261,13 @@ describe("what the log shows", () => {
 
   it("hides downloads older than the retention period, from the list and from the totals", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
-    await seedLog(id, { at: Date.now() - 91 * DAY_MS });
-    await seedLog(id, { at: Date.now() - 89 * DAY_MS });
-    await seedLog(id, { at: Date.now() - 8 * DAY_MS });
-    await seedLog(id, { at: Date.now() - 6 * DAY_MS });
+    const id = skillId("demo-skill");
+    seedLog(id, { at: Date.now() - 91 * DAY_MS });
+    seedLog(id, { at: Date.now() - 89 * DAY_MS });
+    seedLog(id, { at: Date.now() - 8 * DAY_MS });
+    seedLog(id, { at: Date.now() - 6 * DAY_MS });
     expect(listRows(await text("/p/default/s/demo-skill/downloads", cookie))).toBe(3);
-    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, 7);
     expect(listRows(html)).toBe(1);
     expect(html).toMatch(figure("All downloads", "1"));
     expect(html).toContain("in the last 7 days.");
@@ -272,19 +275,19 @@ describe("what the log shows", () => {
 
   it("lists the same UTC days that the totals count when the retention period is shorter than 30 days", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    const id = await skillId("demo-skill");
+    const id = skillId("demo-skill");
     const firstDay = (Math.floor(Date.now() / DAY_MS) - 6) * DAY_MS;
-    await seedLog(id, { at: firstDay - 1 });
-    await seedLog(id, { at: firstDay });
-    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    seedLog(id, { at: firstDay - 1 });
+    seedLog(id, { at: firstDay });
+    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, 7);
     expect(listRows(html)).toBe(1);
     expect(html).toMatch(figure("All downloads", "1"));
   });
 
   it("narrows the chart and its label to the retention period when that is shorter than 30 days", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await seedLog(await skillId("demo-skill"), { at: Date.now() - 2 * DAY_MS });
-    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "7" });
+    seedLog(skillId("demo-skill"), { at: Date.now() - 2 * DAY_MS });
+    const html = await pageWith("/p/default/s/demo-skill/downloads", cookie, 7);
     expect(chartDays(html)).toBe(7);
     expect(html).toContain("Last 7 days");
     expect(html).not.toContain("Last 30 days");
@@ -293,12 +296,12 @@ describe("what the log shows", () => {
 
   it("says day rather than days when the logs are kept for one day", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    let html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "1" });
+    let html = await pageWith("/p/default/s/demo-skill/downloads", cookie, 1);
     expect(html).toContain("in the last 1 day.");
     expect(html).toContain("are kept for 1 day.");
     expect(html).not.toContain("1 days");
-    await seedLog(await skillId("demo-skill"));
-    html = await pageWith("/p/default/s/demo-skill/downloads", cookie, { DOWNLOAD_LOG_RETENTION_DAYS: "1" });
+    seedLog(skillId("demo-skill"));
+    html = await pageWith("/p/default/s/demo-skill/downloads", cookie, 1);
     expect(html).toContain("Last 1 day<");
     expect(html).toContain("in the last 1 day.");
     expect(html).not.toContain("1 days");
@@ -306,7 +309,7 @@ describe("what the log shows", () => {
 
   it("keeps the way back to the newest page when a stale cursor lands on an empty page", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await seedLog(await skillId("demo-skill"), { at: Date.now() - 40 * DAY_MS });
+    seedLog(skillId("demo-skill"), { at: Date.now() - 40 * DAY_MS });
     const html = await text("/p/default/s/demo-skill/downloads?before=1", cookie);
     expect(html).not.toContain("No downloads to show");
     expect(html).toContain("No downloads on this page.");
@@ -315,9 +318,9 @@ describe("what the log shows", () => {
 
   it("escapes names it did not write", async () => {
     const { user, cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
-    await seedProject("team-b", "<b>Team</b>");
+    seedProject("team-b", "<b>Team</b>");
     await publishMarkdown(cookie, OTHER_MD, "public", "team-b");
-    await seedLog(await skillId("other-skill", "team-b"), {
+    seedLog(skillId("other-skill", "team-b"), {
       source: "device",
       userId: user.id,
       username: "alice",

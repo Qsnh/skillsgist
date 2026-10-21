@@ -4,7 +4,7 @@ const ACTIONS: Record<SkillAction, string> = { modify: "変更", move: "移動",
 
 export const ja: Messages = {
   layout: {
-    tagline: "Cloudflare Workers で動く、Agent Skills のプライベートレジストリ。",
+    tagline: "自分でホストする、プライベートな Agent Skills レジストリ。",
     ogImageAlt: "skillsgist: あなたのプライベート Agent Skills レジストリ",
     skip: "本文へスキップ",
     mainNav: "メイン",
@@ -25,6 +25,7 @@ export const ja: Messages = {
     showLess: "折りたたむ",
   },
   common: {
+    geoCredit: (dbip) => ["IP 位置情報の提供: ", dbip],
     create: "作成",
     cancel: "キャンセル",
     save: "保存",
@@ -56,6 +57,7 @@ export const ja: Messages = {
     passwordTooShort: (min) => `パスワードは ${min} 文字以上にしてください`,
     newPasswordTooShort: (min) => `新しいパスワードは ${min} 文字以上にしてください`,
     badCredentials: "ユーザー名またはパスワードが正しくありません",
+    tooManySignIns: "お使いのネットワークからのサインイン試行が多すぎます。1 分ほど待ってから、もう一度お試しください。",
     currentPasswordWrong: "現在のパスワードが正しくありません",
     passwordChanged: "パスワードを変更し、CLI でサインインしていたすべてのコンピューターをサインアウトしました。",
     cliLoginsPanel: "CLI のサインイン",
@@ -430,5 +432,7 @@ export const ja: Messages = {
   errors: {
     requestValidation: "リクエストの検証に失敗しました。ページを再読み込みしてもう一度お試しください。",
     internal: "サーバー内部エラー",
+    payloadTooLarge: (limitMb) => `リクエストがアップロード上限の ${limitMb} MB を超えています。`,
+    requestTooLarge: "リクエストが大きすぎます。",
   },
 };

@@ -1,14 +1,12 @@
 import { DIGEST_PREFIX } from "../artifact";
+import { DEFAULT_LIMITS } from "../config";
+import type { UploadLimits } from "../config";
 import { sha256Hex } from "../hash";
 import { issue, IssueError } from "../i18n/issues";
 import type { Issue } from "../i18n/issues";
 import { isValidDescription, isValidSkillName, parseFrontmatter } from "./frontmatter";
 import { isGzip, readTarGz } from "./tar";
-import { ArchiveError, readZip, writeZip, type ArchiveEntry } from "./zip";
-
-export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-export const MAX_UNPACKED_BYTES = 8 * 1024 * 1024;
-export const MAX_FILES = 200;
+import { ArchiveError, ArchiveTooLargeError, readZip, writeZip, type ArchiveEntry } from "./zip";
 
 export class UploadError extends IssueError {
   readonly status = 400;
@@ -65,11 +63,13 @@ function dropJunk(files: Map<string, Uint8Array>): Map<string, Uint8Array> {
   return new Map([...files].filter(([path]) => !isJunk(path)));
 }
 
-async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+async function extract(bytes: Uint8Array, limits: UploadLimits): Promise<Map<string, Uint8Array>> {
+  const maxUnpacked = limits.unpackedBytes;
   try {
-    if (isGzip(bytes)) return await readTarGz(bytes);
-    if (isZip(bytes)) return await readZip(bytes);
+    if (isGzip(bytes)) return await readTarGz(bytes, maxUnpacked, limits.files);
+    if (isZip(bytes)) return await readZip(bytes, maxUnpacked);
   } catch (err) {
+    if (err instanceof ArchiveTooLargeError) throw new UploadError(issue("unpackedTooLarge", err.size, err.limit));
     if (err instanceof ArchiveError) throw new UploadError(issue("unreadableArchive", err.message));
     throw err;
   }
@@ -78,13 +78,13 @@ async function extract(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
   return new Map([["SKILL.md", new TextEncoder().encode(text)]]);
 }
 
-export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkill> {
+export async function normalizeUpload(bytes: Uint8Array, limits: UploadLimits = DEFAULT_LIMITS): Promise<NormalizedSkill> {
   if (bytes.length === 0) throw new UploadError(issue("emptyUpload"));
-  if (bytes.length > MAX_UPLOAD_BYTES) {
-    throw new UploadError(issue("tooLarge", bytes.length, MAX_UPLOAD_BYTES));
+  if (bytes.length > limits.uploadBytes) {
+    throw new UploadError(issue("tooLarge", bytes.length, limits.uploadBytes));
   }
 
-  const raw = await extract(bytes);
+  const raw = await extract(bytes, limits);
 
   const cleaned = new Map<string, Uint8Array>();
   for (const [path, data] of raw) {
@@ -98,14 +98,14 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
   const filtered = dropJunk(stripWrapperDir(cleaned));
 
   if (filtered.size === 0) throw new UploadError(issue("noUsableFiles"));
-  if (filtered.size > MAX_FILES) {
-    throw new UploadError(issue("tooManyFiles", filtered.size, MAX_FILES));
+  if (filtered.size > limits.files) {
+    throw new UploadError(issue("tooManyFiles", filtered.size, limits.files));
   }
 
   let unpacked = 0;
   for (const data of filtered.values()) unpacked += data.byteLength;
-  if (unpacked > MAX_UNPACKED_BYTES) {
-    throw new UploadError(issue("unpackedTooLarge", unpacked, MAX_UNPACKED_BYTES));
+  if (unpacked > limits.unpackedBytes) {
+    throw new UploadError(issue("unpackedTooLarge", unpacked, limits.unpackedBytes));
   }
 
   const skillMdBytes = filtered.get("SKILL.md");
@@ -131,6 +131,6 @@ export async function normalizeUpload(bytes: Uint8Array): Promise<NormalizedSkil
       .map(([path, bytes]) => ({ path, size: bytes.byteLength }))
       .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     zip,
-    digest: `${DIGEST_PREFIX}${await sha256Hex(zip)}`,
+    digest: `${DIGEST_PREFIX}${sha256Hex(zip)}`,
   };
 }

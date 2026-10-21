@@ -33,27 +33,23 @@ function forbidden(error: "wrong_project" | "project_not_granted", project: stri
   return Response.json({ error, project }, { status: 403, headers: PRIVATE_HEADERS });
 }
 
-export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
+export function bearerAccess(c: Ctx): BearerAccess {
   const token = bearerToken(c);
   if (token === null) return ANONYMOUS;
   if (!token) return INVALID;
   if (token.startsWith(INSTALL_KEY_PREFIX)) {
-    const key = await getInstallKeyAccess(c.env.DB, token);
+    const key = getInstallKeyAccess(c.env.db, token);
     return key ? { kind: "install_key", userId: key.user_id, username: key.username, project: key.project } : INVALID;
   }
   if (!token.startsWith(DEVICE_TOKEN_PREFIX)) return INVALID;
-  const login = await loginAccessByTokenHash(c.env.DB, await sha256Hex(token));
+  const login = loginAccessByTokenHash(c.env.db, sha256Hex(token));
   const now = Date.now();
   if (!login || loginExpired(login.last_used_at, now)) return INVALID;
-  if (now - (login.last_used_at ?? 0) >= LAST_USED_WRITE_MS) {
-    c.executionCtx.waitUntil(
-      markLoginUsed(c.env.DB, login.id, now).catch((err) => console.error("cli login use write failed", err)),
-    );
-  }
+  if (now - (login.last_used_at ?? 0) >= LAST_USED_WRITE_MS) markLoginUsed(c.env.db, login.id, now);
   return { kind: "login", userId: login.user_id, username: login.username, deviceName: login.device_name, projects: login.granted };
 }
 
-export async function projectGate(c: Ctx, project: string, access: BearerAccess): Promise<ProjectGate> {
+export function projectGate(c: Ctx, project: string, access: BearerAccess): ProjectGate {
   switch (access.kind) {
     case "anonymous":
       return { kind: "public", refusal: null };
@@ -67,7 +63,7 @@ export async function projectGate(c: Ctx, project: string, access: BearerAccess)
       if (access.projects.includes(project)) return { kind: "all" };
       return {
         kind: "public",
-        refusal: (await getMember(c.env.DB, project, access.userId)) ? forbidden("project_not_granted", project) : null,
+        refusal: getMember(c.env.db, project, access.userId) ? forbidden("project_not_granted", project) : null,
       };
   }
 }

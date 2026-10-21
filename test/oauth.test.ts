@@ -1,13 +1,16 @@
-import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { approveLogin, denyLogin } from "../src/db/logins";
 import { sha256Hex } from "../src/hash";
-import { bearer, env, fetchWith, ORIGIN, resetDb, seedProject, seedUser } from "./helpers";
+import { runMaintenance } from "../src/maintenance";
+import { RateLimiter } from "../src/rate-limit";
+import { appFetch, bearer, env, fetchWith, ORIGIN, resetDb, seedProject, seedUser } from "./helpers";
+import type { AppRequestInit } from "./helpers";
 
 const GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
-const post = (path: string, fields: Record<string, string>) =>
-  SELF.fetch(`${ORIGIN}${path}`, {
+const post = (path: string, fields: Record<string, string>, init: AppRequestInit = {}) =>
+  appFetch(`${ORIGIN}${path}`, {
+    ...init,
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(fields),
@@ -22,24 +25,28 @@ interface DeviceAnswer {
   interval: number;
 }
 
-async function start(fields: Record<string, string> = {}): Promise<DeviceAnswer> {
-  const res = await post("/api/oauth/device", { client_id: "skillsgist-cli", device_name: "laptop", ...fields });
+async function start(fields: Record<string, string> = {}, init: AppRequestInit = {}): Promise<DeviceAnswer> {
+  const res = await post("/api/oauth/device", { client_id: "skillsgist-cli", device_name: "laptop", ...fields }, init);
   expect(res.status).toBe(200);
-  return res.json<DeviceAnswer>();
+  return (await res.json()) as DeviceAnswer;
 }
 
-async function loginRow(userCode: string) {
-  const row = await env.DB.prepare("SELECT * FROM cli_logins WHERE user_code = ?")
-    .bind(userCode)
-    .first<{ id: string; device_name: string; requested_scope: string | null }>();
+function loginRow(userCode: string) {
+  const row = env.db.prepare("SELECT * FROM cli_logins WHERE user_code = ?").get(userCode) as
+    | { id: string; device_name: string; request_country: string | null; requested_scope: string | null }
+    | undefined;
   if (!row) throw new Error(`no pending login for ${userCode}`);
   return row;
 }
 
+const pollInterval = (id: string) => env.db.prepare("SELECT poll_interval FROM cli_logins WHERE id = ?").pluck().get(id);
+
+const userCodes = () => env.db.prepare("SELECT user_code FROM cli_logins").pluck().all();
+
 const poll = (device_code: string, overrides: Record<string, string> = {}) =>
   post("/api/oauth/token", { grant_type: GRANT, device_code, client_id: "skillsgist-cli", ...overrides });
 
-const rewind = (id: string) => env.DB.prepare("UPDATE cli_logins SET last_polled_at = NULL WHERE id = ?").bind(id).run();
+const rewind = (id: string) => env.db.prepare("UPDATE cli_logins SET last_polled_at = NULL WHERE id = ?").run(id);
 
 beforeEach(async () => {
   await resetDb();
@@ -73,9 +80,9 @@ describe("POST /api/oauth/device", () => {
       expires_in: 600,
       interval: 5,
     });
-    const stored = await env.DB.prepare("SELECT * FROM cli_logins").all();
-    expect(JSON.stringify(stored.results)).not.toContain(answer.device_code);
-    expect(JSON.stringify(stored.results)).toContain(await sha256Hex(answer.device_code));
+    const stored = env.db.prepare("SELECT * FROM cli_logins").all();
+    expect(JSON.stringify(stored)).not.toContain(answer.device_code);
+    expect(JSON.stringify(stored)).toContain(sha256Hex(answer.device_code));
   });
 
   it("refuses any client but the skillsgist CLI", async () => {
@@ -87,7 +94,7 @@ describe("POST /api/oauth/device", () => {
   it("keeps only well-formed project slugs from scope, without duplicates, at most 50", async () => {
     const many = Array.from({ length: 80 }, (_, i) => `project:p${String(i).padStart(2, "0")}`).join(" ");
     const { user_code } = await start({ scope: `project:default project:default junk project:Bad_Slug project:x ${many}` });
-    const scope = (await loginRow(user_code)).requested_scope!.split(" ");
+    const scope = loginRow(user_code).requested_scope!.split(" ");
     expect(scope[0]).toBe("default");
     expect(scope).toHaveLength(50);
     expect(new Set(scope).size).toBe(50);
@@ -95,22 +102,47 @@ describe("POST /api/oauth/device", () => {
 
   it("strips control and bidi characters from the device name and cuts it to 64 characters", async () => {
     const { user_code } = await start({ device_name: `  evil${String.fromCodePoint(0x202e)}\u0007<b>${"x".repeat(100)}  ` });
-    const name = (await loginRow(user_code)).device_name;
+    const name = loginRow(user_code).device_name;
     expect(name.startsWith("evil<b>")).toBe(true);
     expect([...name]).toHaveLength(64);
   });
 
   it("strips U+061C, U+2028, and U+2066 from the device name", async () => {
     const { user_code } = await start({ device_name: `test${String.fromCodePoint(0x061c)}${String.fromCodePoint(0x2028)}${String.fromCodePoint(0x2066)}name` });
-    const name = (await loginRow(user_code)).device_name;
+    const name = loginRow(user_code).device_name;
     expect(name).toBe("testname");
   });
 
-  it("forgets expired requests when a new one arrives", async () => {
+  it("records the country of the address the request came from", async () => {
+    for (const [clientIp, country] of [["203.0.113.7", "NZ"], ["2001:db8:1::5", "JP"], ["192.0.2.1", null], [null, null]] as const) {
+      const { user_code } = await start({}, { clientIp });
+      expect(loginRow(user_code).request_country, String(clientIp)).toBe(country);
+    }
+  });
+
+  it("answers a sixth request from one address within ten seconds with 429, and still serves another address", async () => {
+    env.limiters = { ...env.limiters, deviceAuthorization: new RateLimiter(5, 10_000) };
+    const from = (clientIp: string) => post("/api/oauth/device", { client_id: "skillsgist-cli" }, { clientIp });
+    for (let i = 0; i < 5; i++) expect((await from("203.0.113.7")).status).toBe(200);
+    const refused = await from("203.0.113.7");
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toEqual({ error: "too_many_requests" });
+    expect(refused.headers.get("Cache-Control")).toBe("no-store");
+    const retryAfter = Number(refused.headers.get("Retry-After"));
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(10);
+    expect(userCodes()).toHaveLength(5);
+    expect((await from("198.51.100.7")).status).toBe(200);
+    expect(userCodes()).toHaveLength(6);
+  });
+
+  it("leaves expired requests to the hourly maintenance, which forgets them", async () => {
     const { user_code } = await start();
-    await env.DB.prepare("UPDATE cli_logins SET expires_at = 0").run();
-    await start();
-    expect((await env.DB.prepare("SELECT user_code FROM cli_logins").all()).results).not.toContainEqual({ user_code });
+    env.db.prepare("UPDATE cli_logins SET expires_at = 0").run();
+    const live = await start();
+    expect(userCodes()).toContain(user_code);
+    runMaintenance(env, Date.now());
+    expect(userCodes()).toEqual([live.user_code]);
   });
 });
 
@@ -118,52 +150,52 @@ describe("POST /api/oauth/token", () => {
   it("says pending, then slow_down when polled too fast, then hands out the token once with the granted projects", async () => {
     const { user } = await seedUser({ username: "alice" });
     const { device_code, user_code } = await start({ scope: "project:default" });
-    const row = await loginRow(user_code);
+    const row = loginRow(user_code);
 
     const first = await poll(device_code);
     expect(first.status).toBe(400);
     expect(await first.json()).toEqual({ error: "authorization_pending" });
     expect(first.headers.get("Cache-Control")).toBe("no-store");
     expect(await (await poll(device_code)).json()).toEqual({ error: "slow_down" });
-    expect((await env.DB.prepare("SELECT poll_interval FROM cli_logins WHERE id = ?").bind(row.id).first())?.poll_interval).toBe(10);
+    expect(pollInterval(row.id)).toBe(10);
 
-    expect(await approveLogin(env.DB, row.id, user.id, ["default"], Date.now())).toBe(true);
-    await rewind(row.id);
+    expect(approveLogin(env.db, row.id, user.id, ["default"], Date.now())).toBe(true);
+    rewind(row.id);
     const granted = await poll(device_code);
     expect(granted.status).toBe(200);
-    const body = await granted.json<{ access_token: string; token_type: string; scope: string }>();
+    const body = (await granted.json()) as { access_token: string; token_type: string; scope: string };
     expect(body.access_token).toMatch(/^sgd_[a-f0-9]{64}$/);
     expect(body).toMatchObject({ token_type: "Bearer", scope: "project:default" });
     expect(await (await fetchWith("/api/whoami", bearer(body.access_token))).json()).toEqual({
       user: "alice", kind: "login", projects: ["default"],
     });
 
-    await rewind(row.id);
+    rewind(row.id);
     expect(await (await poll(device_code)).json()).toEqual({ error: "invalid_grant" });
   });
 
   it("does not slow_down a second poll made 5 seconds after the first", async () => {
     const { device_code, user_code } = await start({ scope: "project:default" });
-    const row = await loginRow(user_code);
+    const row = loginRow(user_code);
     expect(await (await poll(device_code)).json()).toEqual({ error: "authorization_pending" });
-    await env.DB.prepare("UPDATE cli_logins SET last_polled_at = ? WHERE id = ?").bind(Date.now() - 5000, row.id).run();
+    env.db.prepare("UPDATE cli_logins SET last_polled_at = ? WHERE id = ?").run(Date.now() - 5000, row.id);
     expect(await (await poll(device_code)).json()).toEqual({ error: "authorization_pending" });
-    expect((await env.DB.prepare("SELECT poll_interval FROM cli_logins WHERE id = ?").bind(row.id).first())?.poll_interval).toBe(5);
+    expect(pollInterval(row.id)).toBe(5);
   });
 
   it("tells the CLI a request was denied, once", async () => {
     const { user } = await seedUser({ username: "alice" });
     const { device_code, user_code } = await start();
-    await denyLogin(env.DB, (await loginRow(user_code)).id, user.id, Date.now());
+    denyLogin(env.db, loginRow(user_code).id, user.id, Date.now());
     expect(await (await poll(device_code)).json()).toEqual({ error: "access_denied" });
     expect(await (await poll(device_code)).json()).toEqual({ error: "invalid_grant" });
   });
 
   it("tells the CLI a code expired, once, and forgets it", async () => {
     const { device_code } = await start();
-    await env.DB.prepare("UPDATE cli_logins SET expires_at = 0").run();
+    env.db.prepare("UPDATE cli_logins SET expires_at = 0").run();
     expect(await (await poll(device_code)).json()).toEqual({ error: "expired_token" });
-    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM cli_logins").first<{ n: number }>())?.n).toBe(0);
+    expect((env.db.prepare("SELECT COUNT(*) AS n FROM cli_logins").get() as { n: number }).n).toBe(0);
     const again = await poll(device_code);
     expect(again.status).toBe(400);
     expect(await again.json()).toEqual({ error: "invalid_grant" });
@@ -186,8 +218,8 @@ describe("POST /api/oauth/revoke", () => {
   it("revokes a sign-in token, answers 200 for anything else, and never touches install keys", async () => {
     const { user } = await seedUser({ username: "alice" });
     const { device_code, user_code } = await start();
-    await approveLogin(env.DB, (await loginRow(user_code)).id, user.id, ["default"], Date.now());
-    const { access_token } = await (await poll(device_code)).json<{ access_token: string }>();
+    approveLogin(env.db, loginRow(user_code).id, user.id, ["default"], Date.now());
+    const { access_token } = (await (await poll(device_code)).json()) as { access_token: string };
     expect((await post("/api/oauth/revoke", { token: access_token, token_type_hint: "access_token", client_id: "skillsgist-cli" })).status).toBe(200);
     expect((await fetchWith("/api/whoami", bearer(access_token))).status).toBe(401);
     expect((await post("/api/oauth/revoke", { token: "sgd_unknown" })).status).toBe(200);
