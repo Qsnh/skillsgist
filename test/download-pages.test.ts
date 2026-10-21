@@ -92,6 +92,14 @@ describe("what the log shows", () => {
     expect(html).toContain('<td class="cf-log-cell cf-log-nobody">Anonymous</td>');
   });
 
+  it("keeps a real space after the Filters label and after the time, for copied text and screen readers", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
+    await seedLog(await skillId("demo-skill"));
+    const html = await text("/p/default/s/demo-skill/downloads", cookie);
+    expect(html).toContain('<span class="cf-filters-label">Filters</span> None.');
+    expect(html).toMatch(/<\/time> <span class="cf-log-zone">UTC<\/span>/);
+  });
+
   it("shows the IP address under the place and the User-Agent under the source", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const id = await skillId("demo-skill");

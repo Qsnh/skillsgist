@@ -116,7 +116,7 @@ function FilterBar(props: { view: DownloadsView; filter: DownloadFilter; names: 
     return (
       <div class="cf-frame cf-filters">
         <p class="cf-filters-note">
-          <span class="cf-filters-label">{t.downloads.filters}</span>
+          <span class="cf-filters-label">{t.downloads.filters}</span>{" "}
           {t.downloads.noFilters}
         </p>
       </div>
@@ -316,7 +316,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
         {props.rows.map((row) => (
           <tr>
             <td class="cf-table-date cf-log-time">
-              <time datetime={new Date(row.created_at).toISOString()}>{formatClock(locale, row.created_at)}</time>
+              <time datetime={new Date(row.created_at).toISOString()}>{formatClock(locale, row.created_at)}</time>{" "}
               <span class="cf-log-zone">{formatZone(locale, row.created_at)}</span>
             </td>
             {props.skillColumn ? (
