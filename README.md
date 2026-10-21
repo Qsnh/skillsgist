@@ -40,7 +40,6 @@ It is not a good fit if:
 - **One-command installs.** Every skill page shows its install command, and a prompt you paste into your agent to have it install the skill and use it right away. A computer signs in once through the browser, for only the projects you tick, and keys never appear in a link.
 - **Publishing in the browser.** Upload a `.zip`, a `.tar.gz` or a single `SKILL.md`, or edit `SKILL.md` right on the page.
 - **Every version kept.** Each publish is a new numbered version. Older versions stay viewable and downloadable, and publishing one again rolls back.
-- **Download logs.** See who downloaded each skill, which version, when and from where, with a 30-day chart, for one skill, one project or the whole instance.
 - **Search** across skill names, descriptions and contents.
 - **Automation.** Publish from CI with an API token, and install in CI with a project's install key.
 - **Works with the standard tools.** Public skills also install with the stock `npx skills`.
