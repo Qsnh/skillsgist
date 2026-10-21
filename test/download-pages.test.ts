@@ -112,6 +112,14 @@ describe("what the log shows", () => {
     expect((html.match(/class="cf-log-agent"/g) ?? []).length).toBe(1);
   });
 
+  it("lets an IPv6 address wrap only after a colon, and a skill's full name after its slash", async () => {
+    const { cookie } = await seedWithSkills({ username: "alice", role: "admin" }, [GOOD_MD, "public"]);
+    await seedLog(await skillId("demo-skill"), { ip: "2001:db8::7" });
+    const html = await text("/admin/downloads", cookie);
+    expect(html).toContain('<span class="cf-log-ip">2001:<wbr/>db8:<wbr/>:<wbr/>7</span>');
+    expect(html).toContain(">Default/<wbr/>demo-skill</a>");
+  });
+
   it("totals the last 30 days by source and version, draws one bar per day, and lists every retained row", async () => {
     const { cookie } = await seedWithSkills({ username: "alice" }, [GOOD_MD, "public"]);
     const id = await skillId("demo-skill");
@@ -179,7 +187,7 @@ describe("what the log shows", () => {
     expect(html).not.toContain("other-skill");
     html = await text("/admin/downloads?project=team-b", cookie);
     expect(listRows(html)).toBe(1);
-    expect(html).toContain("Team B/other-skill");
+    expect(html).toContain("Team B/<wbr/>other-skill");
     expect(html).toContain("Project: Team B");
     html = await text(`/p/default/s/demo-skill/downloads?skill=${foreign}&project=team-b`, cookie);
     expect(listRows(html)).toBe(1);
@@ -317,7 +325,7 @@ describe("what the log shows", () => {
       userAgent: '"><u>agent</u>',
     });
     const html = await text("/admin/downloads", cookie);
-    expect(html).toContain("&lt;b&gt;Team&lt;/b&gt;/other-skill");
+    expect(html).toContain("&lt;b&gt;Team&lt;/b&gt;/<wbr/>other-skill");
     expect(html).toContain("&lt;i&gt;laptop&lt;/i&gt;");
     expect(html).toContain('title="&quot;&gt;&lt;u&gt;agent&lt;/u&gt;">&quot;&gt;&lt;u&gt;agent&lt;/u&gt;</span>');
     expect(html).not.toContain("<b>Team</b>");

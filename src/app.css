@@ -1530,6 +1530,7 @@
   }
 
   .cf-log-ip {
+    min-width: 15ch;
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
@@ -1827,6 +1828,10 @@
   .cf-log {
     display: flex;
     flex-direction: column;
+  }
+
+  .cf-log-table th {
+    white-space: nowrap;
   }
 
   .cf-log-table td {
@@ -2548,6 +2553,10 @@
 
     .cf-skill-grid {
       grid-template-columns: minmax(0, 1fr) 340px;
+    }
+
+    .cf-log-skill {
+      min-width: calc(12ch + 40px);
     }
   }
 

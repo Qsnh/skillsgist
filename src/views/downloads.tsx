@@ -86,6 +86,10 @@ export function filterHref(
   return query ? `${base}?${query}` : base;
 }
 
+function breakAfter(text: string, mark: string) {
+  return text.split(mark).map((part, i, parts) => (i < parts.length - 1 ? <>{part}{mark}<wbr /></> : part));
+}
+
 function CloseIcon() {
   return (
     <Icon>
@@ -323,7 +327,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
             {props.skillColumn ? (
               <td class="cf-log-skill">
                 <a href={filterHref(props.base, props.filter, { skillId: row.skill_id })} class="cf-log-link">
-                  {props.skillColumn === "full" ? `${row.project_name}/${row.slug}` : row.slug}
+                  {props.skillColumn === "full" ? <>{row.project_name}/<wbr />{row.slug}</> : row.slug}
                 </a>
               </td>
             ) : null}
@@ -351,7 +355,7 @@ function LogTable(props: { base: string; filter: DownloadFilter; rows: DownloadL
             <td class="cf-log-cell cf-log-from" data-label={c.place}>
               <span class="cf-log-place">
                 {requestPlace(t, locale, row.country)}
-                {row.ip ? <span class="cf-log-ip">{row.ip}</span> : null}
+                {row.ip ? <span class="cf-log-ip">{breakAfter(row.ip, ":")}</span> : null}
               </span>
             </td>
           </tr>
