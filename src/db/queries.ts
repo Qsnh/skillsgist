@@ -66,8 +66,10 @@ export interface VersionRow {
 export type VersionSummary = Pick<VersionRow, "version" | "created_at">;
 
 export interface ArtifactRef {
+  skill_id: string;
   project: string;
   slug: string;
+  version: number;
   visibility: "public" | "private";
   r2_key: string;
 }
@@ -455,19 +457,14 @@ export async function setVisibility(
     .run();
 }
 
-export async function incrementDownloads(db: D1Database, project: string, slug: string): Promise<void> {
-  await db
-    .prepare("UPDATE skills SET download_count = download_count + 1 WHERE project = ? AND slug = ?")
-    .bind(project, slug)
-    .run();
-}
-
 export async function deleteSkill(db: D1Database, project: string, slug: string): Promise<string[]> {
   const { results } = await db
     .prepare(`SELECT r2_key FROM versions WHERE skill_id = ${SKILL_ID_SQL}`)
     .bind(project, slug)
     .all<{ r2_key: string }>();
   await db.batch([
+    db.prepare("INSERT OR IGNORE INTO download_purges (skill_id) SELECT id FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
+    db.prepare(`DELETE FROM download_days WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
     db.prepare(`DELETE FROM versions WHERE skill_id = ${SKILL_ID_SQL}`).bind(project, slug),
     db.prepare("DELETE FROM skills WHERE project = ? AND slug = ?").bind(project, slug),
   ]);
@@ -494,7 +491,7 @@ export async function touchLogin(db: D1Database, userId: string, at: number): Pr
 }
 
 const ARTIFACT_SQL =
-  "SELECT s.project, s.slug, s.visibility, v.r2_key FROM skills s JOIN versions v ON v.skill_id = s.id";
+  "SELECT s.id AS skill_id, s.project, s.slug, v.version, s.visibility, v.r2_key FROM skills s JOIN versions v ON v.skill_id = s.id";
 
 export function getArtifactByVersion(
   db: D1Database,
@@ -522,7 +519,7 @@ export function getArtifactByDigest(
 
 export function getPublicArtifact(db: D1Database, slug: string, digest: string): Promise<ArtifactRef | null> {
   return db
-    .prepare(`${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? LIMIT 1`)
+    .prepare(`${ARTIFACT_SQL} WHERE s.slug = ? AND s.visibility = 'public' AND v.digest = ? ORDER BY s.created_at, s.id LIMIT 1`)
     .bind(slug, digest)
     .first<ArtifactRef>();
 }
@@ -650,9 +647,14 @@ export async function moveSkill(db: D1Database, project: string, slug: string, t
   await db.prepare("UPDATE skills SET project = ? WHERE project = ? AND slug = ?").bind(target, project, slug).run();
 }
 
-export function getInstallKeyAccess(db: D1Database, key: string): Promise<{ project: string; username: string } | null> {
+export function getInstallKeyAccess(
+  db: D1Database,
+  key: string,
+): Promise<{ project: string; user_id: string; username: string } | null> {
   return db
-    .prepare("SELECT m.project, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?")
+    .prepare(
+      "SELECT m.project, m.user_id, u.username FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.install_key = ?",
+    )
     .bind(key)
-    .first<{ project: string; username: string }>();
+    .first<{ project: string; user_id: string; username: string }>();
 }

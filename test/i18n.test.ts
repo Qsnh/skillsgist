@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Ctx } from "../src/auth";
 import { localeOf } from "../src/i18n";
 import { en } from "../src/i18n/en";
-import { formatAgo, formatCount, formatDate, formatStamp } from "../src/i18n/format";
+import { formatAgo, formatCount, formatDate, formatPercent, formatStamp, wholePercents } from "../src/i18n/format";
 import { ja } from "../src/i18n/ja";
 import { LOCALE_COOKIE } from "../src/i18n/locales";
 import { zhCN } from "../src/i18n/zh-CN";
@@ -121,6 +121,24 @@ describe("dates, counts and script labels", () => {
       expect(formatStamp(locale, at)).toContain("UTC");
     }
     expect(formatCount("ja", 12345)).toBe("12,345");
+  });
+
+  it("rounds a share to a whole percent, and never shows a real share as 0% or 100%", () => {
+    expect(formatPercent("en", 2, 3)).toBe("67%");
+    expect(formatPercent("en", 1, 3, 34)).toBe("34%");
+    expect(formatPercent("en", 0, 300)).toBe("0%");
+    expect(formatPercent("en", 0, 0)).toBe("0%");
+    expect(formatPercent("en", 300, 300)).toBe("100%");
+    expect(formatPercent("en", 1, 300)).toBe("<1%");
+    expect(formatPercent("en", 299, 300)).toBe(">99%");
+    expect(formatPercent("ja", 1, 300)).toBe("<1%");
+  });
+
+  it("splits parts into whole percents that add up to 100", () => {
+    expect(wholePercents([1, 1, 1])).toEqual([34, 33, 33]);
+    expect(wholePercents([1, 299, 0, 0])).toEqual([0, 100, 0, 0]);
+    expect(wholePercents([3, 0])).toEqual([100, 0]);
+    expect(wholePercents([0, 0])).toEqual([0, 0]);
   });
 
   it("says how long ago a time was, from the hour up", () => {

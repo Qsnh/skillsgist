@@ -25,6 +25,13 @@ const base = {
 describe("accounts, projects and memberships", () => {
   beforeEach(resetDb);
 
+  it("names the member an install key belongs to", async () => {
+    await seedU1();
+    await joinProject("u1", q.DEFAULT_PROJECT, "sgi_k1");
+    expect(await q.getInstallKeyAccess(env.DB, "sgi_k1")).toEqual({ project: "default", user_id: "u1", username: "alice" });
+    expect(await q.getInstallKeyAccess(env.DB, "sgi_nope")).toBeNull();
+  });
+
   it("loads a viewer with their memberships and project names, and lists projects, ordered by name", async () => {
     await seedU1();
     await q.createProject(env.DB, { slug: "aaa", name: "Zebra" });
@@ -128,22 +135,5 @@ describe("skills", () => {
     expect(await q.deleteSkill(env.DB, "default", "demo")).toEqual(["artifacts/s1/1.zip"]);
     expect(await q.getSkill(env.DB, "default", "demo")).toBeNull();
     expect(await q.getVersion(env.DB, "team-b", "demo", 1)).not.toBeNull();
-  });
-
-  it("counts downloads without touching updated_at, keeps the count across versions, and ignores a missing skill", async () => {
-    await q.insertVersion(env.DB, base);
-    const before = await q.getSkill(env.DB, "default", "demo");
-    expect(before?.download_count).toBe(0);
-
-    await q.incrementDownloads(env.DB, "default", "demo");
-    await q.incrementDownloads(env.DB, "default", "demo");
-
-    const after = await q.getSkill(env.DB, "default", "demo");
-    expect(after?.download_count).toBe(2);
-    expect(after?.updated_at).toBe(before?.updated_at);
-
-    await q.insertVersion(env.DB, { ...base, digest: digest("b") });
-    expect((await q.getSkill(env.DB, "default", "demo"))?.download_count).toBe(2);
-    await expect(q.incrementDownloads(env.DB, "default", "gone")).resolves.toBeUndefined();
   });
 });

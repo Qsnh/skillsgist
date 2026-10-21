@@ -12,10 +12,12 @@ const beforePublishing = migrations.filter((m) => m.name < "0004");
 const fromPublishing = migrations.filter((m) => m.name >= "0004");
 const beforePrefix = migrations.filter((m) => m.name < "0005");
 const fromPrefix = migrations.filter((m) => m.name >= "0005");
+const beforeLogs = migrations.filter((m) => m.name < "0008");
+const fromLogs = migrations.filter((m) => m.name >= "0008");
 
 async function wipe(): Promise<void> {
   for (const table of [
-    "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
+    "download_user_days", "download_rollup", "download_purges", "download_days", "download_logs", "cli_login_projects", "cli_logins", "device_code_attempts", "memberships", "versions", "skills", "users", "projects", "d1_migrations",
   ]) {
     await db.prepare(`DROP TABLE IF EXISTS ${table}`).run();
   }
@@ -256,5 +258,76 @@ describe("migration 0007 on an instance that already has sign-ins", () => {
 
   it("keeps the grants of current memberships, records their user, and drops the rest", async () => {
     expect(await rows("SELECT * FROM cli_login_projects")).toEqual([{ login_id: "l1", project: "default", user_id: "u1" }]);
+  });
+});
+
+describe("migration 0008 on an instance that already has downloads", () => {
+  beforeAll(async () => {
+    await wipe();
+    await applyD1Migrations(db, beforeLogs);
+    await db.batch([
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u1', 'root', 'h', 'admin', 0)"),
+      db.prepare("INSERT INTO users (id, username, password_hash, role, created_at) VALUES ('u2', 'bob', 'h', 'member', 0)"),
+      db.prepare(
+        "INSERT INTO skills (id, project, slug, description, owner_id, latest_version, download_count, created_at, updated_at) VALUES ('s1', 'default', 'demo', 'd', 'u1', 1, 5, 0, 0)",
+      ),
+    ]);
+    await applyD1Migrations(db, fromLogs);
+  });
+
+  it("keeps every download count, and starts with an empty log, no daily counts and the roll-up at zero", async () => {
+    expect(await rows("SELECT download_count FROM skills")).toEqual([{ download_count: 5 }]);
+    for (const table of ["download_logs", "download_days", "download_user_days", "download_purges"]) {
+      expect(await rows(`SELECT * FROM ${table}`)).toEqual([]);
+    }
+    expect(await rows("SELECT id, last_id FROM download_rollup")).toEqual([{ id: 1, last_id: 0 }]);
+  });
+
+  it("indexes the log by skill and source and by account, with no foreign keys", async () => {
+    expect(
+      await rows("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'download_logs' AND sql IS NOT NULL ORDER BY name"),
+    ).toEqual([{ name: "idx_download_logs_skill_source" }, { name: "idx_download_logs_user" }]);
+    for (const table of ["download_logs", "download_days", "download_user_days"]) {
+      expect(await rows(`SELECT * FROM pragma_foreign_key_list('${table}')`)).toEqual([]);
+    }
+  });
+
+  it("refuses an unknown source, and keeps rows when their account or their skill goes", async () => {
+    const insert = (source: string) =>
+      db
+        .prepare(
+          "INSERT INTO download_logs (skill_id, version, source, user_id, username, ip, user_agent, created_at) VALUES ('s1', 1, ?, 'u2', 'bob', '203.0.113.7', 'node', 0)",
+        )
+        .bind(source)
+        .run();
+    const count = (table: string, source: string) =>
+      db
+        .prepare(
+          table === "download_days"
+            ? "INSERT INTO download_days (skill_id, day, version, source, count) VALUES ('s1', 0, 1, ?, 1)"
+            : "INSERT INTO download_user_days (user_id, day, skill_id, version, source, count) VALUES ('u2', 0, 's1', 1, ?, 1)",
+        )
+        .bind(source)
+        .run();
+    await expect(insert("ftp")).rejects.toThrow(/CHECK/);
+    await expect(count("download_days", "ftp")).rejects.toThrow(/CHECK/);
+    await expect(count("download_user_days", "ftp")).rejects.toThrow(/CHECK/);
+    await insert("web");
+    await count("download_days", "web");
+    await count("download_user_days", "web");
+    await db.prepare("DELETE FROM users WHERE id = 'u2'").run();
+    await db.prepare("DELETE FROM skills WHERE id = 's1'").run();
+    expect(await rows("SELECT skill_id, user_id, username, ip, user_agent FROM download_logs")).toEqual([
+      { skill_id: "s1", user_id: "u2", username: "bob", ip: "203.0.113.7", user_agent: "node" },
+    ]);
+    expect(await rows("SELECT COUNT(*) AS n FROM download_days")).toEqual([{ n: 1 }]);
+    expect(await rows("SELECT COUNT(*) AS n FROM download_user_days")).toEqual([{ n: 1 }]);
+  });
+
+  it("queues each deleted skill once, and keeps a single roll-up mark", async () => {
+    const queue = () => db.prepare("INSERT INTO download_purges (skill_id) VALUES ('s1')").run();
+    await queue();
+    await expect(queue()).rejects.toThrow(/UNIQUE/);
+    await expect(db.prepare("INSERT INTO download_rollup (id, last_id) VALUES (2, 0)").run()).rejects.toThrow(/CHECK/);
   });
 });

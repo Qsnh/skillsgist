@@ -7,6 +7,7 @@ import type { UserRow } from "../src/db/queries";
 import { FLASH_COOKIE } from "../src/flash";
 import { sha256Hex } from "../src/hash";
 import type { IndexEntry } from "../src/registry";
+import type { Env } from "../src/types";
 
 /**
  * The worker's bindings, typed.
@@ -58,6 +59,11 @@ const SAME_ORIGIN = { Origin: ORIGIN };
 
 export async function resetDb(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM download_logs"),
+    env.DB.prepare("DELETE FROM download_days"),
+    env.DB.prepare("DELETE FROM download_user_days"),
+    env.DB.prepare("DELETE FROM download_purges"),
+    env.DB.prepare("UPDATE download_rollup SET last_id = 0"),
     env.DB.prepare("DELETE FROM cli_login_projects"),
     env.DB.prepare("DELETE FROM cli_logins"),
     env.DB.prepare("DELETE FROM device_code_attempts"),
@@ -316,3 +322,73 @@ export function putSkill(
 }
 
 export const cellMeta = (html: string) => /<p class="cf-cell-meta">([\s\S]*?)<\/p>/.exec(html)?.[1];
+
+export interface LogSeed {
+  at?: number;
+  version?: number;
+  source?: string;
+  userId?: string | null;
+  username?: string | null;
+  deviceName?: string | null;
+  country?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}
+
+export const seedLog = (skillId: string, seed: LogSeed = {}) =>
+  env.DB.prepare(
+    `INSERT INTO download_logs (skill_id, version, source, user_id, username, device_name, country, ip, user_agent, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      skillId,
+      seed.version ?? 1,
+      seed.source ?? "anonymous",
+      seed.userId ?? null,
+      seed.username ?? null,
+      seed.deviceName ?? null,
+      seed.country ?? null,
+      seed.ip ?? null,
+      seed.userAgent ?? null,
+      seed.at ?? Date.now(),
+    )
+    .run();
+
+export const seedLogs = (skillId: string, count: number, at: number) =>
+  env.DB.prepare(
+    `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+     INSERT INTO download_logs (skill_id, version, source, created_at) SELECT ?, 1, 'anonymous', ? FROM n`,
+  )
+    .bind(count, skillId, at)
+    .run();
+
+export const envWith = (vars: Record<string, string>): Env =>
+  Object.create(rawEnv, Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, { value, enumerable: true }])));
+
+export function countingReads(): { db: D1Database; read: () => number } {
+  let read = 0;
+  const tally = <T extends D1Result>(result: T): T => {
+    read += result.meta.rows_read;
+    return result;
+  };
+  const counted = (statement: D1PreparedStatement): D1PreparedStatement =>
+    new Proxy(statement, {
+      get(target, prop) {
+        if (prop === "bind") return (...values: unknown[]) => counted(target.bind(...values));
+        if (prop === "run") return async () => tally(await target.run());
+        if (prop === "all") return async () => tally(await target.all());
+        if (prop === "first") return async () => tally(await target.all()).results[0] ?? null;
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  const db = new Proxy(env.DB, {
+    get(target, prop) {
+      if (prop === "prepare") return (sql: string) => counted(target.prepare(sql));
+      if (prop === "batch") return async (statements: D1PreparedStatement[]) => (await target.batch(statements)).map(tally);
+      const value = Reflect.get(target, prop);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  return { db, read: () => read };
+}

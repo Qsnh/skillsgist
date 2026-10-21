@@ -2,7 +2,7 @@ import { canPublishIn, membershipIn } from "../auth";
 import { Form } from "../csrf";
 import { useT } from "../i18n";
 import type { ListedSkill, Member, ProjectRow, ProjectSummary, UserRow, Viewer } from "../db/queries";
-import { projectPath, projectSettingsPath } from "../paths";
+import { projectDownloadsPath, projectPath, projectSettingsPath } from "../paths";
 import { RoleLabel } from "./auth";
 import { Button, CodeBlock, ConfirmDelete, Field, Layout, PageHead, Panel, Select } from "./layout";
 import { NoMatches, NoSkillsYet, SearchForm, SkillRegistry } from "./skills";
@@ -260,6 +260,15 @@ export function ProjectSettingsPage(props: {
                   <Button>{t.projects.add}</Button>
                 </div>
               </Form>
+            </Panel>
+          ) : null}
+
+          {props.canManage ? (
+            <Panel title={t.downloads.panel}>
+              <p class="cf-hint">{t.downloads.panelHint}</p>
+              <div class="cf-actions">
+                <a href={projectDownloadsPath(project.slug)} class="cf-btn cf-btn-outline">{t.downloads.open}</a>
+              </div>
             </Panel>
           ) : null}
 

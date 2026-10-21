@@ -5,6 +5,7 @@ import type { UserRow } from "../db/queries";
 import { FlashContext } from "../flash";
 import { useLocale, useT } from "../i18n";
 import { LOCALE_NAMES, LOCALES } from "../i18n/locales";
+import { ADMIN_DOWNLOADS_PATH } from "../paths";
 
 export function Icon(props: { children?: unknown }) {
   return (
@@ -60,6 +61,7 @@ function AccountMenu(props: { user: UserRow }) {
         <a href="/me" class="cf-menu-item">{t.layout.account}</a>
         <a href="/projects" class="cf-menu-item">{t.layout.projects}</a>
         {props.user.role === "admin" ? <a href="/admin/users" class="cf-menu-item">{t.layout.users}</a> : null}
+        {props.user.role === "admin" ? <a href={ADMIN_DOWNLOADS_PATH} class="cf-menu-item">{t.layout.downloads}</a> : null}
         <Form action="/logout">
           <button type="submit" class="cf-menu-item">{t.layout.signOut}</button>
         </Form>

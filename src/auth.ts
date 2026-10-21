@@ -7,6 +7,7 @@ import type { Membership, SkillRow, SkillScope, Viewer } from "./db/queries";
 import { sha256Hex, toHex } from "./hash";
 import { messages } from "./i18n";
 import type { SkillAction } from "./i18n/en";
+import { DAY_MS } from "./time";
 import type { Env } from "./types";
 
 /**
@@ -29,7 +30,7 @@ export type Ctx = Context<AppEnv>;
 export const PBKDF2_ITERATIONS = 10_000;
 export const MIN_PASSWORD_LENGTH = 12;
 export const SESSION_COOKIE = "sg_session";
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_TTL_MS = 30 * DAY_MS;
 
 /** Name of the hidden form field carrying the CSRF token. See src/csrf.tsx. */
 export const CSRF_FIELD = "_csrf";
@@ -226,19 +227,24 @@ export const requireUser: MiddlewareHandler<AppEnv> = async (c, next) => {
   return next();
 };
 
+export async function managedSkillGuard<S extends SkillRow>(
+  c: Ctx,
+  skill: S | null,
+  refusal: string,
+): Promise<{ ok: true; skill: S } | { ok: false; response: Response }> {
+  const user = c.get("user");
+  if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
+  if (!canManage(user, skill)) return { ok: false, response: c.text(refusal, 403) };
+  return { ok: true, skill };
+}
+
 export async function requireManagedSkill(
   c: Ctx,
   project: string,
   slug: string,
   action: SkillAction,
 ): Promise<{ ok: true; skill: SkillRow } | { ok: false; response: Response }> {
-  const user = c.get("user");
-  const skill = await getSkill(c.env.DB, project, slug);
-  if (!skill || !canView(user, skill)) return { ok: false, response: await c.notFound() };
-  if (!canManage(user, skill)) {
-    return { ok: false, response: c.text(messages(c).skills.notAllowed(action), 403) };
-  }
-  return { ok: true, skill };
+  return managedSkillGuard(c, await getSkill(c.env.DB, project, slug), messages(c).skills.notAllowed(action));
 }
 
 /** `requireUser`, plus an admin-only gate. */

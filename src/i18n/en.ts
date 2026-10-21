@@ -1,5 +1,7 @@
 type Slot = unknown;
 
+const dayCount = (days: number) => `${days} ${days === 1 ? "day" : "days"}`;
+
 export type SkillAction = "modify" | "move" | "delete" | "edit" | "update";
 
 export const en = {
@@ -14,6 +16,7 @@ export const en = {
     account: "Account",
     projects: "Projects",
     users: "Users",
+    downloads: "Downloads",
     signOut: "Sign out",
     source: "Source on GitHub",
     language: "Language",
@@ -271,6 +274,45 @@ export const en = {
       `Removed ${username} from ${name}. Their install key for it no longer works.`,
     stillHasSkills: (name: string) => `${name} still has skills. Move or delete them first.`,
     deletedProject: (name: string) => `Deleted project ${name}.`,
+  },
+  downloads: {
+    title: "Downloads",
+    titleOf: (name: string) => `Downloads\u00a0· ${name}`,
+    lede: (subject: Slot | null, days: number) =>
+      subject === null
+        ? [`Every download from this registry in the last ${dayCount(days)}. Older records are deleted automatically.`]
+        : ["Every download of ", subject, ` in the last ${dayCount(days)}. Older records are deleted automatically.`],
+    lastDays: (days: number) => `Last ${dayCount(days)}`,
+    perDay: "Per day",
+    total: "All downloads",
+    bySource: "Downloads by source",
+    busiest: (count: string, date: string) => `Busiest day: ${count} on ${date}`,
+    latest: "Latest",
+    showAll: "Show every source",
+    top: { version: "Top versions", skill: "Top skills", project: "Top projects" },
+    sources: { web: "Web, signed in", device: "CLI sign-in", install_key: "Install key", anonymous: "Anonymous" },
+    columns: { time: "Time (UTC)", skill: "Skill", version: "Version", source: "Source", account: "Account", place: "From" },
+    versionLabel: (version: number | string) => `v${version}`,
+    filters: "Filters",
+    noFilters: "None. Select a source or a name below to narrow the page.",
+    filterProject: (name: string) => `Project: ${name}`,
+    filterSkill: (name: string) => `Skill: ${name}`,
+    filterUser: (name: string) => `Account: ${name}`,
+    filterSource: (name: string) => `Source: ${name}`,
+    removeFilter: (label: string) => `Remove ${label}`,
+    clearFilters: "Clear all",
+    pages: "Pages",
+    older: "Older",
+    newest: "Newest",
+    listed: (count: number, formatted: string) =>
+      `${formatted} ${count === 1 ? "download" : "downloads"} on this page, newest first.`,
+    pastEnd: "No downloads on this page.",
+    empty: "No downloads to show",
+    emptyBody: (days: number) => `Downloads appear here as they happen and are kept for ${dayCount(days)}.`,
+    managersOnly: "Only people who can manage this skill can see its downloads",
+    panel: "Downloads",
+    panelHint: "See who downloaded this project's skills, when, and from where.",
+    open: "Open the download log",
   },
   device: {
     title: "Sign in a computer",

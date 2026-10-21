@@ -73,7 +73,7 @@ async function settingsPage(c: Ctx, user: Viewer, project: ProjectRow, error?: s
   );
 }
 
-async function projectGuard(
+export async function projectGuard(
   c: Ctx,
   slug: string,
   manage: boolean,

@@ -1,11 +1,10 @@
 import { Form } from "../csrf";
 import { useLocale, useT } from "../i18n";
-import type { Messages } from "../i18n/en";
-import { formatRegion, formatStamp } from "../i18n/format";
-import type { Locale } from "../i18n/locales";
+import { formatStamp } from "../i18n/format";
 import type { CliLoginRow } from "../db/logins";
 import type { Viewer } from "../db/queries";
 import { AlertIcon, Button, Field, Layout, PageHead } from "./layout";
+import { requestPlace } from "./place";
 
 export const LoginCommand = () => <code>skillsgist login</code>;
 
@@ -30,12 +29,6 @@ export function DeviceCodePage(props: { user: Viewer; code: string; error?: unkn
       </div>
     </Layout>
   );
-}
-
-function requestPlace(t: Messages, locale: Locale, country: string | null): string {
-  if (country === "T1") return t.device.tor;
-  if (!country || country === "XX") return t.device.unknownPlace;
-  return formatRegion(locale, country) ?? country;
 }
 
 export function DeviceConfirmPage(props: {

@@ -8,8 +8,8 @@ import { sha256Hex } from "./hash";
 export type BearerAccess =
   | { kind: "anonymous" }
   | { kind: "invalid" }
-  | { kind: "login"; userId: string; username: string; projects: string[] }
-  | { kind: "install_key"; username: string; project: string };
+  | { kind: "login"; userId: string; username: string; deviceName: string; projects: string[] }
+  | { kind: "install_key"; userId: string; username: string; project: string };
 
 export type ProjectGate = { kind: "all" } | { kind: "public"; refusal: Response | null };
 
@@ -39,7 +39,7 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
   if (!token) return INVALID;
   if (token.startsWith(INSTALL_KEY_PREFIX)) {
     const key = await getInstallKeyAccess(c.env.DB, token);
-    return key ? { kind: "install_key", username: key.username, project: key.project } : INVALID;
+    return key ? { kind: "install_key", userId: key.user_id, username: key.username, project: key.project } : INVALID;
   }
   if (!token.startsWith(DEVICE_TOKEN_PREFIX)) return INVALID;
   const login = await loginAccessByTokenHash(c.env.DB, await sha256Hex(token));
@@ -50,11 +50,10 @@ export async function bearerAccess(c: Ctx): Promise<BearerAccess> {
       markLoginUsed(c.env.DB, login.id, now).catch((err) => console.error("cli login use write failed", err)),
     );
   }
-  return { kind: "login", userId: login.user_id, username: login.username, projects: login.granted };
+  return { kind: "login", userId: login.user_id, username: login.username, deviceName: login.device_name, projects: login.granted };
 }
 
-export async function projectGate(c: Ctx, project: string): Promise<ProjectGate> {
-  const access = await bearerAccess(c);
+export async function projectGate(c: Ctx, project: string, access: BearerAccess): Promise<ProjectGate> {
   switch (access.kind) {
     case "anonymous":
       return { kind: "public", refusal: null };

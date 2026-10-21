@@ -150,7 +150,7 @@ describe("access and cleanup", () => {
     await joinProject(user.id, "team-b");
     await active(user.id, ["team-b", "default"]);
     expect(await logins.loginAccessByTokenHash(env.DB, "token-hash")).toEqual({
-      id: "l1", user_id: user.id, username: "alice", last_used_at: NOW, granted: ["default", "team-b"],
+      id: "l1", user_id: user.id, username: "alice", device_name: "laptop", last_used_at: NOW, granted: ["default", "team-b"],
     });
     expect(await logins.loginAccessByTokenHash(env.DB, "nope")).toBeNull();
   });

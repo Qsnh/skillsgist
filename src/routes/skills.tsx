@@ -13,7 +13,7 @@ import { messages } from "../i18n";
 import { skillPath } from "../paths";
 import { RENDER_REVISION, renderSkillMd } from "../render/markdown";
 import { IndexPage, SkillPage } from "../views/skills";
-import { serveDownload } from "./download";
+import { serveDownload, sessionDownloader } from "./download";
 
 export const skillsRoutes = new Hono<AppEnv>();
 
@@ -77,7 +77,7 @@ async function download(c: Ctx, project: string, slug: string, versionNumber: nu
   const object = await c.env.BUCKET.get(artifact.r2_key);
   if (!object) return c.notFound();
 
-  return serveDownload(c, object, artifact, artifact.visibility === "public");
+  return serveDownload(c, object, artifact, artifact.visibility === "public", sessionDownloader(user));
 }
 
 skillsRoutes.get("/p/:project/s/:slug/download", (c) =>

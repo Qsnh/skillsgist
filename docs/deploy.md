@@ -49,6 +49,12 @@ To serve the instance on your own domain, open the Worker in the Cloudflare dash
 
 The Free plan allows one rule like this; Pro and above can count over a longer period and block for longer. `skillsgist login` calls the address once per sign-in, so a person signing in stays far below the limit. The rule covers only the custom domain, not the Worker's `workers.dev` address.
 
+## Download log retention
+
+`DOWNLOAD_LOG_RETENTION_DAYS` sets how many days download records are kept. The default is 90; an hourly job deletes anything older. A skill's download count is not affected.
+
+To change it, open the Worker in the Cloudflare dashboard and add it as a Text variable under Settings → Variables and Secrets. Use a positive whole number; any other value falls back to 90. Later deploys keep it.
+
 ## Limits
 
 An upload may be at most 2 MB, unpack to at most 8 MB, and contain at most 200 files. These limits keep each request inside the Workers Free plan's 10 ms CPU budget. On Workers Paid you can raise `MAX_UPLOAD_BYTES`, `MAX_UNPACKED_BYTES` and `MAX_FILES` in `src/skills/normalize.ts`, and `PBKDF2_ITERATIONS` in `src/auth.ts`.
